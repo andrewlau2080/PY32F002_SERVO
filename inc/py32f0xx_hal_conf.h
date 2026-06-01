@@ -14,6 +14,14 @@ extern "C" {
 #define HAL_PWR_MODULE_ENABLED
 #define HAL_CORTEX_MODULE_ENABLED
 
+#ifndef SERVO_ENABLE_TJC_LCDM
+#define SERVO_ENABLE_TJC_LCDM 0
+#endif
+
+#if SERVO_ENABLE_TJC_LCDM
+#define HAL_UART_MODULE_ENABLED
+#endif
+
 #if !defined(HSI_VALUE)
 #define HSI_VALUE              ((uint32_t)8000000)
 #endif
@@ -59,6 +67,9 @@ extern "C" {
 #endif
 #ifdef HAL_TIM_MODULE_ENABLED
 #include "py32f0xx_hal_tim.h"
+#endif
+#ifdef HAL_UART_MODULE_ENABLED
+#include "py32f0xx_hal_uart.h"
 #endif
 #ifdef HAL_PWR_MODULE_ENABLED
 #include "py32f0xx_hal_pwr.h"

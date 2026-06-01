@@ -22,6 +22,7 @@
 | 通讯包处理 | `servo_comm.c/.h` | 固定 | 处理 HELLO、读参数、写参数、读遥测、ACK/NACK | 后续接入 PA4 单线物理层 |
 | 协议文件 | `docs/servo_config_protocol.md` | 固定跟踪 | 定义握手、帧格式、参数包、遥测包 | 上位机和 LCDM 模块按此实现 |
 | 开发板 LCDM | `docs/lcdm_development_interface.md` | 开发/工装使用 | 用串口 HMI 显示遥测、编辑参数、生产写入 | 最终 SOP8 目标板不直接接 LCDM |
+| TJC 屏适配 | `tjc_lcdm.c/.h` | 开发板启用 | USART1 连接陶晶驰串口屏，刷新控件和解析屏幕回包 | `SERVO_ENABLE_TJC_LCDM=1` 时编译启用 |
 
 ## 1. 控制目标
 
@@ -71,6 +72,7 @@
 | 控制 | `src/servo_control.c` | 脉宽到 ADC 映射、死区、比例输出、堵转保护 | 上板后调 `servo_config.h` 参数 |
 | 参数 | `src/servo_params.c` | 默认参数、Flash 读取/校验/保存、KC9806 参数映射 | 后续配置卡协议会调用 `Servo_Params_Save()` |
 | 通讯 | `src/servo_comm.c` | 参数帧、遥测帧、命令处理、CRC16 | PA4 物理收发确定后接入 |
+| TJC LCDM | `src/tjc_lcdm.c` | 陶晶驰串口屏控件赋值、页面刷新、回包解析 | 开发板 USART1，目标 SOP8 默认关闭 |
 | 中断 | `src/app_it.c` | SysTick、EXTI4_15、TIM1 update ISR | 中断优先级：PWM 输入高于马达 PWM |
 | HAL MSP | `src/app_hal_msp.c` | ADC/TIM1 外设时钟和 NVIC | 与 SDK HAL 初始化配合 |
 | 配置 | `inc/servo_config.h` | 所有可调控制参数 | 后续调试主要改此文件 |
@@ -191,6 +193,7 @@
 | 2026-05-31 | 配置通讯协议草案 | 完成 | 独立文件 `docs/servo_config_protocol.md` |
 | 2026-05-31 | 通讯包处理模块 | 完成 | `servo_comm.c/.h`，物理层待接入 |
 | 2026-06-01 | 开发板 LCDM 方案 | 完成草案 | LCDM 不受 SOP8 限制，推荐 USART1 串口 HMI 智能屏 |
+| 2026-06-01 | TJC 陶晶驰串口屏驱动骨架 | 完成 | 默认构建关闭；开发板构建 `SERVO_ENABLE_TJC_LCDM=1`，Flash 14592 B，RAM 1524 B |
 
 ## 10. 关键风险
 

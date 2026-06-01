@@ -11,8 +11,12 @@ SZ := $(PREFIX)size
 CPU := -mcpu=cortex-m0plus
 MCU := $(CPU) -mthumb
 OPT ?= -Os
+SERVO_ENABLE_TJC_LCDM ?= 0
 
 C_DEFS := -DUSE_HAL_DRIVER -DPY32F002Ax5
+ifeq ($(SERVO_ENABLE_TJC_LCDM),1)
+C_DEFS += -DSERVO_ENABLE_TJC_LCDM=1
+endif
 
 C_INCLUDES := \
 	-Iinc \
@@ -29,6 +33,7 @@ C_SOURCES := \
 	src/servo_control.c \
 	src/servo_params.c \
 	src/servo_comm.c \
+	src/tjc_lcdm.c \
 	src/app_hal_msp.c \
 	src/app_it.c \
 	$(PY32_SDK)/Templates/PY32F002xx_Templates/Src/system_py32f0xx.c \
@@ -41,6 +46,11 @@ C_SOURCES := \
 	$(PY32_SDK)/Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_pwr.c \
 	$(PY32_SDK)/Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_flash.c \
 	$(PY32_SDK)/Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_cortex.c
+
+ifeq ($(SERVO_ENABLE_TJC_LCDM),1)
+C_SOURCES += \
+	$(PY32_SDK)/Drivers/PY32F0xx_HAL_Driver/Src/py32f0xx_hal_uart.c
+endif
 
 ASM_SOURCES := \
 	$(PY32_SDK)/Projects/PY32F002A-STK/Example/GPIO/GPIO_Toggle/EIDE/startup_py32f002xx.s

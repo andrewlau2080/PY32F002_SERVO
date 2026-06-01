@@ -8,5 +8,8 @@ void PendSV_Handler(void);
 void SysTick_Handler(void);
 void EXTI4_15_IRQHandler(void);
 void TIM1_BRK_UP_TRG_COM_IRQHandler(void);
+#if SERVO_ENABLE_TJC_LCDM
+void USART1_IRQHandler(void);
+#endif
 
 #endif

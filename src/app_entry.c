@@ -6,6 +6,7 @@
 #include "servo_config.h"
 #include "servo_control.h"
 #include "servo_params.h"
+#include "tjc_lcdm.h"
 
 int entry(void)
 {
@@ -16,6 +17,7 @@ int entry(void)
   ADC_Feedback_Init();
   PWM_Input_Init();
   Servo_Control_Init();
+  TJC_LCDM_Init();
   Board_MotorTimerInit();
 
   uint32_t last_control_ms = HAL_GetTick();
@@ -29,6 +31,8 @@ int entry(void)
       last_control_ms = now_ms;
       Servo_Control_Update1ms();
     }
+
+    TJC_LCDM_Process();
   }
 }
 

@@ -2,6 +2,7 @@
 #include "board.h"
 #include "pwm_input.h"
 #include "py32f0xx_it.h"
+#include "tjc_lcdm.h"
 
 void NMI_Handler(void)
 {
@@ -38,3 +39,10 @@ void TIM1_BRK_UP_TRG_COM_IRQHandler(void)
 {
   HAL_TIM_IRQHandler(&g_motor_timer);
 }
+
+#if SERVO_ENABLE_TJC_LCDM
+void USART1_IRQHandler(void)
+{
+  TJC_LCDM_IRQHandler();
+}
+#endif
