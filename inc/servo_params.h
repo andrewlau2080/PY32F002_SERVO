@@ -12,6 +12,10 @@
 #define SERVO_PARAM_FLAG_LOSE_PPM_ENABLE   (1U << 5)
 #define SERVO_PARAM_FLAG_LOSE_PPM_LOCK     (1U << 6)
 
+#define SERVO_HOLD_MODE_COAST              0U
+#define SERVO_HOLD_MODE_BRAKE              1U
+#define SERVO_HOLD_MODE_BRAKE_THEN_COAST   2U
+
 typedef struct
 {
   uint32_t magic;
@@ -41,6 +45,34 @@ typedef struct
   uint16_t stall_time_ms;
   uint16_t stall_recovery_ms;
   uint16_t input_timeout_ms;
+  uint16_t model_id;
+  uint16_t profile_id;
+  uint16_t startup_delay_ms;
+  uint16_t startup_input_stable_count;
+  uint16_t startup_input_stable_us;
+  uint16_t startup_adc_stable_count;
+  uint16_t startup_adc_stable_band_count;
+  uint16_t startup_step_count;
+  uint16_t adc_sample_count;
+  uint16_t adc_filter_shift;
+  uint16_t adc_jump_limit_count;
+  uint16_t adc_noise_band_count;
+  uint16_t hold_mode;
+  uint16_t hold_exit_band_count;
+  uint16_t hold_brake_time_ms;
+  uint16_t hold_settle_ms;
+  uint16_t close_error_count;
+  uint16_t close_stretcher_q8;
+  uint16_t close_boost_duty;
+  uint16_t approach_error_count;
+  uint16_t approach_stretcher_q8;
+  uint16_t approach_boost_duty;
+  uint16_t reverse_pause_ms;
+  uint16_t reverse_brake_ms;
+  uint16_t vdd_nominal_mv;
+  uint16_t vdd_warn_drop_mv;
+  uint16_t vdd_noise_band_mv;
+  uint16_t vdd_sample_interval_ms;
   uint32_t flags;
   uint32_t crc32;
 } ServoParams;

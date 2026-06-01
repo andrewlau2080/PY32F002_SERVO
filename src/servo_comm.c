@@ -152,6 +152,8 @@ void Servo_Comm_FillTelemetry(ServoTelemetry *telemetry)
   telemetry->adc_center_count = params->adc_center_count;
   telemetry->adc_max_count = params->adc_max_count;
   telemetry->input_age_ms = (input_age > 65535U) ? 65535U : (uint16_t)input_age;
+  telemetry->vrefint_raw = ADC_Feedback_GetVrefintRaw();
+  telemetry->vdd_mv = ADC_Feedback_GetVddMv();
   telemetry->reserved = 0U;
 }
 

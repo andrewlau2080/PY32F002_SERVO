@@ -8,7 +8,7 @@
 
 #define SERVO_COMM_SOF                 0x7EU
 #define SERVO_COMM_VERSION             1U
-#define SERVO_COMM_MAX_PAYLOAD         96U
+#define SERVO_COMM_MAX_PAYLOAD         120U
 #define SERVO_COMM_MAX_FRAME           128U
 
 #define SERVO_COMM_CMD_HELLO           0x01U
@@ -61,6 +61,8 @@ typedef struct
   uint16_t adc_center_count;
   uint16_t adc_max_count;
   uint16_t input_age_ms;
+  uint16_t vrefint_raw;
+  uint16_t vdd_mv;
   uint16_t reserved;
 } ServoTelemetry;
 

@@ -8,5 +8,7 @@ uint16_t ADC_Feedback_ReadRaw(void);
 uint16_t ADC_Feedback_UpdateFiltered(void);
 uint16_t ADC_Feedback_GetRaw(void);
 uint16_t ADC_Feedback_GetFiltered(void);
+uint16_t ADC_Feedback_GetVrefintRaw(void);
+uint16_t ADC_Feedback_GetVddMv(void);
 
 #endif

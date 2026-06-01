@@ -89,12 +89,12 @@
 | `ServoParams` | Flash 参数结构体 | 默认值或最后一页 Flash | 统一保存不同舵机型号的调机参数 |
 | `ServoTelemetry` | 实时状态结构体 | `Servo_Comm_FillTelemetry()` | 上位机/LCDM 读回输入、位置、输出和参数 CRC |
 
-## 5. KC9806 参数映射
+## 5. 可调参数映射
 
-| KC9806 项目 | 本工程字段/标志 | 默认值 | 当前作用 | 上板调试意义 |
+| 调试项目 | 本工程字段/标志 | 默认值 | 当前作用 | 上板调试意义 |
 |---|---|---:|---|---|
 | Dead Band | `deadband_us`、`deadband_count_min` | 2 us / 8 counts | 最小响应变化，换算成 ADC 死区 | 决定 1-3 us 响应与抖动平衡 |
-| Stretcher | `stretcher_q8` | 384 | 误差放大比例，Q8 格式 | 马达/齿轮阻力大时提高，振荡时降低 |
+| Stretcher | `stretcher_q8` | 384 | 大误差区误差放大比例，Q8 格式 | 马达/齿轮阻力大时提高，振荡时降低 |
 | Max.Duty | `max_duty` | 850 | 最大驱动占空比，满量程 1000 | 限制电机力度、电流和冲击 |
 | Boost | `boost_duty` | 160 | 起动补偿占空比 | 克服静摩擦，过大易过冲 |
 | Pulse Lower | `pulse_lower_us` | 900 us | 可识别最小输入脉宽 | 兼容配置器/接收机输入范围 |
@@ -110,6 +110,15 @@
 | Narrow Band | `SERVO_PARAM_FLAG_NARROW_BAND` | 关闭 | 预留窄频模式标志 | 可映射为更窄输入范围或更高灵敏度 |
 | Soft Start | `SERVO_PARAM_FLAG_SOFT_START`、`soft_start_step_count` | 开启 / 8 counts/ms | 上电或目标变化时目标缓慢移动 | 降低上电冲击和齿轮冲击 |
 | Lose PPM Enable + Lock | `LOSE_PPM_ENABLE` + `LOSE_PPM_LOCK` | Lock 开启，Enable 关闭 | 失信号锁原位置；两者都开则回 1500 us | 按产品规格选择失信号行为 |
+| 型号/Profile | `model_id`、`profile_id` | 0 / 0 | 区分金属齿、塑胶齿和客户型号模板 | 避免不同齿轮箱套用同一套参数 |
+| 上电防乱跑 | `startup_delay_ms`、`startup_input_stable_count`、`startup_input_stable_us`、`startup_adc_stable_count`、`startup_adc_stable_band_count` | 200 ms / 5 / 3 us / 5 / 4 counts | 上电后等待输入和反馈稳定才进入闭环 | 解决插电突然跑到端点或跳动 |
+| 上电追目标速度 | `startup_step_count` | 4 counts/ms | 第一次闭环追目标时使用更慢的目标斜坡 | 防止当前位和输入位差很大时冲击 |
+| ADC 抗干扰 | `adc_sample_count`、`adc_filter_shift`、`adc_jump_limit_count`、`adc_noise_band_count` | 4 / 3 / 0 / 4 | 采样平均、IIR、跳变限幅和噪声评估 | 针对 AD 超过约 1V 后抖动的问题 |
+| 电源监测 | `vdd_nominal_mv`、`vdd_warn_drop_mv`、`vdd_noise_band_mv`、`vdd_sample_interval_ms` | 3300 / 250 / 80 / 20 ms | 通过内部 VREFINT 估算 MCU/ADC 供电变化 | 判断 ADC 抖动是否来自 3.3V 跌落、地弹或电机干扰 |
+| 到位保持 | `hold_mode`、`hold_exit_band_count`、`hold_brake_time_ms`、`hold_settle_ms` | 短刹后滑行 / 16 / 8 ms / 20 ms | 到位后用滞回和短刹车降低静态电流 | 解决到位 200-300mA、嗞嗞声、发热 |
+| 近目标控制 | `close_error_count`、`close_stretcher_q8`、`close_boost_duty` | 24 / 192 / 60 | 小误差区低增益低起动补偿 | 减少锁附时正反抖动 |
+| 接近目标控制 | `approach_error_count`、`approach_stretcher_q8`、`approach_boost_duty` | 120 / 320 / 120 | 接近目标区中等增益 | 改善末端慢跨和晃过去 |
+| 反向保护 | `reverse_pause_ms`、`reverse_brake_ms` | 8 ms / 3 ms | 正反切换前短暂停顿/短刹车 | 降低未到位反向时的冲击电流 |
 
 ## 6. 当前默认参数
 
@@ -130,6 +139,21 @@
 | `SERVO_STALL_RECOVERY_MS` | 500 | 堵转恢复等待 | 防止反复冲击 |
 
 说明：上表是编译期保底参数；实际运行优先使用 `ServoParams`。如果最后一页 Flash 没有合法参数或 CRC 错误，程序自动使用默认参数。
+
+## 6A. 参数区 v2 新增调试项
+
+| 历史问题 | 对应参数 | 当前程序是否已接入 | 调试方法 |
+|---|---|---|---|
+| 上电乱跑 | `startup_delay_ms`、`startup_input_stable_count`、`startup_adc_stable_count`、`startup_step_count` | 已接入 | 先把等待和稳定计数调大，确认不上电乱动后再缩短 |
+| AD 抖动 | `adc_sample_count`、`adc_filter_shift`、`adc_jump_limit_count` | 已接入 | 用遥测看 raw/filter ADC，先找硬件噪声，再调滤波 |
+| 3.3V 供电波动 | `vdd_nominal_mv`、`vdd_warn_drop_mv`、`vdd_noise_band_mv`、`vdd_sample_interval_ms` | 已接入遥测 | 同步看 `feedback_adc_raw` 和 `vdd_mv`，区分电位器变化和供电/地线扰动 |
+| 到位电流/嗞嗞声 | `hold_mode`、`hold_exit_band_count`、`hold_brake_time_ms` | 已接入 | 从短刹后滑行开始试，若保持力不足再增加刹车时间 |
+| 锁附正反抖 | `close_error_count`、`close_stretcher_q8`、`close_boost_duty` | 已接入 | 降低小误差区增益和 Boost，避免在齿隙内反复打方向 |
+| 末端慢跨 | `approach_error_count`、`approach_stretcher_q8`、`approach_boost_duty` | 已接入 | 调整接近目标区，让速度下降但不拖尾 |
+| 反向冲击 | `reverse_pause_ms`、`reverse_brake_ms` | 已接入 | 先 8/3 ms 起步，按电流尖峰和速度再调 |
+| 金属齿/塑胶齿差异 | `model_id`、`profile_id` | 参数已预留 | 同一固件按齿轮箱写入不同模板 |
+| ADC 噪声评估 | `adc_noise_band_count` | 预留 | 后续可用于遥测报警或自动放宽死区 |
+| 到位稳定时间 | `hold_settle_ms` | 预留 | 后续可用于更严格的到位判定 |
 
 ## 7. 状态机
 

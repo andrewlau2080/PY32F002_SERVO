@@ -1,6 +1,6 @@
 # PY32F002 舵机参数通讯协议草案
 
-版本：v0.1
+版本：v0.2
 
 目标：PA4 同一根舵机信号线既接收普通 PWM 控制，也作为配置器写入/读取参数和读取硬件状态的半双工通讯线。只有完成双向握手后，舵机才进入配置模式并允许写入参数。
 
@@ -65,7 +65,7 @@
 | 0 | SOF | 1 | 固定 `0x7E` |
 | 1 | Version | 1 | 当前 `0x01` |
 | 2 | Command | 1 | 命令码 |
-| 3 | Length | 1 | Payload 字节数，最大 96 |
+| 3 | Length | 1 | Payload 字节数，最大 120 |
 | 4 | Payload | N | 命令数据 |
 | 4+N | CRC16_L | 1 | CRC16 low byte |
 | 5+N | CRC16_H | 1 | CRC16 high byte |
@@ -114,7 +114,7 @@ CRC16：
 | 字段 | 类型 | 对应调试项 | 说明 |
 |---|---|---|---|
 | `magic` | `uint32_t` | 参数识别 | 固定 `0x53525650` |
-| `version` | `uint16_t` | 参数版本 | 当前 `1` |
+| `version` | `uint16_t` | 参数版本 | 当前 `2` |
 | `size` | `uint16_t` | 长度 | 必须等于结构体长度 |
 | `pulse_lower_us` | `uint16_t` | Pulse Lower | 输入识别下限 |
 | `pulse_center_us` | `uint16_t` | Neutral pulse | 中位脉宽，默认 1500 us |
@@ -140,6 +140,34 @@ CRC16：
 | `stall_time_ms` | `uint16_t` | OL Protect | 堵转持续时间 |
 | `stall_recovery_ms` | `uint16_t` | OL Protect | 堵转恢复等待 |
 | `input_timeout_ms` | `uint16_t` | Lose PPM | 失信号时间 |
+| `model_id` | `uint16_t` | 型号选择 | 区分塑胶齿、金属齿或客户型号 |
+| `profile_id` | `uint16_t` | 参数模板 | 区分快速、标准、安静、高保持力等模板 |
+| `startup_delay_ms` | `uint16_t` | 上电防乱跑 | 上电后先等待电源、PWM、ADC 稳定 |
+| `startup_input_stable_count` | `uint16_t` | 上电防乱跑 | 连续多少个稳定 PWM 样本后允许闭环 |
+| `startup_input_stable_us` | `uint16_t` | 上电防乱跑 | PWM 稳定判定允许的 us 变化 |
+| `startup_adc_stable_count` | `uint16_t` | 上电防乱跑 | 连续多少个稳定 ADC 样本后允许闭环 |
+| `startup_adc_stable_band_count` | `uint16_t` | 上电防乱跑 | ADC 稳定判定允许的 count 变化 |
+| `startup_step_count` | `uint16_t` | 上电软启动 | 第一次追目标时的目标 ADC 步进 |
+| `adc_sample_count` | `uint16_t` | ADC 抗干扰 | 每次反馈读取的平均采样次数 |
+| `adc_filter_shift` | `uint16_t` | ADC 抗干扰 | IIR 滤波强度，越大越稳但越慢 |
+| `adc_jump_limit_count` | `uint16_t` | ADC 抗干扰 | 单次滤波前允许的最大 ADC 跳变，0 为关闭 |
+| `adc_noise_band_count` | `uint16_t` | ADC 抗干扰 | 噪声评估保留项，用于调试显示和后续算法 |
+| `hold_mode` | `uint16_t` | 到位保持 | 0 滑行，1 持续刹车，2 短刹车后滑行 |
+| `hold_exit_band_count` | `uint16_t` | 到位保持 | HOLD 状态退出阈值，形成滞回 |
+| `hold_brake_time_ms` | `uint16_t` | 到位保持 | 短刹车保持时间 |
+| `hold_settle_ms` | `uint16_t` | 到位保持 | 到位稳定时间保留项，用于后续判定 |
+| `close_error_count` | `uint16_t` | 近目标控制 | 小误差区上限 |
+| `close_stretcher_q8` | `uint16_t` | 近目标控制 | 小误差区增益 |
+| `close_boost_duty` | `uint16_t` | 近目标控制 | 小误差区起动补偿 |
+| `approach_error_count` | `uint16_t` | 末端控制 | 接近目标区上限 |
+| `approach_stretcher_q8` | `uint16_t` | 末端控制 | 接近目标区增益 |
+| `approach_boost_duty` | `uint16_t` | 末端控制 | 接近目标区起动补偿 |
+| `reverse_pause_ms` | `uint16_t` | 反向保护 | 正反转切换前暂停时间 |
+| `reverse_brake_ms` | `uint16_t` | 反向保护 | 暂停前段短刹车时间 |
+| `vdd_nominal_mv` | `uint16_t` | 电源监测 | 标称 MCU/ADC 供电电压 |
+| `vdd_warn_drop_mv` | `uint16_t` | 电源监测 | 低于标称多少 mV 视为明显跌落 |
+| `vdd_noise_band_mv` | `uint16_t` | 电源监测 | VDD 抖动评估阈值 |
+| `vdd_sample_interval_ms` | `uint16_t` | 电源监测 | 读取内部 VREFINT 估算 VDD 的间隔 |
 | `flags` | `uint32_t` | 功能选择 | 反向、保护、软启动、失信号等 |
 | `crc32` | `uint32_t` | 参数 CRC | `crc32` 字段按 0 参与计算 |
 
@@ -189,6 +217,8 @@ CRC16：
 | `adc_center_count` | `uint16_t` | 参数层 | 中位校准值 |
 | `adc_max_count` | `uint16_t` | 参数层 | 右端校准值 |
 | `input_age_ms` | `uint16_t` | PWM 输入 | 距离最后有效输入边沿时间 |
+| `vrefint_raw` | `uint16_t` | ADC 内部通道 | 内部 VREFINT 原始 ADC，用于判断 VDD 变化 |
+| `vdd_mv` | `uint16_t` | ADC 内部通道 | 由 VREFINT 估算的 MCU/ADC 供电电压 |
 | `reserved` | `uint16_t` | 预留 | 后续可扩展电压、电流、温度 |
 
 LCDM 或上位机建议显示：
@@ -197,6 +227,7 @@ LCDM 或上位机建议显示：
 |---|---|
 | 输入页 | `input_us`、`input_period_us`、`input_valid` |
 | 位置页 | `target_adc`、`feedback_adc_raw`、`feedback_adc`、`error_adc` |
+| 电源页 | `vrefint_raw`、`vdd_mv`、VDD 跌落/抖动提示 |
 | 输出页 | `motor_duty`、`hbridge_state`、`servo_state` |
 | 参数页 | `params_crc32`、左右中 ADC 校准、Dead Band、Max Duty、Boost |
 
