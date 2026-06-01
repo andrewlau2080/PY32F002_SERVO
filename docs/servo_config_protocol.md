@@ -2,7 +2,7 @@
 
 版本：v0.2
 
-目标：PA4 同一根舵机信号线既接收普通 PWM 控制，也作为配置器写入/读取参数和读取硬件状态的半双工通讯线。只有完成双向握手后，舵机才进入配置模式并允许写入参数。
+目标：同一套 `ServoParams`、`ServoTelemetry` 和 `ServoComm` 帧格式同时服务三种场景：PA4 单线配置器、开发板 LCDM 调试界面、生产写参数工装。最终 SOP8 目标板不需要直接驱动 LCDM；LCDM 属于开发板/工装前端。
 
 ## 1. 设计原则
 
@@ -16,7 +16,31 @@
 | 遥测可读 | 配置器可随时读取 `ServoTelemetry` | 上位机或 LCDM 模块可以直观看到舵机状态 |
 | 参数带 CRC | `ServoParams` 自带 CRC32，通讯帧再带 CRC16 | 区分参数存储错误和通讯错误 |
 
+## 1A. 开发板 LCDM 模式
+
+开发板和最终目标板不共用 PCB，因此 LCDM 不受 SOP8 IO 限制。开发板可用 USART1 连接串口 HMI 智能屏，目标板仍只保留舵机控制和参数页。
+
+| 项目 | 定义 |
+|---|---|
+| LCDM 物理接口 | USART1，建议 115200 bps 或 57600 bps，8N1 |
+| LCDM 类型 | UART HMI 智能屏，屏幕端负责页面、条形图、触摸按钮 |
+| PY32 任务 | 发送遥测变量，接收参数修改命令，不直接绘制像素 |
+| 协议 | 复用本文第 4 节帧格式和第 5 节命令表 |
+| 最终目标板 | 不接 LCDM；生产时写入已调好的 `ServoParams` |
+
+开发板 LCDM 和 PA4 单线配置可以共用上层包处理函数 `Servo_Comm_HandleFrame()`，只是在底层收发不同：
+
+| 前端 | 底层收发 | 上层处理 |
+|---|---|---|
+| PA4 单线配置器 | 单线半双工，Break + Sync 后进入配置 | `ServoComm` |
+| 开发板 LCDM | USART1 全双工或半双工串口 | `ServoComm` |
+| PC 生产工装 | USB-UART 或 SWD 辅助下载 | `ServoComm` 或直接写参数页 |
+
+LCDM 页面规划和选型见 `docs/lcdm_development_interface.md`。
+
 ## 2. 物理层
+
+本节主要描述最终舵机 3PIN 信号线上的 PA4 单线配置方式。开发板 LCDM 模式可以直接使用 USART1，不必占用 PA4，也不受 SOP8 目标板 IO 限制。
 
 | 项目 | 定义 |
 |---|---|
