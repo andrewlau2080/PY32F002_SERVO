@@ -1,0 +1,12 @@
+.DS_Store
+build/
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.tmp
+*.log
+~$*
