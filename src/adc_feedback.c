@@ -99,7 +99,7 @@ void ADC_Feedback_Init(void)
   s_adc.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   s_adc.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   s_adc.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-  s_adc.Init.SamplingTimeCommon = ADC_SAMPLETIME_239CYCLES_5;
+  s_adc.Init.SamplingTimeCommon = ADC_SAMPLETIME_41CYCLES_5;
 
   if (HAL_ADC_Init(&s_adc) != HAL_OK)
   {
@@ -124,6 +124,8 @@ uint16_t ADC_Feedback_ReadRaw(void)
   const ServoParams *params = Servo_Params_Get();
   uint32_t sum = 0U;
   uint16_t sample_count = params->adc_sample_count;
+  uint16_t min_sample = 0xFFFFU;
+  uint16_t max_sample = 0U;
 
   if (sample_count == 0U)
   {
@@ -135,13 +137,38 @@ uint16_t ADC_Feedback_ReadRaw(void)
   }
 
   select_channel(BOARD_POT_ADC_CHANNEL);
-  /* 多次采样取平均，采样次数由参数区决定，便于按电位器噪声单独调试。 */
+  /*
+   * 多次采样去掉最大/最小值后平均，降低 H 桥开关尖峰和马达刷火噪声
+   * 对电位器反馈的影响。采样次数仍由参数区决定，便于现场继续调试。
+   */
   for (uint32_t i = 0; i < sample_count; i++)
   {
-    sum += read_selected_channel_once();
+    uint16_t sample = read_selected_channel_once();
+    if (sample < min_sample)
+    {
+      min_sample = sample;
+    }
+    if (sample > max_sample)
+    {
+      max_sample = sample;
+    }
+    sum += sample;
+  }
+
+  if (sample_count >= 4U)
+  {
+    sum -= min_sample;
+    sum -= max_sample;
+    sample_count = (uint16_t)(sample_count - 2U);
   }
 
   s_last_raw = (uint16_t)(sum / sample_count);
+  return s_last_raw;
+}
+
+uint16_t ADC_Feedback_ReadFastRaw(void)
+{
+  s_last_raw = read_selected_channel_once();
   return s_last_raw;
 }
 

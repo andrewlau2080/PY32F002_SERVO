@@ -3,8 +3,10 @@
 #include "py32f0xx_hal.h"
 
 #define SERVO_PARAMS_MAGIC       0x53525650UL
-#define SERVO_PARAMS_VERSION     2U
+#define SERVO_PARAMS_VERSION     3U
 #define SERVO_PARAMS_FLASH_ADDR  (FLASH_BASE + FLASH_SIZE - FLASH_PAGE_SIZE)
+
+_Static_assert(sizeof(ServoParams) <= FLASH_PAGE_SIZE, "ServoParams must fit in one flash page");
 
 static ServoParams s_params;
 
@@ -105,6 +107,10 @@ void Servo_Params_GetDefaults(ServoParams *params)
   params->vdd_warn_drop_mv = 250U;
   params->vdd_noise_band_mv = 80U;
   params->vdd_sample_interval_ms = 20U;
+  params->servo_angle_deg = 180U;
+  params->pot_angle_deg = 220U;
+  params->lock_gain_q8 = 256U;
+  params->counter_emf_gain_q8 = 256U;
   params->flags = SERVO_PARAM_FLAG_OL_PROTECT |
                   SERVO_PARAM_FLAG_SOFT_START |
                   SERVO_PARAM_FLAG_LOSE_PPM_LOCK;
@@ -164,7 +170,13 @@ bool Servo_Params_Validate(const ServoParams *params)
       (params->vdd_nominal_mv < 1800U) ||
       (params->vdd_nominal_mv > 5500U) ||
       (params->vdd_warn_drop_mv > 2000U) ||
-      (params->vdd_noise_band_mv > 1000U))
+      (params->vdd_noise_band_mv > 1000U) ||
+      (params->servo_angle_deg == 0U) ||
+      (params->servo_angle_deg > 360U) ||
+      (params->pot_angle_deg == 0U) ||
+      (params->pot_angle_deg > 360U) ||
+      (params->lock_gain_q8 > 2048U) ||
+      (params->counter_emf_gain_q8 > 2048U))
   {
     return false;
   }

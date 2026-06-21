@@ -2,6 +2,10 @@
 #include "board.h"
 #include "servo_config.h"
 
+#ifndef SERVO_HBRIDGE_FORCE_HIZ
+#define SERVO_HBRIDGE_FORCE_HIZ 0
+#endif
+
 static volatile int16_t s_duty;
 static volatile HBridgeState s_state = HBRIDGE_COAST;
 static volatile uint16_t s_pwm_phase_us;
@@ -13,10 +17,25 @@ static void write_outputs(GPIO_PinState in1,
                           GPIO_PinState in3,
                           GPIO_PinState in4)
 {
+#if SERVO_HBRIDGE_FORCE_HIZ
+  (void)in1;
+  (void)in2;
+  (void)in3;
+  (void)in4;
+#else
   HAL_GPIO_WritePin(BOARD_HB_IN1_PORT, BOARD_HB_IN1_PIN, in1);
   HAL_GPIO_WritePin(BOARD_HB_IN2_PORT, BOARD_HB_IN2_PIN, in2);
+#if BOARD_HB_IN3_ENABLE
   HAL_GPIO_WritePin(BOARD_HB_IN3_PORT, BOARD_HB_IN3_PIN, in3);
+#else
+  (void)in3;
+#endif
+#if BOARD_HB_IN4_ENABLE
   HAL_GPIO_WritePin(BOARD_HB_IN4_PORT, BOARD_HB_IN4_PIN, in4);
+#else
+  (void)in4;
+#endif
+#endif
 }
 
 static void apply_coast(void)
@@ -25,37 +44,91 @@ static void apply_coast(void)
   write_outputs(GPIO_PIN_RESET, GPIO_PIN_RESET, GPIO_PIN_RESET, GPIO_PIN_RESET);
 }
 
-static void apply_brake(void)
-{
-  /* 刹车：当前按低边短接的假设处理，上板后需按实际 H 桥确认。 */
-  write_outputs(GPIO_PIN_RESET, GPIO_PIN_SET, GPIO_PIN_RESET, GPIO_PIN_SET);
-}
-
 static void apply_forward(void)
 {
-  write_outputs(GPIO_PIN_SET, GPIO_PIN_RESET, GPIO_PIN_RESET, GPIO_PIN_SET);
+  /* Schematic mapping is crossed: CP2 drives left high side, CP1 drives right high side. */
+  write_outputs(GPIO_PIN_RESET, GPIO_PIN_RESET, GPIO_PIN_SET, GPIO_PIN_SET);
 }
 
 static void apply_reverse(void)
 {
-  write_outputs(GPIO_PIN_RESET, GPIO_PIN_SET, GPIO_PIN_SET, GPIO_PIN_RESET);
+  write_outputs(GPIO_PIN_SET, GPIO_PIN_SET, GPIO_PIN_RESET, GPIO_PIN_RESET);
+}
+
+static void enable_gpio_clock(GPIO_TypeDef *port)
+{
+  if (port == GPIOA)
+  {
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+  }
+#ifdef GPIOB
+  else if (port == GPIOB)
+  {
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+  }
+#endif
+#ifdef GPIOF
+  else if (port == GPIOF)
+  {
+    __HAL_RCC_GPIOF_CLK_ENABLE();
+  }
+#endif
+}
+
+static void init_output_pin(GPIO_TypeDef *port, uint16_t pin)
+{
+  GPIO_InitTypeDef gpio = {0};
+
+  enable_gpio_clock(port);
+
+  gpio.Pin = pin;
+  gpio.Mode = GPIO_MODE_OUTPUT_PP;
+  gpio.Pull = GPIO_PULLDOWN;
+  gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(port, &gpio);
 }
 
 void HBridge_Init(void)
 {
+#if SERVO_HBRIDGE_FORCE_HIZ
   GPIO_InitTypeDef gpio = {0};
+  gpio.Mode = GPIO_MODE_ANALOG;
+  gpio.Pull = GPIO_NOPULL;
 
+  enable_gpio_clock(BOARD_HB_IN1_PORT);
+  gpio.Pin = BOARD_HB_IN1_PIN;
+  HAL_GPIO_Init(BOARD_HB_IN1_PORT, &gpio);
+  enable_gpio_clock(BOARD_HB_IN2_PORT);
+  gpio.Pin = BOARD_HB_IN2_PIN;
+  HAL_GPIO_Init(BOARD_HB_IN2_PORT, &gpio);
+#if BOARD_HB_IN3_ENABLE
+  enable_gpio_clock(BOARD_HB_IN3_PORT);
+  gpio.Pin = BOARD_HB_IN3_PIN;
+  HAL_GPIO_Init(BOARD_HB_IN3_PORT, &gpio);
+#endif
+#if BOARD_HB_IN4_ENABLE
+  enable_gpio_clock(BOARD_HB_IN4_PORT);
+  gpio.Pin = BOARD_HB_IN4_PIN;
+  HAL_GPIO_Init(BOARD_HB_IN4_PORT, &gpio);
+#endif
+  __disable_irq();
+  s_duty = 0;
+  s_state = HBRIDGE_COAST;
+  s_pwm_phase_us = 0U;
+  __enable_irq();
+#else
   /* H 桥相关 IO 上电后立即配置为下拉输出，并进入滑行安全状态。 */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-
-  gpio.Mode = GPIO_MODE_OUTPUT_PP;
-  gpio.Pull = GPIO_PULLDOWN;
-  gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-
-  gpio.Pin = BOARD_HB_IN1_PIN | BOARD_HB_IN2_PIN | BOARD_HB_IN3_PIN | BOARD_HB_IN4_PIN;
-  HAL_GPIO_Init(GPIOA, &gpio);
+  init_output_pin(BOARD_HB_IN1_PORT, BOARD_HB_IN1_PIN);
+  init_output_pin(BOARD_HB_IN2_PORT, BOARD_HB_IN2_PIN);
+#if BOARD_HB_IN3_ENABLE
+  init_output_pin(BOARD_HB_IN3_PORT, BOARD_HB_IN3_PIN);
+#endif
+#if BOARD_HB_IN4_ENABLE
+  init_output_pin(BOARD_HB_IN4_PORT, BOARD_HB_IN4_PIN);
+#endif
 
   HBridge_Coast();
+#endif
 }
 
 void HBridge_SetFrequency(uint16_t frequency_hz)
@@ -88,6 +161,15 @@ void HBridge_SetFrequency(uint16_t frequency_hz)
 
 void HBridge_SetSignedDuty(int16_t duty)
 {
+#if SERVO_HBRIDGE_FORCE_HIZ
+  (void)duty;
+  __disable_irq();
+  s_duty = 0;
+  s_state = HBRIDGE_COAST;
+  s_pwm_phase_us = 0U;
+  __enable_irq();
+  return;
+#else
   /* duty 正负代表方向，绝对值代表占空比，范围 0-1000。 */
   if (duty > HBRIDGE_DUTY_MAX)
   {
@@ -113,6 +195,7 @@ void HBridge_SetSignedDuty(int16_t duty)
     s_state = HBRIDGE_COAST;
   }
   __enable_irq();
+#endif
 }
 
 void HBridge_Coast(void)
@@ -122,21 +205,21 @@ void HBridge_Coast(void)
   s_state = HBRIDGE_COAST;
   s_pwm_phase_us = 0U;
   __enable_irq();
+#if !SERVO_HBRIDGE_FORCE_HIZ
   apply_coast();
+#endif
 }
 
 void HBridge_Brake(void)
 {
-  __disable_irq();
-  s_duty = 0;
-  s_state = HBRIDGE_BRAKE;
-  s_pwm_phase_us = 0U;
-  __enable_irq();
-  apply_brake();
+  HBridge_Coast();
 }
 
 void HBridge_TickISR(void)
 {
+#if SERVO_HBRIDGE_FORCE_HIZ
+  return;
+#else
   /* TIM1 每 20us 进入一次，用软件 PWM 方式驱动 H 桥。 */
   int16_t duty = s_duty;
   HBridgeState state = s_state;
@@ -146,12 +229,6 @@ void HBridge_TickISR(void)
   if (s_pwm_phase_us >= period_us)
   {
     s_pwm_phase_us = 0U;
-  }
-
-  if (state == HBRIDGE_BRAKE)
-  {
-    apply_brake();
-    return;
   }
 
   if ((state == HBRIDGE_COAST) || (duty == 0))
@@ -175,6 +252,7 @@ void HBridge_TickISR(void)
   {
     apply_reverse();
   }
+#endif
 }
 
 int16_t HBridge_GetDuty(void)

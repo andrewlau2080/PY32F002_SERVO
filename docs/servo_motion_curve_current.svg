@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="640" viewBox="0 0 980 640">
+  <rect width="980" height="640" fill="#ffffff"/>
+  <text x="36" y="36" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111827">Servo Motion Curve - Current Debug Version</text>
+  <text x="36" y="62" font-family="Arial, sans-serif" font-size="14" fill="#374151">E = abs ADC error, V = ADC velocity toward target, output = H-bridge command region</text>
+
+  <rect x="74" y="96" width="820" height="380" fill="#f9fafb" stroke="#111827" stroke-width="1"/>
+  <line x1="74" y1="476" x2="894" y2="476" stroke="#111827" stroke-width="2"/>
+  <line x1="74" y1="96" x2="74" y2="476" stroke="#111827" stroke-width="2"/>
+
+  <g font-family="Arial, sans-serif" font-size="12" fill="#374151">
+    <text x="66" y="496">0</text>
+    <text x="154" y="496">100</text>
+    <text x="254" y="496">200</text>
+    <text x="354" y="496">300</text>
+    <text x="454" y="496">400</text>
+    <text x="554" y="496">500</text>
+    <text x="654" y="496">600</text>
+    <text x="754" y="496">700</text>
+    <text x="854" y="496">820</text>
+    <text x="398" y="528" font-size="14">E: remaining ADC error count</text>
+  </g>
+
+  <g stroke="#d1d5db" stroke-width="1">
+    <line x1="174" y1="96" x2="174" y2="476"/>
+    <line x1="274" y1="96" x2="274" y2="476"/>
+    <line x1="374" y1="96" x2="374" y2="476"/>
+    <line x1="474" y1="96" x2="474" y2="476"/>
+    <line x1="574" y1="96" x2="574" y2="476"/>
+    <line x1="674" y1="96" x2="674" y2="476"/>
+    <line x1="774" y1="96" x2="774" y2="476"/>
+  </g>
+
+  <rect x="74" y="96" width="18" height="380" fill="#bbf7d0" opacity="0.95"/>
+  <text x="82" y="116" font-family="Arial, sans-serif" font-size="12" fill="#065f46" transform="rotate(90 82 116)">HOLD band E&lt;=18</text>
+
+  <rect x="74" y="246" width="136" height="50" fill="#bfdbfe" opacity="0.95"/>
+  <text x="88" y="276" font-family="Arial, sans-serif" font-size="13" fill="#1e3a8a">Brake-only, V=4: E&lt;=136</text>
+
+  <rect x="74" y="176" width="200" height="50" fill="#93c5fd" opacity="0.95"/>
+  <text x="88" y="206" font-family="Arial, sans-serif" font-size="13" fill="#1e3a8a">Brake-only, V=8: E&lt;=200</text>
+
+  <rect x="210" y="246" width="88" height="50" fill="#fecaca" opacity="0.95"/>
+  <text x="220" y="276" font-family="Arial, sans-serif" font-size="13" fill="#7f1d1d">Rev brake V=4 zone</text>
+
+  <rect x="274" y="176" width="78" height="50" fill="#fca5a5" opacity="0.95"/>
+  <text x="282" y="206" font-family="Arial, sans-serif" font-size="13" fill="#7f1d1d">Rev brake V=8</text>
+
+  <path d="M74 446 L174 406 L274 366 L374 326 L474 286 L574 246 L674 206 L774 166 L894 118" fill="none" stroke="#2563eb" stroke-width="4"/>
+  <text x="612" y="152" font-family="Arial, sans-serif" font-size="14" fill="#1d4ed8">Forward drive duty = 80 + 920*E/820</text>
+
+  <line x1="435" y1="96" x2="435" y2="476" stroke="#ef4444" stroke-width="3" stroke-dasharray="8 6"/>
+  <text x="444" y="118" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#b91c1c">Measured O=361</text>
+  <text x="444" y="139" font-family="Arial, sans-serif" font-size="13" fill="#7f1d1d">Latest feedback: regression/no clear improvement</text>
+
+  <rect x="74" y="314" width="360" height="38" fill="#fee2e2" opacity="0.9" stroke="#dc2626" stroke-width="2"/>
+  <text x="88" y="339" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#b91c1c">NEW: E&lt;=360 and moving toward target = BRAKE, no drive/reverse</text>
+  <text x="88" y="366" font-family="Arial, sans-serif" font-size="13" fill="#b91c1c">NEW2: after entering Brake, hold Brake for 8 control cycles; do not re-drive immediately.</text>
+
+  <g font-family="Arial, sans-serif" font-size="14">
+    <rect x="74" y="548" width="18" height="18" fill="#bbf7d0"/><text x="100" y="562" fill="#111827">HOLD / direct stop</text>
+    <rect x="254" y="548" width="18" height="18" fill="#93c5fd"/><text x="280" y="562" fill="#111827">Brake-only zone, no reverse drive</text>
+    <rect x="514" y="548" width="18" height="18" fill="#fca5a5"/><text x="540" y="562" fill="#111827">Reverse brake zone</text>
+    <line x1="734" y1="557" x2="780" y2="557" stroke="#2563eb" stroke-width="4"/><text x="790" y="562" fill="#111827">Forward drive curve</text>
+  </g>
+
+  <text x="36" y="612" font-family="Arial, sans-serif" font-size="13" fill="#b91c1c">Red change: expand near-target Brake zone to E&lt;=360 and keep motion Brake before HOLD. Goal: stop left-right hunting first, then recover accuracy.</text>
+</svg>

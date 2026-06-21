@@ -1,19 +1,19 @@
-# LCDM 开发板调试界面方案
+# LCDM TSSOP20 调试工具方案
 
 版本：v0.1
 
-目标：开发和生产共用同一套舵机控制程序、参数结构和通讯协议。开发板可以带 LCDM 做显示和调参；最终 SOP8 目标板不需要直接驱动 LCDM，只保留固定控制程序和 Flash 参数页。
+目标：开发和生产共用同一套舵机控制程序、参数结构和通讯协议。TSSOP20 调试板可以带 LCDM 做显示和调参；最终 SOP8 目标板不直接驱动 LCDM，只保留固定控制程序和 Flash 参数页。
 
 ## 1. 结论
 
 | 项目 | 结论 |
 |---|---|
-| LCDM 是否受 SOP8 IO 限制 | 不受限制。LCDM 属于开发板/调试工装，最终目标板不直接接屏 |
+| LCDM 是否受 SOP8 IO 限制 | 不受限制。LCDM 属于 TSSOP20 调试工具板/工装，最终目标板不直接接屏 |
 | PY32F002A 是否有通讯外设 | 有。已在本地 OpenPuya SDK 头文件和示例中核到 USART1、SPI1、I2C1 |
 | 首选 LCDM 类型 | 串口 HMI 智能屏，UART TTL 接口 |
 | 不首选方案 | 裸 SPI TFT 或 I2C OLED 直接由 PY32 绘图 |
 | 容量风险 | 低。当前固件约 8.35KB Flash、1.37KB RAM；增加 UART HMI 映射层通常仍可接受 |
-| 最终生产方式 | 固定程序保持一致，量产时只写入或更新调好的 `ServoParams` 参数页 |
+| 最终生产方式 | TSSOP20 调试板先调参数，量产时通过 SOP8 的 PA4/PWM 输入口写入或更新 `ServoParams` 参数页 |
 
 首选串口 HMI 的原因：条形图、页面、触摸按钮、数字显示都由 LCDM 自己处理，PY32 只发送变量和接收按键/数值修改。这样不会把小 MCU 的 Flash/RAM 消耗在字体、图形库和菜单绘制上。
 
@@ -27,7 +27,7 @@
 | `SPI1` | `py32f002ax5.h` 定义 `SPI1_IRQn`、`SPI1_BASE`、`SPI1`，HAL 示例使用 SPI1 | 可用 | 适合裸 TFT，但 MCU 需要承担绘图和字库 |
 | `I2C1` | `py32f002ax5.h` 定义 `I2C1_IRQn`、`I2C1`，HAL 示例使用 PA2 SDA、PA3 SCL | 可用 | 适合小 OLED 或传感器，不适合大量实时图形 |
 
-开发板如果采用更多引脚的 PY32F002A 封装或转接板，可以把 USART1/SPI1/I2C1 引出。最终 SOP8 板不接 LCDM，因此不需要为 LCDM 牺牲目标板 IO。
+TSSOP20 调试板可以把 USART1/SPI1/I2C1 引出。最终 SOP8 板不接 LCDM，因此不需要为 LCDM 牺牲目标板 IO。
 
 ## 3. LCDM 选型建议
 
@@ -43,33 +43,45 @@
 
 ## 4. 推荐系统架构
 
-| 层级 | 开发板 | 最终目标板 |
+| 层级 | TSSOP20 调试工具板 | SOP8 最终目标板 |
 |---|---|---|
 | 固定控制程序 | 同一套闭环控制、ADC、H 桥、保护、参数校验 | 同一套闭环控制、ADC、H 桥、保护、参数校验 |
-| 参数结构 | `ServoParams` v2 | `ServoParams` v2 |
+| 参数结构 | `ServoParams` v3 | `ServoParams` v3 |
 | 遥测结构 | `ServoTelemetry` | 可通过生产/售后工具读取，不接 LCDM |
-| LCDM UART | 启用 | 不接或禁用 |
-| 生产写入 | 调试完成后保存参数模板 | 写入最终参数页 |
+| LCDM UART | 启用，用于调参和显示遥测 | 不接或禁用 |
+| 参数写入 | 调试完成后保存参数模板 | 通过 PA4/PWM 输入口写入最终参数页 |
 
 推荐做法：
 
 | 项目 | 做法 |
 |---|---|
 | 固件共用 | 固件保留 `ServoParams`、`ServoTelemetry`、`ServoComm` 三个稳定接口 |
-| 开发板屏显 | LCDM 通过 UART 周期读取遥测，按页面显示 |
-| 开发板调参 | LCDM 修改参数后，按完整 `ServoParams` 写入，再读回校验 CRC |
-| 目标板生产 | 目标板只需要固定固件和已验证参数；LCDM 不参与运行 |
+| TSSOP20 屏显 | LCDM 通过 UART 周期读取遥测，按页面显示 |
+| TSSOP20 调参 | LCDM 修改参数后，按完整 `ServoParams` 写入，再读回校验 CRC |
+| SOP8 目标板生产 | 目标板只需要固定固件和已验证参数；LCDM 不参与运行 |
+| SOP8 参数更新 | 通过 PA4 单线配置协议写入，写后读回 CRC |
 | 防误写 | 写参数必须有确认键、CRC 校验、读回比对 |
 
-## 5. 开发板接口建议
+## 5. TSSOP20 工具板接口建议
+
+完整 IO 接线表见 `docs/io_connection_table.md`。
 
 | 信号 | 建议 |
 |---|---|
-| LCDM 通讯 | USART1，115200 bps 或 57600 bps，8N1 |
+| LCDM 通讯 | USART1，115200 bps 或 57600 bps，8N1；默认 PA2/PA3，TSSOP20 临时调试可改用 PA7/PB2 |
 | LCDM 供电 | 屏幕按模块要求供电，串口电平必须与 PY32 兼容 |
-| 调试下载 | SWD 测试点保留，开发板可同时接 CMSIS-DAP/J-Link |
-| 舵机输入模拟 | 开发板保留 PWM 输入发生器或外部接收机输入 |
-| ADC/VDD 观察 | 开发板留出示波器测试点：电位器 ADC、3.3V、马达电源、地 |
+| 调试下载 | SWD 测试点保留，TSSOP20 工具板可同时接 CMSIS-DAP/J-Link |
+| 舵机输入模拟 | TSSOP20 工具板保留 PWM 输入发生器或外部接收机输入 |
+| ADC/VDD 观察 | TSSOP20 工具板留出示波器测试点：电位器 ADC、3.3V、马达电源、地 |
+
+TSSOP20 方便接线方案：
+
+| 功能 | 建议引脚 | 说明 |
+|---|---|---|
+| LCDM RX 接 MCU TX | `PA7 / USART1_TX` | 避开 PA2 H 桥控制 |
+| LCDM TX 接 MCU RX | `PB2 / USART1_RX` | 避开 PA3 ADC |
+| 左上臂 `CP2 / CPG1` | `PA6` | 临时代替最终 SOP8 `PA13` |
+| 右下臂 `NG2` | `PB0` | 临时代替最终 SOP8 `PA14`；`PB0` 不接 LCDM 串口 |
 
 如果 LCDM 是独立智能屏，PY32 不需要发送像素数据，只需要发送如下变量：当前脉宽、目标 ADC、反馈 ADC、误差、电机占空比、状态、VDD、参数 CRC、各参数值。
 
@@ -133,7 +145,7 @@ LCDM 中应至少显示三条水平条：
 
 | 模块 | 作用 | 备注 |
 |---|---|---|
-| `lcdm_interface.c/.h` | 开发板 UART HMI 适配层 | 只在 `SERVO_ENABLE_LCDM_UART` 打开时编译 |
+| `lcdm_interface.c/.h` | TSSOP20 UART HMI 适配层 | 只在 `SERVO_ENABLE_LCDM_UART` 打开时编译 |
 | `tjc_lcdm.c/.h` | TJC 陶晶驰串口屏适配层 | 只在 `SERVO_ENABLE_TJC_LCDM=1` 打开时启用 |
 | `ServoComm` | 通用包处理 | 继续作为唯一参数/遥测协议 |
 | `ServoParams` | 参数存储 | 不为 LCDM 增加第二份参数表 |
@@ -157,7 +169,7 @@ LCDM 中应至少显示三条水平条：
 | 自动校准 | 增加按键流程：左端采样、中位采样、右端采样、保存 |
 | 自动诊断 | 记录 ADC 抖动、VDD 跌落、堵转次数，用颜色提示问题来源 |
 | 生产工装 | 一键写入型号参数、读回 CRC、显示 PASS/FAIL |
-| 数据导出 | 开发板可把遥测转发到 PC，保存 CSV 供后续分析 |
+| 数据导出 | TSSOP20 工具板可把遥测转发到 PC，保存 CSV 供后续分析 |
 | 售后维护 | 保留只读诊断页，避免普通用户误改关键参数 |
 
 ## 11. 当前建议落地顺序
@@ -165,7 +177,7 @@ LCDM 中应至少显示三条水平条：
 | 顺序 | 工作 | 目的 |
 |---:|---|---|
 | 1 | 确认 LCDM 选 UART HMI 智能屏 | 降低 MCU 图形负担 |
-| 2 | 设计开发板：USART1、SWD、ADC/VDD 测试点、PWM 输入/输出测试点 | 让调试可观察 |
+| 2 | 设计 TSSOP20 工具板：USART1、SWD、ADC/VDD 测试点、PWM 输入/输出测试点 | 让调试可观察 |
 | 3 | 增加 `SERVO_ENABLE_LCDM_UART` 编译开关和 UART 收发适配层 | 不影响目标板固件主体 |
 | 4 | 做 LCDM 首页、位置图示页、参数页 | 覆盖核心调试 |
 | 5 | 增加生产页面：写参数、读回、CRC、PASS/FAIL | 连接量产 |

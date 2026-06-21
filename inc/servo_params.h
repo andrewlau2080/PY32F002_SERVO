@@ -11,6 +11,8 @@
 #define SERVO_PARAM_FLAG_SOFT_START        (1U << 4)
 #define SERVO_PARAM_FLAG_LOSE_PPM_ENABLE   (1U << 5)
 #define SERVO_PARAM_FLAG_LOSE_PPM_LOCK     (1U << 6)
+#define SERVO_PARAM_FLAG_POT_REVERSE       (1U << 7)
+#define SERVO_PARAM_FLAG_MOTOR_REVERSE     (1U << 8)
 
 #define SERVO_HOLD_MODE_COAST              0U
 #define SERVO_HOLD_MODE_BRAKE              1U
@@ -73,6 +75,10 @@ typedef struct
   uint16_t vdd_warn_drop_mv;
   uint16_t vdd_noise_band_mv;
   uint16_t vdd_sample_interval_ms;
+  uint16_t servo_angle_deg;
+  uint16_t pot_angle_deg;
+  uint16_t lock_gain_q8;
+  uint16_t counter_emf_gain_q8;
   uint32_t flags;
   uint32_t crc32;
 } ServoParams;

@@ -9,4 +9,6 @@ build/
 *.lst
 *.tmp
 *.log
+__pycache__/
+*.pyc
 ~$*

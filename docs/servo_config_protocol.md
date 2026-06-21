@@ -2,7 +2,7 @@
 
 版本：v0.2
 
-目标：同一套 `ServoParams`、`ServoTelemetry` 和 `ServoComm` 帧格式同时服务三种场景：PA4 单线配置器、开发板 LCDM 调试界面、生产写参数工装。最终 SOP8 目标板不需要直接驱动 LCDM；LCDM 属于开发板/工装前端。
+目标：同一套 `ServoParams`、`ServoTelemetry` 和 `ServoComm` 帧格式同时服务三种场景：PA4 单线配置器、TSSOP20 LCDM 调试界面、生产写参数工装。最终 SOP8 目标板不需要直接驱动 LCDM；LCDM 属于 TSSOP20 调试工具板/工装前端。
 
 ## 1. 设计原则
 
@@ -16,9 +16,9 @@
 | 遥测可读 | 配置器可随时读取 `ServoTelemetry` | 上位机或 LCDM 模块可以直观看到舵机状态 |
 | 参数带 CRC | `ServoParams` 自带 CRC32，通讯帧再带 CRC16 | 区分参数存储错误和通讯错误 |
 
-## 1A. 开发板 LCDM 模式
+## 1A. TSSOP20 LCDM 调试工具模式
 
-开发板和最终目标板不共用 PCB，因此 LCDM 不受 SOP8 IO 限制。开发板可用 USART1 连接串口 HMI 智能屏，目标板仍只保留舵机控制和参数页。
+TSSOP20 调试板和最终 SOP8 目标板不共用 PCB，因此 LCDM 不受 SOP8 IO 限制。TSSOP20 调试板可用 USART1 连接串口 HMI 智能屏，目标 SOP8 板仍只保留舵机控制和参数页。
 
 | 项目 | 定义 |
 |---|---|
@@ -26,25 +26,27 @@
 | LCDM 类型 | UART HMI 智能屏，屏幕端负责页面、条形图、触摸按钮 |
 | PY32 任务 | 发送遥测变量，接收参数修改命令，不直接绘制像素 |
 | 协议 | 复用本文第 4 节帧格式和第 5 节命令表 |
-| 最终目标板 | 不接 LCDM；生产时写入已调好的 `ServoParams` |
+| 最终目标板 | 不接 LCDM；通过 PA4/PWM 输入口写入已调好的 `ServoParams` |
 
-开发板 LCDM 和 PA4 单线配置可以共用上层包处理函数 `Servo_Comm_HandleFrame()`，只是在底层收发不同：
+TSSOP20 LCDM 和 PA4 单线配置可以共用上层包处理函数 `Servo_Comm_HandleFrame()`，只是在底层收发不同：
 
 | 前端 | 底层收发 | 上层处理 |
 |---|---|---|
 | PA4 单线配置器 | 单线半双工，Break + Sync 后进入配置 | `ServoComm` |
-| 开发板 LCDM | USART1 全双工或半双工串口 | `ServoComm` |
+| TSSOP20 LCDM | USART1 全双工或半双工串口 | `ServoComm` |
 | PC 生产工装 | USB-UART 或 SWD 辅助下载 | `ServoComm` 或直接写参数页 |
 
-LCDM 页面规划和选型见 `docs/lcdm_development_interface.md`。
+LCDM 页面规划和选型见 `docs/lcdm_development_interface.md`，完整接线见 `docs/io_connection_table.md`。
 
 ## 2. 物理层
 
-本节主要描述最终舵机 3PIN 信号线上的 PA4 单线配置方式。开发板 LCDM 模式可以直接使用 USART1，不必占用 PA4，也不受 SOP8 目标板 IO 限制。
+本节主要描述最终舵机 3PIN 信号线上的 PA4 单线配置方式。TSSOP20 LCDM 调试模式可以直接使用 USART1，不必占用 PA4；调好后的参数再通过 SOP8 的 PA4 单线配置写入。
 
 | 项目 | 定义 |
 |---|---|
 | 信号线 | 舵机 3PIN 的 S 线，接 PY32 PA4 |
+| TSSOP20 工具板输出脚 | `PB1`，TSSOP20 19 脚，写参数时接 SOP8 `PA4` |
+| SOP8 目标板输入脚 | `PA4`，SOP8 2 脚，正常 PWM 输入/配置输入共用 |
 | 电气方式 | 单线半双工，建议开漏/开集电极或串阻隔离，空闲为高 |
 | 电平 | 与舵机 MCU VCC 同电平，配置器必须检测或匹配 VTref |
 | 普通 PWM | 50 Hz，默认识别 900-2100 us 高脉冲 |
@@ -57,6 +59,7 @@ LCDM 页面规划和选型见 `docs/lcdm_development_interface.md`。
 | 位置 | 建议 |
 |---|---|
 | 配置器 S 线输出 | 串 1k-4.7k 电阻，避免与接收机或 MCU 输出冲突 |
+| TSSOP20 到 SOP8 | TSSOP20 `PB1` -> 串阻 -> SOP8 `PA4`，两板共地，电平匹配 |
 | 舵机 PA4 | 保持输入为默认状态；仅回复时短时切为开漏输出 |
 | 配置模式调试 | 示波器同时看 S 线和 VCC，先确认无总线冲突 |
 
@@ -89,7 +92,7 @@ LCDM 页面规划和选型见 `docs/lcdm_development_interface.md`。
 | 0 | SOF | 1 | 固定 `0x7E` |
 | 1 | Version | 1 | 当前 `0x01` |
 | 2 | Command | 1 | 命令码 |
-| 3 | Length | 1 | Payload 字节数，最大 120 |
+| 3 | Length | 1 | Payload 字节数，最大 128 |
 | 4 | Payload | N | 命令数据 |
 | 4+N | CRC16_L | 1 | CRC16 low byte |
 | 5+N | CRC16_H | 1 | CRC16 high byte |
@@ -138,7 +141,7 @@ CRC16：
 | 字段 | 类型 | 对应调试项 | 说明 |
 |---|---|---|---|
 | `magic` | `uint32_t` | 参数识别 | 固定 `0x53525650` |
-| `version` | `uint16_t` | 参数版本 | 当前 `2` |
+| `version` | `uint16_t` | 参数版本 | 当前 `3` |
 | `size` | `uint16_t` | 长度 | 必须等于结构体长度 |
 | `pulse_lower_us` | `uint16_t` | Pulse Lower | 输入识别下限 |
 | `pulse_center_us` | `uint16_t` | Neutral pulse | 中位脉宽，默认 1500 us |
@@ -192,6 +195,10 @@ CRC16：
 | `vdd_warn_drop_mv` | `uint16_t` | 电源监测 | 低于标称多少 mV 视为明显跌落 |
 | `vdd_noise_band_mv` | `uint16_t` | 电源监测 | VDD 抖动评估阈值 |
 | `vdd_sample_interval_ms` | `uint16_t` | 电源监测 | 读取内部 VREFINT 估算 VDD 的间隔 |
+| `servo_angle_deg` | `uint16_t` | 舵机角度 | 舵机输出标称角度，例如 90/180 |
+| `pot_angle_deg` | `uint16_t` | 电位器有效角度 | 电位器机械有效角度，例如 220 |
+| `lock_gain_q8` | `uint16_t` | 锁力系数 | HOLD/外力锁止系数，256 = 1.0 |
+| `counter_emf_gain_q8` | `uint16_t` | 反压系数 | 速度阻尼/反刹强度预留，256 = 1.0 |
 | `flags` | `uint32_t` | 功能选择 | 反向、保护、软启动、失信号等 |
 | `crc32` | `uint32_t` | 参数 CRC | `crc32` 字段按 0 参与计算 |
 
@@ -217,6 +224,8 @@ CRC16：
 | `SOFT_START` | 4 | Soft Start | 软启动 |
 | `LOSE_PPM_ENABLE` | 5 | Lose PPM Enable | 失信号回中位 |
 | `LOSE_PPM_LOCK` | 6 | Lose PPM Lock | 失信号锁定 |
+| `POT_REVERSE` | 7 | Pot Reverse | 电位器反馈/目标映射方向反转 |
+| `MOTOR_REVERSE` | 8 | Motor Reverse | H 桥电机输出方向反转 |
 
 ## 9. 遥测包
 

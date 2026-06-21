@@ -169,7 +169,8 @@ uint16_t Servo_Control_MapPulseToAdc(uint16_t pulse_us)
     target = center_adc + (((right_adc - center_adc) * (int32_t)us_offset) / (int32_t)us_span);
   }
 
-  if (Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_INVERTER))
+  if (Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_INVERTER) ||
+      Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_POT_REVERSE))
   {
     /* 方向反转不改 H 桥接线，只把目标位置镜像到相反方向。 */
     target = left_adc + right_adc - target;
@@ -392,6 +393,11 @@ void Servo_Control_Update1ms(void)
     duty = (int16_t)-clamp_i16((((int32_t)(-duty)) * params->reverse_speed_q8) >> 8,
                                0,
                                params->max_duty);
+  }
+
+  if (Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_MOTOR_REVERSE))
+  {
+    duty = (int16_t)-duty;
   }
 
   int8_t new_dir = (duty > 0) ? 1 : ((duty < 0) ? -1 : 0);

@@ -8,8 +8,8 @@
 
 #define SERVO_COMM_SOF                 0x7EU
 #define SERVO_COMM_VERSION             1U
-#define SERVO_COMM_MAX_PAYLOAD         120U
-#define SERVO_COMM_MAX_FRAME           128U
+#define SERVO_COMM_MAX_PAYLOAD         128U
+#define SERVO_COMM_MAX_FRAME           136U
 
 #define SERVO_COMM_CMD_HELLO           0x01U
 #define SERVO_COMM_CMD_READ_PARAMS     0x02U

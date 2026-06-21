@@ -6,9 +6,11 @@
 #define SERVO_INPUT_MIN_US              1000U
 #define SERVO_INPUT_CENTER_US           1500U
 #define SERVO_INPUT_MAX_US              2000U
+#define SERVO_INPUT_CAPTURE_MIN_US      300U
+#define SERVO_INPUT_CAPTURE_MAX_US      2700U
 #define SERVO_INPUT_FAILSAFE_US         SERVO_INPUT_CENTER_US
-#define SERVO_INPUT_FRAME_MIN_US        3000U
-#define SERVO_INPUT_FRAME_MAX_US        30000U
+#define SERVO_INPUT_FRAME_MIN_US        18000U
+#define SERVO_INPUT_FRAME_MAX_US        22000U
 #define SERVO_INPUT_TIMEOUT_MS          100U
 
 #define SERVO_ADC_MIN_COUNT             600U
@@ -31,9 +33,15 @@
 #define SERVO_STALL_TIME_MS             300U
 #define SERVO_STALL_RECOVERY_MS         500U
 
+#ifndef HBRIDGE_PWM_PERIOD_US
 #define HBRIDGE_PWM_PERIOD_US           1000U
+#endif
+#ifndef HBRIDGE_PWM_TICK_US
 #define HBRIDGE_PWM_TICK_US             20U
+#endif
+#ifndef HBRIDGE_DUTY_MAX
 #define HBRIDGE_DUTY_MAX                1000
+#endif
 
 #define SERVO_FIXED_PROGRAM_VERSION     1U
 

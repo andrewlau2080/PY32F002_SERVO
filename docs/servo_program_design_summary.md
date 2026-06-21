@@ -18,11 +18,12 @@
 | 控制算法 | `servo_control.c` | 固定为主，参数驱动 | 目标映射、死区、增益、软启动、失信号、堵转保护 | 少量算法升级用 SWD |
 | 可变参数区 | `servo_params.c/.h` | 可现场改变 | 保存不同马达、齿轮箱、机构阻力对应参数 | 未来配置卡或 LCD+按键模块写入 Flash 参数页 |
 | 参数存储 | `ld/py32f002ax5_servo.ld` 预留最后 128B Flash | 固定 | 防止程序代码覆盖参数页 | 参数页独立擦写 |
-| 外挂配置入口 | `Servo_Params_Save()` + `ServoComm` | 可扩展 | 单线配置协议、开发板 LCDM 或生产工装调用 | 通过 3PIN 信号线、USART1 LCDM 或专用工装写入 |
+| 外挂配置入口 | `Servo_Params_Save()` + `ServoComm` | 可扩展 | 单线配置协议、TSSOP20 LCDM 或生产工装调用 | 通过 3PIN 信号线、USART1 LCDM 或专用工装写入 |
 | 通讯包处理 | `servo_comm.c/.h` | 固定 | 处理 HELLO、读参数、写参数、读遥测、ACK/NACK | 后续接入 PA4 单线物理层 |
 | 协议文件 | `docs/servo_config_protocol.md` | 固定跟踪 | 定义握手、帧格式、参数包、遥测包 | 上位机和 LCDM 模块按此实现 |
-| 开发板 LCDM | `docs/lcdm_development_interface.md` | 开发/工装使用 | 用串口 HMI 显示遥测、编辑参数、生产写入 | 最终 SOP8 目标板不直接接 LCDM |
-| TJC 屏适配 | `tjc_lcdm.c/.h` | 开发板启用 | USART1 连接陶晶驰串口屏，刷新控件和解析屏幕回包 | `SERVO_ENABLE_TJC_LCDM=1` 时编译启用 |
+| IO 接线表 | `docs/io_connection_table.md` | 固定跟踪 | 记录 SOP8 产品板、TSSOP20 调试工具板和 LCDM 接线 | TSSOP20 调好参数后通过 PA4 写入 SOP8 |
+| TSSOP20 LCDM | `docs/lcdm_development_interface.md` | 调试/工装使用 | 用串口 HMI 显示遥测、编辑参数、生产写入 | 最终 SOP8 目标板不直接接 LCDM |
+| TJC 屏适配 | `tjc_lcdm.c/.h` | TSSOP20 启用 | USART1 连接陶晶驰串口屏，刷新控件和解析屏幕回包 | `SERVO_ENABLE_TJC_LCDM=1` 时编译启用 |
 
 ## 1. 控制目标
 
@@ -37,6 +38,8 @@
 | 参数调试方式 | Flash 参数块 | 先用默认值，后续配置器写入最后一页 Flash |
 
 ## 2. SOP8 引脚分配
+
+完整 SOP8/TSSOP20/LCDM 接线表见 `docs/io_connection_table.md`。本节只保留 SOP8 产品板核心引脚。
 
 | 芯片脚位 | MCU 功能 | 程序宏 | 当前用途 | 风险/备注 |
 |---:|---|---|---|---|
@@ -72,7 +75,7 @@
 | 控制 | `src/servo_control.c` | 脉宽到 ADC 映射、死区、比例输出、堵转保护 | 上板后调 `servo_config.h` 参数 |
 | 参数 | `src/servo_params.c` | 默认参数、Flash 读取/校验/保存、KC9806 参数映射 | 后续配置卡协议会调用 `Servo_Params_Save()` |
 | 通讯 | `src/servo_comm.c` | 参数帧、遥测帧、命令处理、CRC16 | PA4 物理收发确定后接入 |
-| TJC LCDM | `src/tjc_lcdm.c` | 陶晶驰串口屏控件赋值、页面刷新、回包解析 | 开发板 USART1，目标 SOP8 默认关闭 |
+| TJC LCDM | `src/tjc_lcdm.c` | 陶晶驰串口屏控件赋值、页面刷新、回包解析 | TSSOP20 USART1，目标 SOP8 默认关闭 |
 | 中断 | `src/app_it.c` | SysTick、EXTI4_15、TIM1 update ISR | 中断优先级：PWM 输入高于马达 PWM |
 | HAL MSP | `src/app_hal_msp.c` | ADC/TIM1 外设时钟和 NVIC | 与 SDK HAL 初始化配合 |
 | 配置 | `inc/servo_config.h` | 所有可调控制参数 | 后续调试主要改此文件 |
@@ -143,7 +146,7 @@
 
 说明：上表是编译期保底参数；实际运行优先使用 `ServoParams`。如果最后一页 Flash 没有合法参数或 CRC 错误，程序自动使用默认参数。
 
-## 6A. 参数区 v2 新增调试项
+## 6A. 参数区 v3 新增调试项
 
 | 历史问题 | 对应参数 | 当前程序是否已接入 | 调试方法 |
 |---|---|---|---|
@@ -157,6 +160,9 @@
 | 金属齿/塑胶齿差异 | `model_id`、`profile_id` | 参数已预留 | 同一固件按齿轮箱写入不同模板 |
 | ADC 噪声评估 | `adc_noise_band_count` | 预留 | 后续可用于遥测报警或自动放宽死区 |
 | 到位稳定时间 | `hold_settle_ms` | 预留 | 后续可用于更严格的到位判定 |
+| 角度参数 | `servo_angle_deg`、`pot_angle_deg` | 参数已预留 | 统一 PWM、舵机角度和电位器 ADC 映射说明 |
+| 锁力/反压系数 | `lock_gain_q8`、`counter_emf_gain_q8` | 参数已预留 | 下一步状态机重构时接入 HOLD 锁力和反压/反刹 |
+| 方向拆分 | `POT_REVERSE`、`MOTOR_REVERSE` | 已接入基础方向 | 电位器目标映射反向、电机输出反向分开设置 |
 
 ## 7. 状态机
 
@@ -172,9 +178,10 @@
 | 阶段 | 设备形态 | 舵机侧工作 | 说明 |
 |---|---|---|---|
 | 当前阶段 | SWD + 固件默认参数 | 固件可读取默认参数和 Flash 参数 | 先完成舵机闭环控制和参数结构 |
+| TSSOP20 调试工具阶段 | TSSOP20 板 + UART HMI 智能屏 | USART1 读取遥测、编辑完整参数包 | 不受 SOP8 IO 限制，屏幕负责页面和条形图 |
+| SOP8 参数写入阶段 | TSSOP20 工具板、配置卡或 PC 工装 | TSSOP20 `PB1` 接 SOP8 `PA4/PWM` 输入口写入 `ServoParams` | 调好的参数进入最终目标板 Flash 参数页；TSSOP20 `PA0-PA7` 保留为项目调试脚 |
 | 配置卡阶段 | PC 软件 + USB 配置卡 MCU | 配置卡通过 3PIN 信号线进入参数写入流程 | 类似 KC9806 的 `Read Config` / `Write Config` |
 | 独立模块阶段 | 小 MCU + LCD + 按键 | 模块直接读写 `ServoParams` | 不依赖电脑，适合生产线或售后 |
-| 开发板 LCDM 阶段 | 开发板 + UART HMI 智能屏 | USART1 读取遥测、写入完整参数包 | 不受 SOP8 IO 限制，屏幕负责页面和条形图 |
 | 量产阶段 | 工装批量写入 | 写入型号参数、校准 ADC 左中右点 | 每种马达/齿轮箱/机构保存一套参数 |
 
 ## 9. 编译与调试状态
@@ -192,8 +199,10 @@
 | 待接口定义 | 配置卡单线协议 | 待做 | 需要定义 PA4 普通 PWM 与配置通信的进入条件 |
 | 2026-05-31 | 配置通讯协议草案 | 完成 | 独立文件 `docs/servo_config_protocol.md` |
 | 2026-05-31 | 通讯包处理模块 | 完成 | `servo_comm.c/.h`，物理层待接入 |
-| 2026-06-01 | 开发板 LCDM 方案 | 完成草案 | LCDM 不受 SOP8 限制，推荐 USART1 串口 HMI 智能屏 |
-| 2026-06-01 | TJC 陶晶驰串口屏驱动骨架 | 完成 | 默认构建关闭；开发板构建 `SERVO_ENABLE_TJC_LCDM=1`，Flash 14592 B，RAM 1524 B |
+| 2026-06-01 | TSSOP20 LCDM 方案 | 完成草案 | LCDM 不受 SOP8 限制，推荐 USART1 串口 HMI 智能屏 |
+| 2026-06-01 | TJC 陶晶驰串口屏驱动骨架 | 完成 | 默认构建关闭；TSSOP20 构建 `SERVO_ENABLE_TJC_LCDM=1` |
+| 2026-06-04 | TSSOP20 调试工具定位 | 完成 | TSSOP20 用于调试 SOP8 参数；调好后通过 PA4 单线配置写入 SOP8 |
+| 2026-06-04 | IO 接线总表 | 完成 | 新增 `docs/io_connection_table.md`，分开记录 SOP8 产品板、TSSOP20 调试板、LCDM 和参数写入流程 |
 
 ## 10. 关键风险
 
@@ -201,8 +210,62 @@
 |---|---|---|
 | PA13/PA14 与 SWD 共用 | 可能影响烧录/在线调试 | H 桥输入加串阻，硬件默认关断，保留 SWD 测试点 |
 | ADC 噪声 | 1-3 us 等效死区可能抖动 | 电位器滤波、模拟地布线、ADC 多采样和 IIR |
-| 四脚 H 桥定义未最终确认 | 方向或刹车方式可能需改 | 上板前确认驱动芯片/分立桥逻辑表 |
+| 四脚 H 桥实物方向 | 方向或刹车方式可能需改 | 已按 `servo-20201008.pdf` 建立 CP/NG 对应关系；上板仍需限流空载验证方向 |
 | 马达静摩擦和齿隙 | 小误差可能无法动作或来回摆动 | 调 `MIN_DUTY`、死区和滤波 |
 | 堵转电流 | 烧毁马达或驱动 | 先限流调试，必要时加电流检测或热保护 |
 | 配置通信与普通 PWM 共用 PA4 | 可能误进入配置或影响接收机信号 | 后续协议必须有明确握手，例如超出普通 PWM 范围的长低/长高序列 |
 | 裸屏图形代码过大 | 占用 Flash/RAM，影响控制程序 | LCDM 首选 UART HMI 智能屏，把页面和图形交给屏幕端 |
+
+## 11. H 桥接线记录（按 `servo-20201008.pdf`）
+
+`servo-20201008.pdf` 中的马达驱动是两组 P/N 半桥。P-MOS 高边不是 MCU 直接驱栅极，而是通过 `CP1/CP2` 驱动三极管拉低 `CTR_PG1/CTR_PG2` 后打开；N-MOS 低边由 `CTR_NG1/CTR_NG2` 高电平打开。按 `DXP/Documents/SERVO.NET` 核对，`CP1` 经过电阻到 `CPG2`，`CP2` 经过电阻到 `CPG1`。
+
+| 半桥位置 | PDF 器件 | PDF 网名 | MCU 控制含义 |
+|---|---|---|---|
+| 左上臂 P-MOS | `Q3` / U3 左路 | `CTR_PG1`，由 `CP2/CPG1` 控制 | `CP2 = 1` 打开左上臂 |
+| 左下臂 N-MOS | `Q5` / U2 左路 | `CTR_NG1` | `NG1 = 1` 打开左下臂 |
+| 右上臂 P-MOS | `Q4` / U3 右路 | `CTR_PG2`，由 `CP1/CPG2` 控制 | `CP1 = 1` 打开右上臂 |
+| 右下臂 N-MOS | `Q6` / U2 右路 | `CTR_NG2` | `NG2 = 1` 打开右下臂 |
+
+互补关系按半桥划分，禁止同一半桥上下臂同时导通：
+
+| 半桥 | 互补控制 |
+|---|---|
+| 左半桥 | `CP2` 与 `NG1` 互补 |
+| 右半桥 | `CP1` 与 `NG2` 互补 |
+
+当前固件输出逻辑对应 PDF 网名如下：
+
+| 固件信号 | 最终 SOP8 端口 | PDF 网名 | MOS 位置 |
+|---|---|---|---|
+| `BOARD_HB_IN1` | `PA1` | `CP1 / CPG2` | 右上臂 P-MOS 控制 |
+| `BOARD_HB_IN2` | `PA2` | `CTR_NG1` | 左下臂 N-MOS |
+| `BOARD_HB_IN3` | `PA13` | `CP2 / CPG1` | 左上臂 P-MOS 控制 |
+| `BOARD_HB_IN4` | `PA14` | `CTR_NG2` | 右下臂 N-MOS |
+
+软件方向表：
+
+| 状态 | `CP1` | `NG1` | `CP2` | `NG2` |
+|---|---:|---:|---:|---:|
+| 滑行 | 0 | 0 | 0 | 0 |
+| 正转 | 0 | 0 | 1 | 1 |
+| 反转 | 1 | 1 | 0 | 0 |
+| 低边刹车 | 0 | 1 | 0 | 1 |
+
+TSSOP20 调试板临时调试时，为避免 `PA13/PA14` 占用 SWDIO/SWCLK，可临时将 `CP2` 和 `NG2` 改接到 `PA6/PB0`。这样 `PA7` 可以留给 TJC/LCDM 的 USART1_TX：
+
+| 功能 | 最终 SOP8 端口 | TSSOP20 临时调试端口 |
+|---|---|---|
+| `CP2 / CPG1`，左上臂 P-MOS 控制 | `PA13` | `PA6` |
+| `CTR_NG2`，右下臂 N-MOS | `PA14` | `PB0` |
+
+临时调通马达方向、刹车和电流后，最终 SOP8 版本仍应还原为 `PA13/PA14`，以保持目标板 IO 规划不变。TSSOP20 临时编译命令可使用 `BOARD_TSSOP20_DEBUG_PINS=1`。
+
+TSSOP20 同时接 TJC/LCDM 时，建议 LCDM 使用 `PA7/PB2`：
+
+| 功能 | 临时端口 | 说明 |
+|---|---|---|
+| LCDM RX 接 MCU TX | `PA7 / USART1_TX` | 编译加 `SERVO_TJC_UART_ALT_PINS=1` |
+| LCDM TX 接 MCU RX | `PB2 / USART1_RX` | 避开 PA3 ADC |
+
+`PB0` 不作为 USART1 的 TX/RX 使用；在本方案中只作为右下臂 `CTR_NG2` 的临时 GPIO/PWM 输出。

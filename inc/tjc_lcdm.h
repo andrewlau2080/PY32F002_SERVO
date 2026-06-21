@@ -7,7 +7,9 @@
 #define SERVO_ENABLE_TJC_LCDM 0
 #endif
 
+#ifndef TJC_LCDM_DEFAULT_BAUD
 #define TJC_LCDM_DEFAULT_BAUD       115200UL
+#endif
 #define TJC_LCDM_REFRESH_MS         100U
 
 void TJC_LCDM_Init(void);
