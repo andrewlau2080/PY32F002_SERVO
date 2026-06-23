@@ -931,6 +931,7 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_V3_RETURN_DAMP_MIN_VEL_Q4 24
 #define LCDM_SERVO_V3_CROSS_BRAKE_MAX_BAND 220U
 #define LCDM_SERVO_V3_CROSS_BRAKE_MIN_VEL_Q4 48
+#define LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND 240U
 #define LCDM_SERVO_V3_LOCK_MAX_DUTY 930U
 #define LCDM_SERVO_V6_SETTLE_COUNT 2U
 #define LCDM_SERVO_V6_BRAKE_CONFIRM_COUNT 2U
@@ -941,12 +942,13 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_V7_DRIVE_ERR_DIV 4U
 #define LCDM_SERVO_V7_LOAD_CONFIRM_COUNT 30U
 #define LCDM_SERVO_CUSTOMER_STEP_US 700U
-#define LCDM_SERVO_CUSTOMER_DRIVE_MS 7U
-#define LCDM_SERVO_CUSTOMER_BRAKE_MS 2U
+#define LCDM_SERVO_CUSTOMER_DRIVE_MS 12U
+#define LCDM_SERVO_CUSTOMER_BRAKE_MS 4U
 #define LCDM_SERVO_CUSTOMER_TAIL_MS 3U
-#define LCDM_SERVO_CUSTOMER_DRIVE_DUTY 900U
-#define LCDM_SERVO_CUSTOMER_BRAKE_DUTY 320U
-#define LCDM_SERVO_CUSTOMER_TAIL_DUTY 190U
+#define LCDM_SERVO_CUSTOMER_COAST_MS 24U
+#define LCDM_SERVO_CUSTOMER_DRIVE_DUTY 930U
+#define LCDM_SERVO_CUSTOMER_BRAKE_DUTY 360U
+#define LCDM_SERVO_CUSTOMER_TAIL_DUTY 220U
 #define LCDM_SERVO_TARGET_ADC_VDD_MV 3300U
 #define LCDM_SERVO_PD_P_SHIFT 7U
 #define LCDM_SERVO_PD_D_SHIFT 4U
@@ -956,7 +958,7 @@ static void run_pa7_tjc_test(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
 #define LCDM_SERVO_FW_TAG " V7.10R4"
 #else
-#define LCDM_SERVO_FW_TAG " V9.0"
+#define LCDM_SERVO_FW_TAG " V9.5"
 #endif
 #define LCDM_REG_PARAM_VMAX 0U
 #define LCDM_REG_PARAM_ACCEL 1U
@@ -1147,7 +1149,6 @@ static uint8_t s_lcdm_servo_adc_jump_count;
 static uint16_t s_lcdm_servo_last_motion_error = 0xFFFFU;
 static uint16_t s_lcdm_servo_motion_start_error;
 static uint8_t s_lcdm_servo_motion_settle_count;
-static uint8_t s_lcdm_servo_approach_brake_tail_count;
 static uint8_t s_lcdm_servo_v3_phase;
 static uint16_t s_lcdm_servo_hold_anchor_adc;
 static uint32_t s_lcdm_servo_customer_start_ms;
@@ -1716,7 +1717,6 @@ static void lcdm_reset_pwm_live_cache(void)
   s_lcdm_servo_last_motion_error = 0xFFFFU;
   s_lcdm_servo_motion_start_error = 0U;
   s_lcdm_servo_motion_settle_count = 0U;
-  s_lcdm_servo_approach_brake_tail_count = 0U;
   s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
   lcdm_servo_customer_profile_clear();
   s_lcdm_servo_hold_anchor_adc = LCDM_ADC_TEST_CENTER_RAW;
@@ -2098,11 +2098,11 @@ static void lcdm_servo_enter_hold(uint16_t control_pulse_us,
   s_lcdm_servo_hold_active = 1U;
   s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_HOLD;
   s_lcdm_servo_hold_anchor_adc = target_adc;
+  s_lcdm_servo_hold_deviation_count = 0U;
   s_lcdm_servo_move_dir = 0;
   s_lcdm_servo_motion_dir = 0;
   s_lcdm_servo_last_motion_error = 0xFFFFU;
   s_lcdm_servo_motion_settle_count = 0U;
-  s_lcdm_servo_approach_brake_tail_count = 0U;
   lcdm_servo_customer_profile_clear();
   s_lcdm_servo_last_control_feedback_adc = feedback_adc;
   lcdm_servo_curve_publish(control_pulse_us, raw_adc, target_adc, feedback_adc, error_adc, 0, event);
@@ -2127,7 +2127,6 @@ static int16_t __attribute__((noinline)) lcdm_servo_stop_publish(uint16_t contro
   }
   s_lcdm_servo_current_duty = 0;
   lcdm_servo_clear_output_guard();
-  lcdm_servo_customer_profile_clear();
   s_lcdm_servo_current_state = state;
   s_lcdm_servo_ref_velocity = 0;
   lcdm_servo_curve_publish(control_pulse_us, raw_adc, target_adc, feedback_adc, error_adc, 0, event);
@@ -2228,14 +2227,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   uint32_t now_ms = HAL_GetTick();
   bool customer_profile_direct = false;
 
-  if (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_LOCK)
-  {
-    raw_adc = ADC_Feedback_ReadFastRaw();
-  }
-  else
-  {
-    raw_adc = ADC_Feedback_ReadRaw();
-  }
+  raw_adc = ADC_Feedback_ReadRaw();
 
   if (frequency_hz != s_lcdm_last_hbridge_frequency_hz)
   {
@@ -2262,7 +2254,6 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_last_motion_error = 0xFFFFU;
     s_lcdm_servo_motion_start_error = 0U;
     s_lcdm_servo_motion_settle_count = 0U;
-    s_lcdm_servo_approach_brake_tail_count = 0U;
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_ab_seeded = 0U;
     lcdm_servo_customer_profile_clear();
@@ -2300,13 +2291,11 @@ static int16_t lcdm_servo_loop_update_fast(void)
   {
     int32_t predicted_q4 = s_lcdm_servo_pos_q4 + s_lcdm_servo_vel_q4;
     int32_t residual_q4 = raw_q4 - predicted_q4;
-    int32_t abs_residual_q4 = (residual_q4 < 0) ? -residual_q4 : residual_q4;
     bool fast_observer = (s_lcdm_servo_current_duty != 0) ||
                          (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_ACCEL) ||
                          (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_TRACK) ||
                          (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_BRAKE) ||
-                         (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_RETURN) ||
-                         (abs_residual_q4 > LCDM_SERVO_OBS_FAST_RESIDUAL_Q4);
+                         (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_RETURN);
     int32_t pos_div = fast_observer ? LCDM_SERVO_OBS_POS_DIV_FAST : LCDM_SERVO_OBS_POS_DIV_SLOW;
     int32_t vel_div = fast_observer ? LCDM_SERVO_OBS_VEL_DIV_FAST : LCDM_SERVO_OBS_VEL_DIV_SLOW;
     s_lcdm_servo_pos_q4 = predicted_q4 + (residual_q4 / pos_div);
@@ -2340,7 +2329,6 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_last_motion_error = 0xFFFFU;
     s_lcdm_servo_motion_start_error = 0U;
     s_lcdm_servo_motion_settle_count = 0U;
-    s_lcdm_servo_approach_brake_tail_count = 0U;
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
@@ -2365,7 +2353,6 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_last_motion_error = 0xFFFFU;
     s_lcdm_servo_motion_start_error = 0U;
     s_lcdm_servo_motion_settle_count = 0U;
-    s_lcdm_servo_approach_brake_tail_count = 0U;
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
@@ -2426,7 +2413,6 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_last_motion_error = motion_error;
     s_lcdm_servo_motion_start_error = motion_error;
     s_lcdm_servo_motion_settle_count = 0U;
-    s_lcdm_servo_approach_brake_tail_count = 0U;
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
     s_servo_curve_static_lock_logged = 0U;
@@ -2492,7 +2478,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     approach_band = brake_max_band;
   }
   v7_settle_band = (uint16_t)(hold_release_band + motion_hold_band);
-  v7_static_lock_band = (uint16_t)(hold_release_band + (motion_hold_band * 3U));
+  v7_static_lock_band = (uint16_t)(hold_release_band + (motion_hold_band * 14U));
   cross_moving_away = ((error > 0) && (s_lcdm_servo_vel_q4 < -(int32_t)motion_hold_vel_q4)) ||
                       ((error < 0) && (s_lcdm_servo_vel_q4 > (int32_t)motion_hold_vel_q4));
   if (abs_error >= approach_band)
@@ -2513,16 +2499,15 @@ static int16_t lcdm_servo_loop_update_fast(void)
   static_lock_candidate = (!command_step) &&
                           ((s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_HOLD) ||
                            (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_LOCK)) &&
-                          ((abs_error > v7_static_lock_band) ||
-                           (abs_velocity_q4 > (uint16_t)(motion_hold_vel_q4 + 48U)));
+                          (abs_error > v7_static_lock_band);
   static_lock_mode = static_lock_candidate;
   if (static_lock_candidate && (s_lcdm_servo_v3_phase != LCDM_SERVO_V3_PHASE_LOCK))
   {
-    if (s_lcdm_servo_hold_deviation_count < 2U)
+    if (s_lcdm_servo_hold_deviation_count < 8U)
     {
       s_lcdm_servo_hold_deviation_count++;
     }
-    static_lock_mode = (s_lcdm_servo_hold_deviation_count >= 2U);
+    static_lock_mode = (s_lcdm_servo_hold_deviation_count >= 8U);
   }
   else if (!static_lock_candidate)
   {
@@ -2562,7 +2547,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
       ((s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_HOLD) ||
        (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_LOCK)) &&
       (!static_lock_mode) &&
-      (abs_error <= (uint16_t)(v7_settle_band + (motion_hold_band / 2U))) &&
+      (abs_error <= v7_static_lock_band) &&
       (abs_velocity_q4 <= (uint16_t)(brake_high_vel_q4 + 32U)))
   {
     lcdm_servo_enter_hold(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc, feedback, error, 2U);
@@ -2579,6 +2564,15 @@ static int16_t lcdm_servo_loop_update_fast(void)
     return 0;
   }
 
+  if ((!command_step) &&
+      (s_lcdm_servo_overshoot_adc != 0U) &&
+      (abs_error <= LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND) &&
+      (abs_velocity_q4 <= (uint16_t)(brake_high_vel_q4 + 32U)))
+  {
+    lcdm_servo_enter_hold(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc, feedback, error, 2U);
+    return 0;
+  }
+
   if (s_lcdm_servo_customer_active != 0U)
   {
     uint32_t elapsed_ms = now_ms - s_lcdm_servo_customer_start_ms;
@@ -2588,7 +2582,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     uint16_t profile_abs = 0U;
     int8_t profile_dir = s_lcdm_servo_customer_dir;
 
-    if ((elapsed_ms >= done_ms) ||
+    if ((elapsed_ms >= (done_ms + LCDM_SERVO_CUSTOMER_COAST_MS)) ||
         (abs_error <= motion_hold_band) ||
         (s_lcdm_servo_customer_dir == 0))
     {
@@ -2615,6 +2609,13 @@ static int16_t lcdm_servo_loop_update_fast(void)
         drive_event = (elapsed_ms < tail_start_ms) ?
                       LCDM_SERVO_V3_EVENT_BRAKE :
                       LCDM_SERVO_V3_EVENT_RETURN_DAMP;
+        s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_BRAKE;
+        v_ref_q4 = 0;
+      }
+      if (elapsed_ms >= done_ms)
+      {
+        profile_abs = 0U;
+        drive_event = 3U;
         s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_BRAKE;
         v_ref_q4 = 0;
       }
