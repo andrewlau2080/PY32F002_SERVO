@@ -949,7 +949,7 @@ static void run_pa7_tjc_test(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
 #define LCDM_SERVO_FW_TAG " V7.10R4"
 #else
-#define LCDM_SERVO_FW_TAG " V7.10h"
+#define LCDM_SERVO_FW_TAG " V7.10N"
 #endif
 #define LCDM_REG_PARAM_VMAX 0U
 #define LCDM_REG_PARAM_ACCEL 1U
