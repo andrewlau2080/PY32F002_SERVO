@@ -940,6 +940,13 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_V6_DRIVE_ERR_GAIN 2U
 #define LCDM_SERVO_V7_DRIVE_ERR_DIV 4U
 #define LCDM_SERVO_V7_LOAD_CONFIRM_COUNT 30U
+#define LCDM_SERVO_CUSTOMER_STEP_US 700U
+#define LCDM_SERVO_CUSTOMER_DRIVE_MS 7U
+#define LCDM_SERVO_CUSTOMER_BRAKE_MS 2U
+#define LCDM_SERVO_CUSTOMER_TAIL_MS 3U
+#define LCDM_SERVO_CUSTOMER_DRIVE_DUTY 900U
+#define LCDM_SERVO_CUSTOMER_BRAKE_DUTY 320U
+#define LCDM_SERVO_CUSTOMER_TAIL_DUTY 190U
 #define LCDM_SERVO_TARGET_ADC_VDD_MV 3300U
 #define LCDM_SERVO_PD_P_SHIFT 7U
 #define LCDM_SERVO_PD_D_SHIFT 4U
@@ -949,7 +956,7 @@ static void run_pa7_tjc_test(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
 #define LCDM_SERVO_FW_TAG " V7.10R4"
 #else
-#define LCDM_SERVO_FW_TAG " V7.10N"
+#define LCDM_SERVO_FW_TAG " V9.0"
 #endif
 #define LCDM_REG_PARAM_VMAX 0U
 #define LCDM_REG_PARAM_ACCEL 1U
@@ -1143,9 +1150,11 @@ static uint8_t s_lcdm_servo_motion_settle_count;
 static uint8_t s_lcdm_servo_approach_brake_tail_count;
 static uint8_t s_lcdm_servo_v3_phase;
 static uint16_t s_lcdm_servo_hold_anchor_adc;
+static uint32_t s_lcdm_servo_customer_start_ms;
+static int8_t s_lcdm_servo_customer_dir;
+static uint8_t s_lcdm_servo_customer_active;
 static uint8_t s_lcdm_pwm_source = LCDM_PWM_SOURCE_EXTERNAL;
 static uint32_t s_lcdm_runtime_pwm_start_ms;
-static uint16_t s_lcdm_runtime_pwm_seed_us = LCDM_SERVO_INPUT_MID_US;
 static uint8_t s_lcdm_runtime_pwm_seeded;
 static int32_t s_lcdm_servo_pos_q4;
 static int32_t s_lcdm_servo_vel_q4;
@@ -1153,6 +1162,8 @@ static int32_t s_lcdm_servo_traj_pos_q4;
 static int32_t s_lcdm_servo_traj_vel_q4;
 static uint16_t s_lcdm_servo_cmd_target_adc = LCDM_ADC_TEST_CENTER_RAW;
 static uint8_t s_lcdm_servo_ab_seeded;
+
+static void __attribute__((noinline)) lcdm_servo_customer_profile_clear(void);
 
 static uint16_t lcdm_param_u16(const LcdmRuntimeParam *params,
                                uint8_t index,
@@ -1615,27 +1626,13 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
 
   if (s_lcdm_runtime_pwm_seeded == 0U)
   {
-    s_lcdm_runtime_pwm_seed_us = (s_lcdm_servo_last_control_pulse_us != 0xFFFFU) ?
-                                 s_lcdm_servo_last_control_pulse_us :
-                                 LCDM_SERVO_INPUT_MID_US;
     s_lcdm_runtime_pwm_start_ms = now;
     s_lcdm_runtime_pwm_seeded = 1U;
   }
 
   elapsed = now - s_lcdm_runtime_pwm_start_ms;
-  pulse = s_lcdm_runtime_pwm_seed_us;
-  if (elapsed >= 800UL)
-  {
-    phase = ((elapsed - 800UL) / 1200UL) % 6UL;
-    if ((phase == 0UL) || (phase == 4UL))
-    {
-      pulse = 1000U;
-    }
-    else if ((phase == 2UL) || (phase == 5UL))
-    {
-      pulse = 2000U;
-    }
-  }
+  phase = (elapsed / 4000UL) % 2UL;
+  pulse = (phase == 0UL) ? 1000U : 2000U;
 
   sample->pulse_us = pulse;
   sample->raw_pulse_us = pulse;
@@ -1721,6 +1718,7 @@ static void lcdm_reset_pwm_live_cache(void)
   s_lcdm_servo_motion_settle_count = 0U;
   s_lcdm_servo_approach_brake_tail_count = 0U;
   s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
+  lcdm_servo_customer_profile_clear();
   s_lcdm_servo_hold_anchor_adc = LCDM_ADC_TEST_CENTER_RAW;
   s_lcdm_servo_pos_q4 = 0;
   s_lcdm_servo_vel_q4 = 0;
@@ -1729,7 +1727,6 @@ static void lcdm_reset_pwm_live_cache(void)
   s_lcdm_servo_cmd_target_adc = LCDM_ADC_TEST_CENTER_RAW;
   s_lcdm_servo_ab_seeded = 0U;
   s_lcdm_runtime_pwm_start_ms = HAL_GetTick();
-  s_lcdm_runtime_pwm_seed_us = LCDM_SERVO_INPUT_MID_US;
   s_lcdm_runtime_pwm_seeded = 0U;
 }
 
@@ -2032,6 +2029,12 @@ static void lcdm_servo_clear_output_guard(void)
   s_lcdm_servo_reverse_dead_active = 0U;
 }
 
+static void __attribute__((noinline)) lcdm_servo_customer_profile_clear(void)
+{
+  s_lcdm_servo_customer_active = 0U;
+  s_lcdm_servo_customer_dir = 0;
+}
+
 static bool lcdm_servo_reverse_dead_active(uint32_t now_ms)
 {
   if (s_lcdm_servo_reverse_dead_active == 0U)
@@ -2100,6 +2103,7 @@ static void lcdm_servo_enter_hold(uint16_t control_pulse_us,
   s_lcdm_servo_last_motion_error = 0xFFFFU;
   s_lcdm_servo_motion_settle_count = 0U;
   s_lcdm_servo_approach_brake_tail_count = 0U;
+  lcdm_servo_customer_profile_clear();
   s_lcdm_servo_last_control_feedback_adc = feedback_adc;
   lcdm_servo_curve_publish(control_pulse_us, raw_adc, target_adc, feedback_adc, error_adc, 0, event);
 }
@@ -2123,6 +2127,7 @@ static int16_t __attribute__((noinline)) lcdm_servo_stop_publish(uint16_t contro
   }
   s_lcdm_servo_current_duty = 0;
   lcdm_servo_clear_output_guard();
+  lcdm_servo_customer_profile_clear();
   s_lcdm_servo_current_state = state;
   s_lcdm_servo_ref_velocity = 0;
   lcdm_servo_curve_publish(control_pulse_us, raw_adc, target_adc, feedback_adc, error_adc, 0, event);
@@ -2220,6 +2225,8 @@ static int16_t lcdm_servo_loop_update_fast(void)
   uint16_t v7_stop_vel_limit_q4;
   bool cross_moving_away;
   bool v7_need_prebrake;
+  uint32_t now_ms = HAL_GetTick();
+  bool customer_profile_direct = false;
 
   if (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_LOCK)
   {
@@ -2258,6 +2265,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_approach_brake_tail_count = 0U;
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_ab_seeded = 0U;
+    lcdm_servo_customer_profile_clear();
     if (s_lcdm_servo_adc_lost_count < LCDM_SERVO_ADC_LOST_TRIP_COUNT)
     {
       s_lcdm_servo_adc_lost_count++;
@@ -2336,6 +2344,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
+    lcdm_servo_customer_profile_clear();
     return 0;
   }
 
@@ -2360,6 +2369,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
+    lcdm_servo_customer_profile_clear();
     return 0;
   }
 
@@ -2420,6 +2430,17 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
     s_servo_curve_static_lock_logged = 0U;
+    if ((pulse_delta >= LCDM_SERVO_CUSTOMER_STEP_US) &&
+        (s_lcdm_servo_move_dir != 0))
+    {
+      s_lcdm_servo_customer_active = 1U;
+      s_lcdm_servo_customer_dir = s_lcdm_servo_move_dir;
+      s_lcdm_servo_customer_start_ms = now_ms;
+    }
+    else
+    {
+      lcdm_servo_customer_profile_clear();
+    }
   }
   s_lcdm_servo_last_target_adc = target_adc;
   s_lcdm_servo_last_control_pulse_us = control_pulse_us;
@@ -2558,7 +2579,54 @@ static int16_t lcdm_servo_loop_update_fast(void)
     return 0;
   }
 
-  if (static_lock_mode)
+  if (s_lcdm_servo_customer_active != 0U)
+  {
+    uint32_t elapsed_ms = now_ms - s_lcdm_servo_customer_start_ms;
+    uint32_t brake_start_ms = LCDM_SERVO_CUSTOMER_DRIVE_MS;
+    uint32_t tail_start_ms = brake_start_ms + LCDM_SERVO_CUSTOMER_BRAKE_MS;
+    uint32_t done_ms = tail_start_ms + LCDM_SERVO_CUSTOMER_TAIL_MS;
+    uint16_t profile_abs = 0U;
+    int8_t profile_dir = s_lcdm_servo_customer_dir;
+
+    if ((elapsed_ms >= done_ms) ||
+        (abs_error <= motion_hold_band) ||
+        (s_lcdm_servo_customer_dir == 0))
+    {
+      lcdm_servo_customer_profile_clear();
+    }
+    else
+    {
+      customer_profile_direct = true;
+      s_lcdm_servo_hold_active = 0U;
+      s_lcdm_servo_motion_settle_count = 0U;
+      if (elapsed_ms < brake_start_ms)
+      {
+        profile_abs = LCDM_SERVO_CUSTOMER_DRIVE_DUTY;
+        drive_event = LCDM_SERVO_V3_EVENT_DRIVE;
+        s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_ACCEL;
+        v_ref_q4 = (profile_dir > 0) ? (int32_t)max_vel_q4 : -(int32_t)max_vel_q4;
+      }
+      else
+      {
+        profile_dir = (int8_t)-profile_dir;
+        profile_abs = (elapsed_ms < tail_start_ms) ?
+                      LCDM_SERVO_CUSTOMER_BRAKE_DUTY :
+                      LCDM_SERVO_CUSTOMER_TAIL_DUTY;
+        drive_event = (elapsed_ms < tail_start_ms) ?
+                      LCDM_SERVO_V3_EVENT_BRAKE :
+                      LCDM_SERVO_V3_EVENT_RETURN_DAMP;
+        s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_BRAKE;
+        v_ref_q4 = 0;
+      }
+      if (profile_abs > loop_max_duty)
+      {
+        profile_abs = loop_max_duty;
+      }
+      duty_calc = (profile_dir > 0) ? (int32_t)profile_abs : -(int32_t)profile_abs;
+    }
+  }
+
+  if ((!customer_profile_direct) && static_lock_mode)
   {
     uint16_t lock_abs = (uint16_t)(lock_min_duty + (abs_error * LCDM_SERVO_V6_LOCK_GAIN));
     if (lock_abs > lock_max_duty)
@@ -2569,7 +2637,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     drive_event = LCDM_SERVO_V3_EVENT_LOCK;
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_LOCK;
   }
-  else if (crossed_target && !SERVO_ENABLE_INTERNAL_STEP_TEST)
+  else if ((!customer_profile_direct) && crossed_target && !SERVO_ENABLE_INTERNAL_STEP_TEST)
   {
     uint16_t reverse_abs;
     if ((!cross_moving_away) &&
@@ -2594,7 +2662,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_BRAKE;
     s_lcdm_servo_motion_settle_count = 0U;
   }
-  else if (v7_need_prebrake)
+  else if ((!customer_profile_direct) && v7_need_prebrake)
   {
     uint16_t reverse_abs = (uint16_t)(abs_velocity_q4 + (abs_error / 8U));
     if ((abs_error <= brake_min_band) &&
@@ -2615,7 +2683,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_BRAKE;
     s_lcdm_servo_motion_settle_count = 0U;
   }
-  else
+  else if (!customer_profile_direct)
   {
     v_ref_q4 = (error >= 0) ? (int32_t)v7_stop_vel_limit_q4 : -(int32_t)v7_stop_vel_limit_q4;
     vel_error_q4 = v_ref_q4 - s_lcdm_servo_vel_q4;
@@ -2713,8 +2781,8 @@ static int16_t lcdm_servo_loop_update_fast(void)
     duty = (int16_t)-duty;
   }
 
+  if (!customer_profile_direct)
   {
-    uint32_t now_ms = HAL_GetTick();
     int8_t requested_dir = lcdm_servo_duty_dir(duty);
     uint16_t requested_abs_duty = (duty < 0) ? (uint16_t)(-duty) : (uint16_t)duty;
 
@@ -2751,8 +2819,15 @@ static int16_t lcdm_servo_loop_update_fast(void)
       return 0;
     }
   }
+  else
+  {
+    lcdm_servo_clear_output_guard();
+  }
 
-  duty = lcdm_servo_apply_slew(duty);
+  if (!customer_profile_direct)
+  {
+    duty = lcdm_servo_apply_slew(duty);
+  }
   if (duty == 0)
   {
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
@@ -2761,7 +2836,8 @@ static int16_t lcdm_servo_loop_update_fast(void)
                                    true);
   }
 
-  if (lcdm_servo_reverse_alarm_update(s_lcdm_servo_cmd_target_adc, feedback, error, duty))
+  if ((!customer_profile_direct) &&
+      lcdm_servo_reverse_alarm_update(s_lcdm_servo_cmd_target_adc, feedback, error, duty))
   {
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
                                    feedback, error, LCDM_SERVO_STATE_DIR_ALARM, 8U, false);
