@@ -4065,3 +4065,4 @@ P50 `Input state` 含义：`FRESH` 表示当前 PWM 有效；`NO EDGE H/L` 表�
 | SHA256 | ELF `9e0385fa4c7bf528e5a5aad15810e99920bba415de130fe0f3c8b517964ec482`；HEX `f8d8d7571ecc4987060860becdd665a9421b8c33c1ddb45884aa90d902bf3760`；BIN `832a3468498733563134331d083f1dbae15a3ff515a275629e910b6be7af460e`。 |
 | 向量 | 当前 V9.6s 构建向量为 `SP=0x20000c00`、`PC=0x08004979`。板载恢复 V9.6 向量仍为 `SP=0x20000c00`、`PC=0x0800495d`，两者不可混称。 |
 | 检查备注 | 当前分支没有 `tools/check_flash_record.sh`，因此本次先用手动方式检查 ELF 字符串、build hash 和 reset vector；后续若要恢复该脚本，应单独提交工具修复，不混入控制逻辑。 |
+| 下载记录 | 用户要求“试下载测试”后，使用刘氏下载法执行 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`。Ubuntu `lsusb` 可见 `0d28:0204 NXP ARM mbed`。首次 `hidapiusb` backend 报 `expected DAP_SWJ_CLOCK`，脚本 reset DAPLink 后以 default backend `1MHz under-reset` 连接 `PY32F002Ax5 [Halted]`，完成 `load build/py32f002_servo.hex`，写入运行向量 `SP=0x20000c00`、`PC=0x08004979` 并 `go`，pyOCD 返回 `Successfully resumed device`。当前板上应运行 `P50 V9.6s`，下一步现场测试内部/外部 PWM 抖动表现。 |
