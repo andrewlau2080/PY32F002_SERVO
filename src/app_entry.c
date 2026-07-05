@@ -958,7 +958,7 @@ static void run_pa7_tjc_test(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
 #define LCDM_SERVO_FW_TAG " V7.10R4"
 #else
-#define LCDM_SERVO_FW_TAG " V9.5"
+#define LCDM_SERVO_FW_TAG " V9.6r"
 #endif
 #define LCDM_REG_PARAM_VMAX 0U
 #define LCDM_REG_PARAM_ACCEL 1U
@@ -2218,6 +2218,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   bool moving_toward_target;
   bool crossed_target;
   bool command_step;
+  bool motion_phase_active;
   bool static_lock_candidate;
   uint16_t v7_settle_band;
   uint16_t v7_static_lock_band;
@@ -2390,7 +2391,14 @@ static int16_t lcdm_servo_loop_update_fast(void)
   {
     s_lcdm_servo_cmd_sensitive--;
   }
-  command_step = target_changed;
+  motion_phase_active =
+    (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_ACCEL) ||
+    (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_TRACK) ||
+    (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_BRAKE) ||
+    (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_RETURN);
+  command_step = target_changed &&
+                 ((!motion_phase_active) ||
+                  (target_delta > LCDM_SERVO_CMD_SETTLE_BAND));
   if (target_changed)
   {
     s_lcdm_servo_cmd_target_adc = target_adc;

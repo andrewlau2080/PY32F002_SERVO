@@ -4009,3 +4009,41 @@ P50 `Input state` 含义：`FRESH` 表示当前 PWM 有效；`NO EDGE H/L` 表�
 | 当前判断 | 这次间歇性抖动的主因不是客户 PID 曲线本身，而是末端状态机对 ADC 噪声、观测速度、过点误差和 HOLD/LOCK 重新激活条件处理过激。ADC 噪声会通过单次采样或 fast observer 变成速度；过点后误差在几十到百余 count 时，旧逻辑仍可能 `event12/event18` 注入能量；内部固定 4 秒切点会在某些未完全收敛周期上叠加新命令，于是表现为运行一段时间后突然晃，再过一段时间恢复。 |
 | 后续观察点 | 当前 V9.5 是内部 PWM 暂定稳定基准，但外部 PWM 测试必须继续看 VSG。若再次出现到点晃，优先检查 VSG 中 `event12/event18/event16` 是否重新出现在动作尾段；同时看 `raw_adc/feedback_adc/velocity_q4` 是否有异常跳动。如果尾段仍全是 `event=2, duty=0` 而机械仍晃，则要转向机械齿隙、电位器噪声、电源/PA0 供电稳定性检查，而不是继续改 PID。 |
 | 文件和原则 | 本轮源码只改 `src/app_entry.c`。不要把无效全 0 的 `build/vsg_latest_v94/` 当验证数据；有效内部参考目录包括 `build/vsg_latest_v94_fresh/` 和 `build/vsg_watch_v94/`。VSG 后续固定覆盖 `build/vsg_watch_v94/`，不再每次新开目录/窗口。V9.5 应作为“内部 PWM 间歇抖动修正基准版”提交 GitHub 并打 tag。 |
+
+2026-07-04 V9.6 板上版本追溯补记：
+
+| 项目 | 内容 |
+|---|---|
+| 补记原因 | 用户现场指出 LCDM 已显示 `V9.6`，但当前工作分支的 Markdown 只到 `V9.5`。核对后确认：`V9.6` 记录曾写在后续 Git 提交/tag 中，但当前 `v9.6r1-from-v9.5` 是从 `v9.5-internal-pwm-stable` 分出，因此这些记录没有带到当前分支，造成当前 MD 看起来没有 `V9.6`。这是流程问题，必须补回当前分支。 |
+| 板上读回 | 使用刘氏下载法路径，通过 Ubuntu VM 内 DAPLink/pyOCD 读目标 Flash。读回向量 `SP=0x20000c00`、`PC=0x0800495d`；Flash 字符串 `0x08004b6e: P50 V9.6`。 |
+| 二进制归档 | 已从目标 Flash 导出 `20480 B` 原始镜像并归档。当前分支可见镜像为 `build/board_flash_v96/py32f002_servo_v96_flash.bin`；历史归档路径为 `build/archive/v9_6_board_recovered_20260704/py32f002_servo_v96_board_flash.bin`。SHA256 均为 `303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce`。 |
+| 字符串证据 | 板上恢复镜像包含 `EXTPWM`、`INTPWM`、`P50 V9.6`。当前应把它当作真实板载行为参考，而不是完整源码基线。 |
+| Git/GitHub 核对 | 当时核对到 `origin/main` 只到 `V9.0`，`origin/main-v7.10n-update` 和 tag `v9.5-internal-pwm-stable` 到 `V9.5`；未找到能与板载 `P50 V9.6` 字节级对应的 Git commit/tag/release。 |
+| 关键事实 | `V9.6` 有板上二进制证据和恢复镜像，但没有可字节级复现的源码提交。因此不能把重建出来的任意 `P50 V9.6` 冒充原板载版本。后续修改必须以 `V9.5` 源码为可追溯基线，同时用板载 `V9.6` 的实测行为做对照。 |
+| 用户实测结论 | 用户后续复测指出板载恢复 `V9.6` 接近理想：内部 PWM 已基本不抖，外部 PWM 仍有 hkok/抖动。因此下一步不应改内部稳定路径，也不应重做 PID；应只处理外部命令衔接导致客户 profile/运动相位被干扰的问题。 |
+
+2026-07-05 V9.7-test1 失败和 V9.6 回退记录：
+
+| 项目 | 内容 |
+|---|---|
+| 现场反馈 | 用户指出 `V9.7-test1` 不是原板载 `V9.6` 行为：`V9.6` 前内部信号已经调到不抖，外部信号仍有 hkok/抖动；而 `V9.7-test1` 表现为内部也抖、外部也抖。 |
+| 结论 | `V9.7-test1` 判定为失败试机版，不得作为后续控制基线；不能再用它替代板载 `V9.6`。 |
+| 回退镜像 | 使用 `build/board_flash_v96/py32f002_servo_v96_flash.bin`，大小 `20480 B`，SHA256 `303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce`。镜像内字符串：`0x08004b6e: P50 V9.6`；向量 `SP=0x20000c00`、`PC=0x0800495d`。 |
+| 回退下载 | 已将该 V9.6 bin 传到 Ubuntu `/tmp/py32_v96_restore/py32f002_servo_v96_flash.bin`，hash 复核一致；使用 pyOCD commander 执行 `load ... 0x08000000`、写 `SP=0x20000c00`、`PC=0x0800495d`、`go`。首次 `hidapiusb` 遇到 `expected DAP_INFO`，随后 default backend `100kHz under-reset` 连接成功并返回 `Successfully resumed device`。当前板上已烧回板载恢复 `P50 V9.6`。 |
+| 回读状态 | 回退后短读 `0x08004b6e` 仍被 DAPLink USB 层 `expected DAP_INFO` 阻塞，因此本轮以 pyOCD 成功烧录/运行返回为准；下次重插或恢复 DAPLink 后再补读 Flash 字符串。 |
+| 后续原则 | 不再继续 `V9.7-test1`。在板上 `P50 V9.6` 状态下复核内部 PWM 已恢复不抖，再只针对外部 PWM 抖动和命令相位衔接做小改。 |
+
+2026-07-05 客户 LOGIC 曲线和 V9.6r 修改边界补记：
+
+| 项目 | 内容 |
+|---|---|
+| 用户纠正 | 用户提醒此前参考过 LOGIC 脉冲图，正确方向是“开始全速，后面断续分段刹车”，不是把问题简化成普通 PWM 滤波。 |
+| LOGIC 依据 | `build/customer_logic_compare/customer_logic_blocks.csv` 记录客户样品的 H 桥分段：先目标方向 `drive`，随后多段 `reverse_brake`。典型块包括约 `0.28ms/15` 个脉冲的短驱动，以及 `2ms`、`3.4ms`、`4-7ms` 等多段反向刹车/尾刹，载波约 `49.9kHz`。 |
+| 当前源码保留的客户 profile | `src/app_entry.c` 中仍保留 V9.1-V9.5 的简化客户曲线：`LCDM_SERVO_CUSTOMER_STEP_US=700`；大阶跃触发后 `12ms @ 930` 目标方向驱动，随后 `4ms @ 360` 反向刹车，`3ms @ 220` 尾刹，再保留 `24ms` coast gate。它是当前可追溯源码里“先全速、后分段刹车”的实现。 |
+| V9.5 到当前 V9.6r 源码差异 | 当前 `v9.6r1-from-v9.5` 只改 `src/app_entry.c`：版本字符串从 `P50 V9.5` 改为 `P50 V9.6r`；新增 `motion_phase_active`，让外部 PWM 小变化在运动中只更新目标，不反复重启 `ACCEL/BRAKE/RETURN` 相位；若目标变化超过 `LCDM_SERVO_CMD_SETTLE_BAND=96 count`，仍作为大阶跃重启运动相位。 |
+| 未改内容 | 没有改客户 profile 的 `12/4/3/24ms` 和 `930/360/220`；没有改 PID、H 桥最大 duty、ADC 平均采样、V9.5 内部稳定修正、LOCK 8 次确认、`LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND=240`、`v7_static_lock_band = Rel + Hbd*14`。 |
+| 修改意图 | 板载 `V9.6` 内部接近理想而外部仍抖，最可疑的是外部 PWM 在运动中有 `1-3us` 小跳变，旧逻辑把小跳变也当 `command_step`，反复重启客户 profile/运动相位，使“先全速、后刹车”的节奏被打断。当前 V9.6r 只挡这类运动中小命令重启。 |
+| 构建记录 | 构建命令：`./tools/build_in_ubuntu.sh LTO=1 SERVO_ENABLE_COMM=0 SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1 SERVO_ENABLE_PA0_POT_POWER=1 BOARD_TSSOP20_DEBUG_PINS=1 SERVO_TJC_UART_ALT_PINS=1 TJC_LCDM_BAUD_OVERRIDE=230400 SERVO_TJC_RX_ENABLE=1 SERVO_HBRIDGE_FORCE_HIZ=0`。结果 `text=19680 B`、`data=672 B`、`bss=2336 B`；ELF 字符串 `EXTPWM`、`INTPWM`、`P50 V9.6r`。 |
+| SHA256 | ELF `2427d81f58400d4a42f993bdcd6fc85e2f1582af42de330ea27d7f9cb695d56e`；HEX `de920679dd3f5d8fc07237e4697fbd4bf17ede8c90ebaddeb91d4db2766e098c`；BIN `a5c618e266d23e9248c357520fc974845164dc431aaffa3ca3ffb7b7063be14f`。 |
+| 向量 | 当前 V9.6r 构建向量为 `SP=0x20000c00`、`PC=0x0800497d`。板载恢复 V9.6 向量为 `SP=0x20000c00`、`PC=0x0800495d`，两者不同，不能混称。 |
+| 下载状态 | 当前 V9.6r 只完成源码修改、构建、hash 和本条记录；尚未下载。下载前必须先 commit/tag，并执行 Flash 记录检查。下载仍必须走刘氏下载法，且必须以 pyOCD 输出 `Successfully resumed device` 作为成功条件；下载后再读回 Flash 字符串补记录。 |
