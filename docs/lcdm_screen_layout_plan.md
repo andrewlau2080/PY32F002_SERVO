@@ -4066,3 +4066,14 @@ P50 `Input state` 含义：`FRESH` 表示当前 PWM 有效；`NO EDGE H/L` 表�
 | 向量 | 当前 V9.6s 构建向量为 `SP=0x20000c00`、`PC=0x08004979`。板载恢复 V9.6 向量仍为 `SP=0x20000c00`、`PC=0x0800495d`，两者不可混称。 |
 | 检查备注 | 当前分支没有 `tools/check_flash_record.sh`，因此本次先用手动方式检查 ELF 字符串、build hash 和 reset vector；后续若要恢复该脚本，应单独提交工具修复，不混入控制逻辑。 |
 | 下载记录 | 用户要求“试下载测试”后，使用刘氏下载法执行 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`。Ubuntu `lsusb` 可见 `0d28:0204 NXP ARM mbed`。首次 `hidapiusb` backend 报 `expected DAP_SWJ_CLOCK`，脚本 reset DAPLink 后以 default backend `1MHz under-reset` 连接 `PY32F002Ax5 [Halted]`，完成 `load build/py32f002_servo.hex`，写入运行向量 `SP=0x20000c00`、`PC=0x08004979` 并 `go`，pyOCD 返回 `Successfully resumed device`。当前板上应运行 `P50 V9.6s`，下一步现场测试内部/外部 PWM 抖动表现。 |
+
+2026-07-05 V9.6s 失败和原始 V9.6 二进制恢复记录：
+
+| 项目 | 内容 |
+|---|---|
+| 现场反馈 | 用户试机反馈：“还是不行，一直在抖，没办法还原出来”。因此 `P50 V9.6s` 判定为失败试机版，不再继续沿此版本猜改。 |
+| 失败边界 | V9.6s 只补了板载 V9.6 反汇编中看到的 `pulse_delta >= 3us` 动作触发门限，但实机仍持续抖动，说明这不是完整恢复原始 V9.6 行为的充分条件。不能把 V9.6s 当成接近理想的 V9.6，也不能把它作为后续控制基线。 |
+| 恢复动作 | 已将原始板上读回镜像 `build/board_flash_v96/py32f002_servo_v96_flash.bin` 重新传入 Ubuntu `/tmp/py32_v96_restore/py32f002_servo_v96_flash.bin`，大小 `20480 B`，SHA256 复核为 `303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce`。 |
+| 烧录方法 | 使用刘氏下载法，在 Parallels `Ubuntu Linux` 内通过 DAPLink/pyOCD commander 烧 raw bin：`load /tmp/py32_v96_restore/py32f002_servo_v96_flash.bin 0x08000000`，随后写 `SP=0x20000c00`、`PC=0x0800495d` 并 `go`。 |
+| 烧录结果 | pyOCD 以 `hidapiusb`、`100kHz`、`under-reset` 连接 `PY32F002Ax5 [Halted]`，完成 flash load 后返回 `Successfully resumed device`。按当前下载判据，板上已恢复为原始读回的 `P50 V9.6` 二进制。 |
+| 后续原则 | 暂停 V9.6r/V9.6s 源码试改。下一步先让用户在板上复测原始 `P50 V9.6` 是否恢复到“内部接近理想、外部仍 hkok/抖”的已知状态；若确认恢复，再重新从原始 V9.6 行为和 V9.5 源码差异做更小范围排查。 |
