@@ -4098,3 +4098,5 @@ P50 `Input state` 含义：`FRESH` 表示当前 PWM 有效；`NO EDGE H/L` 表�
 | SHA256 | ELF `9adfaffa33c50b744cf87db368259393d3e6f0ef59445ae86d10b240c8b62ca6`；HEX `44accc98ea9d02aba7de1420b6f54244db10d04aaf560dcf967c4648f344dea9`；BIN `4990cc39d4175cd1590b92ada58760499104a1826f19ece29c4818a5479cadb2`。 |
 | 向量 | V9.6t P50-only 构建向量：`SP=0x20000c00`、`PC=0x08004445`；BIN 大小 `18440 B`。这与原始板载 V9.6 的 `PC=0x0800495d` 不同，不能混称为原始 V9.6。 |
 | 下载状态 | 本条只完成复查、源码修改、构建和记录；尚未下载覆盖板上的原始恢复 `P50 V9.6`。若要试机，必须先 commit/tag，再按刘氏下载法烧录，并以 pyOCD 输出 `Successfully resumed device` 作为成功条件。 |
+| 下载更新 | 用户确认必须下载实测后，使用刘氏下载法执行 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`。首次 hidapiusb 后端报 `expected DAP_SWJ_CLOCK`，软件断开/重连 Parallels USB 后仍需脚本 reset DAPLink；随后 default backend `100kHz under-reset` 成功连接 `PY32F002Ax5 [Halted]`，完成 `load build/py32f002_servo.hex`，写入运行向量 `SP=0x20000c00`、`PC=0x08004445` 并 `go`，pyOCD 返回 `Successfully resumed device`。按当前判据，板上已运行 `P50 V9.6t`。 |
+| 读回备注 | V9.6t 字符串在 BIN 中偏移 `0x45ef`，地址 `0x080045ef`。下载后尝试用 `mdw` 读向量，但 pyOCD commander 不支持该命令；该次连接退出前目标处于 Halted，随后已单独执行 `go` 并再次返回 `Successfully resumed device`，确认 CPU 已恢复运行。 |
