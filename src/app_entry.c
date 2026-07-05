@@ -33,6 +33,10 @@
 #define SERVO_ENABLE_LCDM_RUNTIME_UI_TEST 0
 #endif
 
+#ifndef SERVO_LCDM_DIAG_ONLY
+#define SERVO_LCDM_DIAG_ONLY 0
+#endif
+
 #ifndef SERVO_ENABLE_INTERNAL_STEP_TEST
 #define SERVO_ENABLE_INTERNAL_STEP_TEST 0
 #endif
@@ -959,7 +963,7 @@ static void run_pa7_tjc_test(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
 #define LCDM_SERVO_FW_TAG " V7.10R4"
 #else
-#define LCDM_SERVO_FW_TAG " V9.6s"
+#define LCDM_SERVO_FW_TAG " V9.6t"
 #endif
 #define LCDM_REG_PARAM_VMAX 0U
 #define LCDM_REG_PARAM_ACCEL 1U
@@ -1084,6 +1088,7 @@ static LcdmRuntimeParam s_lcdm_template_params[] = {
   {"Lmax", "", LCDM_SERVO_V3_LOCK_MAX_DUTY, 100, 1000, 10},
 };
 
+#if !SERVO_LCDM_DIAG_ONLY
 static const char *const s_lcdm_menu_text[] = {
   "P10",
   "P31",
@@ -1096,6 +1101,7 @@ static const char *const s_lcdm_menu_text[] = {
   "P80",
   "P90",
 };
+#endif
 
 static uint16_t s_lcdm_last_pwm_pulse_us = 0xFFFFU;
 static uint16_t s_lcdm_last_pwm_control_us = 0xFFFFU;
@@ -1503,6 +1509,7 @@ static void lcdm_value_cell(uint8_t row, const char *value, uint16_t value_color
   lcdm_text(LCDM_ROW_VALUE_X, y, LCDM_ROW_VALUE_W, LCDM_ROW_H, value_color, bg, 0U, value);
 }
 
+#if !SERVO_LCDM_DIAG_ONLY
 static void lcdm_menu_row_ex(uint8_t row, const char *text, bool pressed)
 {
   uint8_t grid_row = (uint8_t)(row % LCDM_MENU_ROWS);
@@ -1597,6 +1604,7 @@ static void lcdm_draw_p01(void)
   }
   lcdm_footer("MN", "BK", "ENT");
 }
+#endif
 
 static bool lcdm_pwm_sample_is_fresh(const PWM_InputSample *sample)
 {
@@ -1782,6 +1790,7 @@ static uint16_t lcdm_servo_update_latched_pulse(uint16_t pulse_us, uint32_t puls
 {
   uint16_t stable_band = (uint16_t)s_lcdm_startup_params[LCDM_STARTUP_PARAM_INPUT_STABLE_BAND].value;
   uint16_t delta;
+  uint16_t candidate_delta;
 
   if (stable_band > 50U)
   {
@@ -1815,15 +1824,44 @@ static uint16_t lcdm_servo_update_latched_pulse(uint16_t pulse_us, uint32_t puls
   delta = (pulse_us > s_lcdm_servo_latched_pulse_us) ?
           (uint16_t)(pulse_us - s_lcdm_servo_latched_pulse_us) :
           (uint16_t)(s_lcdm_servo_latched_pulse_us - pulse_us);
-  if (delta > stable_band)
+  if (delta <= stable_band)
+  {
+    s_lcdm_servo_candidate_pulse_us = s_lcdm_servo_latched_pulse_us;
+    s_lcdm_servo_candidate_count = 0U;
+    return s_lcdm_servo_latched_pulse_us;
+  }
+
+  if (delta >= LCDM_SERVO_PWM_CMD_DIRECT_US)
   {
     s_lcdm_servo_latched_pulse_us = pulse_us;
     s_lcdm_servo_candidate_pulse_us = pulse_us;
     s_lcdm_servo_candidate_count = 0U;
+    return s_lcdm_servo_latched_pulse_us;
+  }
+
+  candidate_delta = (pulse_us > s_lcdm_servo_candidate_pulse_us) ?
+                    (uint16_t)(pulse_us - s_lcdm_servo_candidate_pulse_us) :
+                    (uint16_t)(s_lcdm_servo_candidate_pulse_us - pulse_us);
+
+  if ((s_lcdm_servo_candidate_count == 0U) ||
+      (candidate_delta > ((delta >= LCDM_SERVO_PWM_CMD_FINE_US) ?
+                          LCDM_SERVO_PWM_CMD_FINE_CLUSTER_US :
+                          LCDM_SERVO_PWM_CMD_REPEAT_CLUSTER_US)))
+  {
+    s_lcdm_servo_candidate_pulse_us = pulse_us;
+    s_lcdm_servo_candidate_count = 1U;
   }
   else
   {
-    s_lcdm_servo_candidate_pulse_us = s_lcdm_servo_latched_pulse_us;
+    s_lcdm_servo_candidate_count++;
+    s_lcdm_servo_candidate_pulse_us = pulse_us;
+  }
+
+  if (s_lcdm_servo_candidate_count >= ((delta >= LCDM_SERVO_PWM_CMD_FINE_US) ?
+                                       LCDM_SERVO_PWM_CMD_FINE_COUNT :
+                                       LCDM_SERVO_PWM_CMD_REPEAT_COUNT))
+  {
+    s_lcdm_servo_latched_pulse_us = pulse_us;
     s_lcdm_servo_candidate_count = 0U;
   }
 
@@ -2938,6 +2976,7 @@ static bool lcdm_read_touch(LcdmRuntimeTouch *touch, uint16_t wait_ms)
   return false;
 }
 
+#if !SERVO_LCDM_DIAG_ONLY
 static int8_t lcdm_menu_row_from_xy(uint16_t x, uint16_t y, uint8_t max_items)
 {
   uint16_t adjusted_y;
@@ -2994,6 +3033,7 @@ static int8_t lcdm_row_from_y(uint16_t y, uint8_t max_rows)
   }
   return (int8_t)row;
 }
+#endif
 
 static void lcdm_update_pwm_live_values(void)
 {
@@ -3179,6 +3219,7 @@ static void lcdm_update_pwm_live_values(void)
   }
 }
 
+#if !SERVO_LCDM_DIAG_ONLY
 static bool lcdm_runtime_param_table(LcdmRuntimePage page, LcdmRuntimeParam **params, uint8_t *count)
 {
   switch (page)
@@ -3224,10 +3265,15 @@ static void lcdm_runtime_redraw_param_rows(LcdmRuntimeParam *params,
   }
   lcdm_page_batch_end();
 }
+#endif
 
 static void lcdm_runtime_draw_page(const LcdmRuntimeState *state)
 {
   lcdm_page_batch_begin();
+#if SERVO_LCDM_DIAG_ONLY
+  (void)state;
+  lcdm_draw_p50(0U);
+#else
   switch (state->page)
   {
     case LCDM_PAGE_MENU:
@@ -3271,6 +3317,7 @@ static void lcdm_runtime_draw_page(const LcdmRuntimeState *state)
       lcdm_draw_p50(state->monitor_step);
       break;
   }
+#endif
   lcdm_page_batch_end();
   pa7_tjc_write_cmd("sendxy=1");
   pb2_tjc_drain_rx();
@@ -3278,6 +3325,26 @@ static void lcdm_runtime_draw_page(const LcdmRuntimeState *state)
 
 static bool lcdm_runtime_handle_touch(LcdmRuntimeState *state, const LcdmRuntimeTouch *touch)
 {
+#if SERVO_LCDM_DIAG_ONLY
+  if (touch->event != 1U)
+  {
+    return false;
+  }
+  state->touch_count++;
+  state->last_x = touch->x;
+  state->last_y = touch->y;
+  if ((touch->y >= LCDM_FOOTER_TOUCH_Y) &&
+      (touch->x >= LCDM_FOOTER_SEG_W) &&
+      (touch->x < (LCDM_FOOTER_SEG_W * 2U)))
+  {
+    s_lcdm_pwm_source = (s_lcdm_pwm_source == LCDM_PWM_SOURCE_EXTERNAL) ?
+                        LCDM_PWM_SOURCE_INTERNAL :
+                        LCDM_PWM_SOURCE_EXTERNAL;
+    lcdm_reset_pwm_live_cache();
+    return true;
+  }
+  return false;
+#else
   bool is_press = (touch->event == 1U);
   LcdmRuntimeParam *params = NULL;
   uint8_t count = 0U;
@@ -3400,6 +3467,7 @@ static bool lcdm_runtime_handle_touch(LcdmRuntimeState *state, const LcdmRuntime
   }
 
   return false;
+#endif
 }
 
 static void run_lcdm_runtime_ui_test(void)

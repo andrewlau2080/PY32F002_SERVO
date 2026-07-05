@@ -4077,3 +4077,24 @@ P50 `Input state` 含义：`FRESH` 表示当前 PWM 有效；`NO EDGE H/L` 表�
 | 烧录方法 | 使用刘氏下载法，在 Parallels `Ubuntu Linux` 内通过 DAPLink/pyOCD commander 烧 raw bin：`load /tmp/py32_v96_restore/py32f002_servo_v96_flash.bin 0x08000000`，随后写 `SP=0x20000c00`、`PC=0x0800495d` 并 `go`。 |
 | 烧录结果 | pyOCD 以 `hidapiusb`、`100kHz`、`under-reset` 连接 `PY32F002Ax5 [Halted]`，完成 flash load 后返回 `Successfully resumed device`。按当前下载判据，板上已恢复为原始读回的 `P50 V9.6` 二进制。 |
 | 后续原则 | 暂停 V9.6r/V9.6s 源码试改。下一步先让用户在板上复测原始 `P50 V9.6` 是否恢复到“内部接近理想、外部仍 hkok/抖”的已知状态；若确认恢复，再重新从原始 V9.6 行为和 V9.5 源码差异做更小范围排查。 |
+
+2026-07-05 `PY32F002_SIGNAL_CAPTURE` 复查和 V9.6t 外部命令确认修正：
+
+| 项目 | 内容 |
+|---|---|
+| 用户线索 | 用户指出当时曾抓取“我们自己的输出”与客户输出比较，最后接近客户波形才稳定；并怀疑最终决定资料可能在 `../PY32F002_SIGNAL_CAPTURE`。 |
+| SIGNAL_CAPTURE 范围 | `../PY32F002_SIGNAL_CAPTURE` 是被动采集工程，不是马达控制固件。`README.md` 和 `AGENTS.md` 明确要求只采集外部成熟舵机板信号，不驱动马达、不直接复用为主舵机固件。 |
+| 有效资料 | `CUSTOMER.logicdata` 是最高分辨率客户波形来源；`build/capture_vsg_live/capture_vsg_live.csv` 是有效的 PA1/PA2 H 桥、PA4 PWM、PA3 ADC 粗粒度采集。 |
+| 无效/低可信资料 | `build/servo_curve_live/servo_curve_live.csv` 为空；`captures/servo_curve_live_20260621_*` 多数是旧 VSG 结构错位，`pwm_us/raw_adc/target/feedback` 大量为 `0` 或 `4095`，不能作为最终控制恢复证据。 |
+| 客户波形结论 | 运行 `../PY32F002_SIGNAL_CAPTURE/tools/analyze_logicdata_motor_pwm.py CUSTOMER.logicdata --cluster-gap-ms 15` 后确认载波约 `49.9kHz`。客户样品动作是先目标方向 drive，再多段 reverse_brake；典型分段包括 `0.28ms` 短驱动，以及 `2.0ms`、`3.4ms`、`4.0-7.2ms` 反向刹车/尾刹。 |
+| 我方对比图状态 | `build/customer_logic_compare/customer_logic_compare.svg` 上半部分画出了客户 `CUSTOMER.logicdata` 分段；下半部分提示“未找到我们的 servo_curve_live.csv 或其中没有目标跳变周期”。因此这张图不能证明当时已经叠图完全一致，只能证明客户分段依据已经被提取。 |
+| 源码 profile 状态 | 当前可追溯源码仍保留 V9.1/V9.5 的简化客户 profile：大阶跃 `pulse_delta >= 700us` 后执行 `12ms @ 930` 目标方向驱动、`4ms @ 360` 反向刹车、`3ms @ 220` 尾刹、`24ms` coast gate。V9.6t 不修改这些数字。 |
+| 失败原因复盘 | V9.6r 只挡“运动中小命令重启”；V9.6s 只把 `1-2us` 小变化挡在 motion trigger 外，但仍会让每个已锁存小变化更新控制目标。实测仍抖，说明外部 PWM 小抖需要先在命令确认层被挡住，不能每一帧都进入控制目标。 |
+| V9.6t 源码修改 | `src/app_entry.c` 把外部 PWM 锁存恢复为候选确认：`>=8us` 变化立即接受；`3-7us` 变化需同簇连续 `2` 帧；`1-2us` 变化需同簇连续 `6` 帧。这样固定外部 PWM 的 `1-2us` 来回跳不会刷新马达目标，连续真实细调仍可进入控制。 |
+| 运动触发边界 | 保留 V9.6s 的 `LCDM_SERVO_CMD_STEP_MIN_US=3` 和运动相位 gate：目标显示/锁存与快速运动触发分离，细小变化不应打断“先全速、后分段刹车”的 profile。 |
+| P50-only 构建 | 全 LCDM 页面构建加入 V9.6t 后 Flash 溢出约 `192 B`。为避免动控制核心，本次新增 `SERVO_LCDM_DIAG_ONLY` 编译开关，默认关闭；试机固件打开该开关，只保留 P50 诊断页和底部中键 `EXTPWM/INTPWM` 切换，暂不进入 P30/P40/P70 参数页。 |
+| 构建命令 | `./tools/build_in_ubuntu.sh LTO=1 SERVO_ENABLE_COMM=0 SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1 SERVO_LCDM_DIAG_ONLY=1 SERVO_ENABLE_PA0_POT_POWER=1 BOARD_TSSOP20_DEBUG_PINS=1 SERVO_TJC_UART_ALT_PINS=1 TJC_LCDM_BAUD_OVERRIDE=230400 SERVO_TJC_RX_ENABLE=1 SERVO_HBRIDGE_FORCE_HIZ=0` |
+| 构建结果 | 构建通过：`text=18148 B`、`data=292 B`、`bss=2332 B`。ELF 字符串确认 `EXTPWM`、`INTPWM`、`P50 V9.6t`。 |
+| SHA256 | ELF `9adfaffa33c50b744cf87db368259393d3e6f0ef59445ae86d10b240c8b62ca6`；HEX `44accc98ea9d02aba7de1420b6f54244db10d04aaf560dcf967c4648f344dea9`；BIN `4990cc39d4175cd1590b92ada58760499104a1826f19ece29c4818a5479cadb2`。 |
+| 向量 | V9.6t P50-only 构建向量：`SP=0x20000c00`、`PC=0x08004445`；BIN 大小 `18440 B`。这与原始板载 V9.6 的 `PC=0x0800495d` 不同，不能混称为原始 V9.6。 |
+| 下载状态 | 本条只完成复查、源码修改、构建和记录；尚未下载覆盖板上的原始恢复 `P50 V9.6`。若要试机，必须先 commit/tag，再按刘氏下载法烧录，并以 pyOCD 输出 `Successfully resumed device` 作为成功条件。 |
