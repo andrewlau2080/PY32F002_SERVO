@@ -805,6 +805,7 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_ADC_JUMP_CONFIRM 3U
 #define LCDM_SERVO_CMD_HOLD_EXIT_EXTRA 3U
 #define LCDM_SERVO_CMD_MOTION_EXIT_EXTRA 12U
+#define LCDM_SERVO_CMD_STEP_MIN_US 3U
 #define LCDM_SERVO_PWM_CMD_DIRECT_US 8U
 #define LCDM_SERVO_PWM_CMD_FINE_US 3U
 #define LCDM_SERVO_PWM_CMD_FINE_CLUSTER_US 2U
@@ -958,7 +959,7 @@ static void run_pa7_tjc_test(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
 #define LCDM_SERVO_FW_TAG " V7.10R4"
 #else
-#define LCDM_SERVO_FW_TAG " V9.6r"
+#define LCDM_SERVO_FW_TAG " V9.6s"
 #endif
 #define LCDM_REG_PARAM_VMAX 0U
 #define LCDM_REG_PARAM_ACCEL 1U
@@ -2210,6 +2211,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   uint16_t abs_velocity_q4;
   bool target_changed = false;
   bool target_motion_changed = false;
+  bool pulse_step = false;
   uint8_t drive_event = LCDM_SERVO_V3_EVENT_DRIVE;
   uint16_t loop_max_duty;
   int32_t duty_calc;
@@ -2374,8 +2376,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
     target_delta = (target_adc > s_lcdm_servo_last_target_adc) ?
                    (uint16_t)(target_adc - s_lcdm_servo_last_target_adc) :
                    (uint16_t)(s_lcdm_servo_last_target_adc - target_adc);
+    pulse_step = (pulse_delta >= LCDM_SERVO_CMD_STEP_MIN_US);
     target_changed = (pulse_delta != 0U) || (target_delta > LCDM_SERVO_CMD_HOLD_EXIT_EXTRA);
-    target_motion_changed = (pulse_delta != 0U) || (target_delta > LCDM_SERVO_CMD_MOTION_EXIT_EXTRA);
+    target_motion_changed = pulse_step || (target_delta > LCDM_SERVO_CMD_MOTION_EXIT_EXTRA);
   }
   else
   {
@@ -2396,7 +2399,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_TRACK) ||
     (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_BRAKE) ||
     (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_RETURN);
-  command_step = target_changed &&
+  command_step = target_motion_changed &&
                  ((!motion_phase_active) ||
                   (target_delta > LCDM_SERVO_CMD_SETTLE_BAND));
   if (target_changed)

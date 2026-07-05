@@ -4049,3 +4049,19 @@ P50 `Input state` 含义：`FRESH` 表示当前 PWM 有效；`NO EDGE H/L` 表�
 | 下载状态 | 当前 V9.6r 只完成源码修改、构建、hash 和本条记录；尚未下载。下载前必须先 commit/tag，并执行 Flash 记录检查。下载仍必须走刘氏下载法，且必须以 pyOCD 输出 `Successfully resumed device` 作为成功条件；下载后再读回 Flash 字符串补记录。 |
 | 首次下载尝试 | 2026-07-05 用户要求先下载到板上实际测试。已按刘氏下载法执行 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`，确认 DAPLink 仍归属 Parallels `Ubuntu Linux`，Ubuntu `lsusb` 可见 `0d28:0204 NXP ARM mbed`，pyOCD list 可见 `Arm DAPLink CMSIS-DAP`。两轮下载尝试均未成功：hidapiusb 后端报 `expected DAP_SWJ_CLOCK`，default 后端报 `expected DAP_INFO`；脚本执行 `usbreset 0d28:0204` 和 Parallels autoconnect host/Ubuntu 切换后仍失败。全程未出现 `Successfully resumed device`，因此 `P50 V9.6r` 尚未烧录到板。下一步需要物理拔插 PADLink/DAPLink 或重新接入 Ubuntu 后再下载。 |
 | 下载成功更新 | 用户重新接入后，Ubuntu `lsusb` 中 DAPLink 设备号从 `029` 变为 `031`。再次执行刘氏下载法 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`，pyOCD 连接到 `PY32F002Ax5 [Halted]`，完成 `load build/py32f002_servo.hex`，写入运行向量 `SP=0x20000c00`、`PC=0x0800497d` 并 `go`，返回 `Successfully resumed device`。因此当前板上应运行 `P50 V9.6r`。下载后按 ELF 推算字符串地址 `0x08004b8e` 尝试读回 `P50 V9.6r`，但 DAPLink 再次返回 `expected DAP_INFO`，读回确认未完成；现场先以 LCDM 显示和实机动作为准。 |
+| V9.6r 实测反馈 | 用户试机确认：内部信号可以，外部信号仍抖。结论是 V9.6r 没破坏内部稳定，但只挡运动中小命令重启不够，外部 PWM 固定/静止时的小脉宽跳动仍可能叫醒 HOLD/快速启动流程。 |
+
+2026-07-05 V9.6s 板载 V9.6 反汇编还原记录：
+
+| 项目 | 内容 |
+|---|---|
+| 用户要求 | 用户指出“没找到原始改动方法，快速启动分段刹车等等”，并怀疑 V9.5 到 V9.6 期间可能改了新的 profile，要求严查并尽量还原。 |
+| 严查结论 | 对 `build/board_flash_v96/py32f002_servo_v96_flash.bin` 做 Thumb 反汇编，并和当前 V9.6r ELF 对照。未发现板载 V9.6 把客户 profile 常数改成另一组：仍能对应 `pulse_delta >= 700us` 才启动 customer profile，前段 `12ms`，随后 `4ms` 反刹、`3ms` 尾刹、`24ms` coast gate；占空比仍对应 `930/360/220`。因此不能把问题说成“profile 数字丢失”。 |
+| 找回的关键差异 | 板载 V9.6 在命令触发层有一处当前 V9.6r 没完全恢复的门限：`pulse_delta <= 2us` 时只更新锁存目标/显示，不按新动作重启运动；`pulse_delta >= 3us` 才进入新动作触发路径。当前 V9.6r 仍把 `pulse_delta != 0` 作为 `target_changed`，虽然后续挡住运动中小重启，但 HOLD/静止状态仍可能被外部 `1-2us` 抖动叫醒。 |
+| 本次源码修改 | 版本字符串改为 `P50 V9.6s`；新增 `LCDM_SERVO_CMD_STEP_MIN_US=3`；`target_changed` 仍保留 `pulse_delta != 0`，用于 P50/目标锁存跟随；但 `target_motion_changed` 改为 `pulse_delta >= 3us` 或 `target_delta > LCDM_SERVO_CMD_MOTION_EXIT_EXTRA`；`command_step` 改为只由 `target_motion_changed` 触发。这样外部 `1-2us` 抖动不再从 HOLD/静止状态启动快速动作，`>=3us` 灵敏命令仍保留。 |
+| 未改内容 | 未改 customer profile 的 `12/4/3/24ms` 和 `930/360/220`；未改 PID、V9.5 内部稳定修正、ADC 平均采样、LOCK 8 次确认、`LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND=240`、`v7_static_lock_band = Rel + Hbd*14`。 |
+| 验证原则 | V9.6s 不是声称完整复原原始 V9.6 源码，只是按板载 V9.6 二进制反汇编补回一个明确差异。下载前必须先构建、记录 SHA、commit/tag；下载后必须按刘氏下载法，以 `Successfully resumed device` 为成功条件。 |
+| 构建记录 | 使用与 V9.6r 相同的 Ubuntu 构建参数，构建通过：`text=19676 B`、`data=672 B`、`bss=2336 B`。ELF 字符串确认 `EXTPWM`、`INTPWM`、`P50 V9.6s`。 |
+| SHA256 | ELF `9e0385fa4c7bf528e5a5aad15810e99920bba415de130fe0f3c8b517964ec482`；HEX `f8d8d7571ecc4987060860becdd665a9421b8c33c1ddb45884aa90d902bf3760`；BIN `832a3468498733563134331d083f1dbae15a3ff515a275629e910b6be7af460e`。 |
+| 向量 | 当前 V9.6s 构建向量为 `SP=0x20000c00`、`PC=0x08004979`。板载恢复 V9.6 向量仍为 `SP=0x20000c00`、`PC=0x0800495d`，两者不可混称。 |
+| 检查备注 | 当前分支没有 `tools/check_flash_record.sh`，因此本次先用手动方式检查 ELF 字符串、build hash 和 reset vector；后续若要恢复该脚本，应单独提交工具修复，不混入控制逻辑。 |
