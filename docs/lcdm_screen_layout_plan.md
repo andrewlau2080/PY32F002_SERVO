@@ -4022,81 +4022,15 @@ P50 `Input state` 含义：`FRESH` 表示当前 PWM 有效；`NO EDGE H/L` 表�
 | 关键事实 | `V9.6` 有板上二进制证据和恢复镜像，但没有可字节级复现的源码提交。因此不能把重建出来的任意 `P50 V9.6` 冒充原板载版本。后续修改必须以 `V9.5` 源码为可追溯基线，同时用板载 `V9.6` 的实测行为做对照。 |
 | 用户实测结论 | 用户后续复测指出板载恢复 `V9.6` 接近理想：内部 PWM 已基本不抖，外部 PWM 仍有 hkok/抖动。因此下一步不应改内部稳定路径，也不应重做 PID；应只处理外部命令衔接导致客户 profile/运动相位被干扰的问题。 |
 
-2026-07-05 V9.7-test1 失败和 V9.6 回退记录：
+2026-07-05 V9.6X 试错线作废与重来记录：
 
 | 项目 | 内容 |
 |---|---|
-| 现场反馈 | 用户指出 `V9.7-test1` 不是原板载 `V9.6` 行为：`V9.6` 前内部信号已经调到不抖，外部信号仍有 hkok/抖动；而 `V9.7-test1` 表现为内部也抖、外部也抖。 |
-| 结论 | `V9.7-test1` 判定为失败试机版，不得作为后续控制基线；不能再用它替代板载 `V9.6`。 |
-| 回退镜像 | 使用 `build/board_flash_v96/py32f002_servo_v96_flash.bin`，大小 `20480 B`，SHA256 `303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce`。镜像内字符串：`0x08004b6e: P50 V9.6`；向量 `SP=0x20000c00`、`PC=0x0800495d`。 |
-| 回退下载 | 已将该 V9.6 bin 传到 Ubuntu `/tmp/py32_v96_restore/py32f002_servo_v96_flash.bin`，hash 复核一致；使用 pyOCD commander 执行 `load ... 0x08000000`、写 `SP=0x20000c00`、`PC=0x0800495d`、`go`。首次 `hidapiusb` 遇到 `expected DAP_INFO`，随后 default backend `100kHz under-reset` 连接成功并返回 `Successfully resumed device`。当前板上已烧回板载恢复 `P50 V9.6`。 |
-| 回读状态 | 回退后短读 `0x08004b6e` 仍被 DAPLink USB 层 `expected DAP_INFO` 阻塞，因此本轮以 pyOCD 成功烧录/运行返回为准；下次重插或恢复 DAPLink 后再补读 Flash 字符串。 |
-| 后续原则 | 不再继续 `V9.7-test1`。在板上 `P50 V9.6` 状态下复核内部 PWM 已恢复不抖，再只针对外部 PWM 抖动和命令相位衔接做小改。 |
-
-2026-07-05 客户 LOGIC 曲线和 V9.6r 修改边界补记：
-
-| 项目 | 内容 |
-|---|---|
-| 用户纠正 | 用户提醒此前参考过 LOGIC 脉冲图，正确方向是“开始全速，后面断续分段刹车”，不是把问题简化成普通 PWM 滤波。 |
-| LOGIC 依据 | `build/customer_logic_compare/customer_logic_blocks.csv` 记录客户样品的 H 桥分段：先目标方向 `drive`，随后多段 `reverse_brake`。典型块包括约 `0.28ms/15` 个脉冲的短驱动，以及 `2ms`、`3.4ms`、`4-7ms` 等多段反向刹车/尾刹，载波约 `49.9kHz`。 |
-| 当前源码保留的客户 profile | `src/app_entry.c` 中仍保留 V9.1-V9.5 的简化客户曲线：`LCDM_SERVO_CUSTOMER_STEP_US=700`；大阶跃触发后 `12ms @ 930` 目标方向驱动，随后 `4ms @ 360` 反向刹车，`3ms @ 220` 尾刹，再保留 `24ms` coast gate。它是当前可追溯源码里“先全速、后分段刹车”的实现。 |
-| V9.5 到当前 V9.6r 源码差异 | 当前 `v9.6r1-from-v9.5` 只改 `src/app_entry.c`：版本字符串从 `P50 V9.5` 改为 `P50 V9.6r`；新增 `motion_phase_active`，让外部 PWM 小变化在运动中只更新目标，不反复重启 `ACCEL/BRAKE/RETURN` 相位；若目标变化超过 `LCDM_SERVO_CMD_SETTLE_BAND=96 count`，仍作为大阶跃重启运动相位。 |
-| 未改内容 | 没有改客户 profile 的 `12/4/3/24ms` 和 `930/360/220`；没有改 PID、H 桥最大 duty、ADC 平均采样、V9.5 内部稳定修正、LOCK 8 次确认、`LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND=240`、`v7_static_lock_band = Rel + Hbd*14`。 |
-| 修改意图 | 板载 `V9.6` 内部接近理想而外部仍抖，最可疑的是外部 PWM 在运动中有 `1-3us` 小跳变，旧逻辑把小跳变也当 `command_step`，反复重启客户 profile/运动相位，使“先全速、后刹车”的节奏被打断。当前 V9.6r 只挡这类运动中小命令重启。 |
-| 构建记录 | 构建命令：`./tools/build_in_ubuntu.sh LTO=1 SERVO_ENABLE_COMM=0 SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1 SERVO_ENABLE_PA0_POT_POWER=1 BOARD_TSSOP20_DEBUG_PINS=1 SERVO_TJC_UART_ALT_PINS=1 TJC_LCDM_BAUD_OVERRIDE=230400 SERVO_TJC_RX_ENABLE=1 SERVO_HBRIDGE_FORCE_HIZ=0`。结果 `text=19680 B`、`data=672 B`、`bss=2336 B`；ELF 字符串 `EXTPWM`、`INTPWM`、`P50 V9.6r`。 |
-| SHA256 | ELF `2427d81f58400d4a42f993bdcd6fc85e2f1582af42de330ea27d7f9cb695d56e`；HEX `de920679dd3f5d8fc07237e4697fbd4bf17ede8c90ebaddeb91d4db2766e098c`；BIN `a5c618e266d23e9248c357520fc974845164dc431aaffa3ca3ffb7b7063be14f`。 |
-| 向量 | 当前 V9.6r 构建向量为 `SP=0x20000c00`、`PC=0x0800497d`。板载恢复 V9.6 向量为 `SP=0x20000c00`、`PC=0x0800495d`，两者不同，不能混称。 |
-| 下载状态 | 当前 V9.6r 只完成源码修改、构建、hash 和本条记录；尚未下载。下载前必须先 commit/tag，并执行 Flash 记录检查。下载仍必须走刘氏下载法，且必须以 pyOCD 输出 `Successfully resumed device` 作为成功条件；下载后再读回 Flash 字符串补记录。 |
-| 首次下载尝试 | 2026-07-05 用户要求先下载到板上实际测试。已按刘氏下载法执行 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`，确认 DAPLink 仍归属 Parallels `Ubuntu Linux`，Ubuntu `lsusb` 可见 `0d28:0204 NXP ARM mbed`，pyOCD list 可见 `Arm DAPLink CMSIS-DAP`。两轮下载尝试均未成功：hidapiusb 后端报 `expected DAP_SWJ_CLOCK`，default 后端报 `expected DAP_INFO`；脚本执行 `usbreset 0d28:0204` 和 Parallels autoconnect host/Ubuntu 切换后仍失败。全程未出现 `Successfully resumed device`，因此 `P50 V9.6r` 尚未烧录到板。下一步需要物理拔插 PADLink/DAPLink 或重新接入 Ubuntu 后再下载。 |
-| 下载成功更新 | 用户重新接入后，Ubuntu `lsusb` 中 DAPLink 设备号从 `029` 变为 `031`。再次执行刘氏下载法 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`，pyOCD 连接到 `PY32F002Ax5 [Halted]`，完成 `load build/py32f002_servo.hex`，写入运行向量 `SP=0x20000c00`、`PC=0x0800497d` 并 `go`，返回 `Successfully resumed device`。因此当前板上应运行 `P50 V9.6r`。下载后按 ELF 推算字符串地址 `0x08004b8e` 尝试读回 `P50 V9.6r`，但 DAPLink 再次返回 `expected DAP_INFO`，读回确认未完成；现场先以 LCDM 显示和实机动作为准。 |
-| V9.6r 实测反馈 | 用户试机确认：内部信号可以，外部信号仍抖。结论是 V9.6r 没破坏内部稳定，但只挡运动中小命令重启不够，外部 PWM 固定/静止时的小脉宽跳动仍可能叫醒 HOLD/快速启动流程。 |
-
-2026-07-05 V9.6s 板载 V9.6 反汇编还原记录：
-
-| 项目 | 内容 |
-|---|---|
-| 用户要求 | 用户指出“没找到原始改动方法，快速启动分段刹车等等”，并怀疑 V9.5 到 V9.6 期间可能改了新的 profile，要求严查并尽量还原。 |
-| 严查结论 | 对 `build/board_flash_v96/py32f002_servo_v96_flash.bin` 做 Thumb 反汇编，并和当前 V9.6r ELF 对照。未发现板载 V9.6 把客户 profile 常数改成另一组：仍能对应 `pulse_delta >= 700us` 才启动 customer profile，前段 `12ms`，随后 `4ms` 反刹、`3ms` 尾刹、`24ms` coast gate；占空比仍对应 `930/360/220`。因此不能把问题说成“profile 数字丢失”。 |
-| 找回的关键差异 | 板载 V9.6 在命令触发层有一处当前 V9.6r 没完全恢复的门限：`pulse_delta <= 2us` 时只更新锁存目标/显示，不按新动作重启运动；`pulse_delta >= 3us` 才进入新动作触发路径。当前 V9.6r 仍把 `pulse_delta != 0` 作为 `target_changed`，虽然后续挡住运动中小重启，但 HOLD/静止状态仍可能被外部 `1-2us` 抖动叫醒。 |
-| 本次源码修改 | 版本字符串改为 `P50 V9.6s`；新增 `LCDM_SERVO_CMD_STEP_MIN_US=3`；`target_changed` 仍保留 `pulse_delta != 0`，用于 P50/目标锁存跟随；但 `target_motion_changed` 改为 `pulse_delta >= 3us` 或 `target_delta > LCDM_SERVO_CMD_MOTION_EXIT_EXTRA`；`command_step` 改为只由 `target_motion_changed` 触发。这样外部 `1-2us` 抖动不再从 HOLD/静止状态启动快速动作，`>=3us` 灵敏命令仍保留。 |
-| 未改内容 | 未改 customer profile 的 `12/4/3/24ms` 和 `930/360/220`；未改 PID、V9.5 内部稳定修正、ADC 平均采样、LOCK 8 次确认、`LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND=240`、`v7_static_lock_band = Rel + Hbd*14`。 |
-| 验证原则 | V9.6s 不是声称完整复原原始 V9.6 源码，只是按板载 V9.6 二进制反汇编补回一个明确差异。下载前必须先构建、记录 SHA、commit/tag；下载后必须按刘氏下载法，以 `Successfully resumed device` 为成功条件。 |
-| 构建记录 | 使用与 V9.6r 相同的 Ubuntu 构建参数，构建通过：`text=19676 B`、`data=672 B`、`bss=2336 B`。ELF 字符串确认 `EXTPWM`、`INTPWM`、`P50 V9.6s`。 |
-| SHA256 | ELF `9e0385fa4c7bf528e5a5aad15810e99920bba415de130fe0f3c8b517964ec482`；HEX `f8d8d7571ecc4987060860becdd665a9421b8c33c1ddb45884aa90d902bf3760`；BIN `832a3468498733563134331d083f1dbae15a3ff515a275629e910b6be7af460e`。 |
-| 向量 | 当前 V9.6s 构建向量为 `SP=0x20000c00`、`PC=0x08004979`。板载恢复 V9.6 向量仍为 `SP=0x20000c00`、`PC=0x0800495d`，两者不可混称。 |
-| 检查备注 | 当前分支没有 `tools/check_flash_record.sh`，因此本次先用手动方式检查 ELF 字符串、build hash 和 reset vector；后续若要恢复该脚本，应单独提交工具修复，不混入控制逻辑。 |
-| 下载记录 | 用户要求“试下载测试”后，使用刘氏下载法执行 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`。Ubuntu `lsusb` 可见 `0d28:0204 NXP ARM mbed`。首次 `hidapiusb` backend 报 `expected DAP_SWJ_CLOCK`，脚本 reset DAPLink 后以 default backend `1MHz under-reset` 连接 `PY32F002Ax5 [Halted]`，完成 `load build/py32f002_servo.hex`，写入运行向量 `SP=0x20000c00`、`PC=0x08004979` 并 `go`，pyOCD 返回 `Successfully resumed device`。当前板上应运行 `P50 V9.6s`，下一步现场测试内部/外部 PWM 抖动表现。 |
-
-2026-07-05 V9.6s 失败和原始 V9.6 二进制恢复记录：
-
-| 项目 | 内容 |
-|---|---|
-| 现场反馈 | 用户试机反馈：“还是不行，一直在抖，没办法还原出来”。因此 `P50 V9.6s` 判定为失败试机版，不再继续沿此版本猜改。 |
-| 失败边界 | V9.6s 只补了板载 V9.6 反汇编中看到的 `pulse_delta >= 3us` 动作触发门限，但实机仍持续抖动，说明这不是完整恢复原始 V9.6 行为的充分条件。不能把 V9.6s 当成接近理想的 V9.6，也不能把它作为后续控制基线。 |
-| 恢复动作 | 已将原始板上读回镜像 `build/board_flash_v96/py32f002_servo_v96_flash.bin` 重新传入 Ubuntu `/tmp/py32_v96_restore/py32f002_servo_v96_flash.bin`，大小 `20480 B`，SHA256 复核为 `303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce`。 |
-| 烧录方法 | 使用刘氏下载法，在 Parallels `Ubuntu Linux` 内通过 DAPLink/pyOCD commander 烧 raw bin：`load /tmp/py32_v96_restore/py32f002_servo_v96_flash.bin 0x08000000`，随后写 `SP=0x20000c00`、`PC=0x0800495d` 并 `go`。 |
-| 烧录结果 | pyOCD 以 `hidapiusb`、`100kHz`、`under-reset` 连接 `PY32F002Ax5 [Halted]`，完成 flash load 后返回 `Successfully resumed device`。按当前下载判据，板上已恢复为原始读回的 `P50 V9.6` 二进制。 |
-| 后续原则 | 暂停 V9.6r/V9.6s 源码试改。下一步先让用户在板上复测原始 `P50 V9.6` 是否恢复到“内部接近理想、外部仍 hkok/抖”的已知状态；若确认恢复，再重新从原始 V9.6 行为和 V9.5 源码差异做更小范围排查。 |
-
-2026-07-05 `PY32F002_SIGNAL_CAPTURE` 复查和 V9.6t 外部命令确认修正：
-
-| 项目 | 内容 |
-|---|---|
-| 用户线索 | 用户指出当时曾抓取“我们自己的输出”与客户输出比较，最后接近客户波形才稳定；并怀疑最终决定资料可能在 `../PY32F002_SIGNAL_CAPTURE`。 |
-| SIGNAL_CAPTURE 范围 | `../PY32F002_SIGNAL_CAPTURE` 是被动采集工程，不是马达控制固件。`README.md` 和 `AGENTS.md` 明确要求只采集外部成熟舵机板信号，不驱动马达、不直接复用为主舵机固件。 |
-| 有效资料 | `CUSTOMER.logicdata` 是最高分辨率客户波形来源；`build/capture_vsg_live/capture_vsg_live.csv` 是有效的 PA1/PA2 H 桥、PA4 PWM、PA3 ADC 粗粒度采集。 |
-| 无效/低可信资料 | `build/servo_curve_live/servo_curve_live.csv` 为空；`captures/servo_curve_live_20260621_*` 多数是旧 VSG 结构错位，`pwm_us/raw_adc/target/feedback` 大量为 `0` 或 `4095`，不能作为最终控制恢复证据。 |
-| 客户波形结论 | 运行 `../PY32F002_SIGNAL_CAPTURE/tools/analyze_logicdata_motor_pwm.py CUSTOMER.logicdata --cluster-gap-ms 15` 后确认载波约 `49.9kHz`。客户样品动作是先目标方向 drive，再多段 reverse_brake；典型分段包括 `0.28ms` 短驱动，以及 `2.0ms`、`3.4ms`、`4.0-7.2ms` 反向刹车/尾刹。 |
-| 我方对比图状态 | `build/customer_logic_compare/customer_logic_compare.svg` 上半部分画出了客户 `CUSTOMER.logicdata` 分段；下半部分提示“未找到我们的 servo_curve_live.csv 或其中没有目标跳变周期”。因此这张图不能证明当时已经叠图完全一致，只能证明客户分段依据已经被提取。 |
-| 源码 profile 状态 | 当前可追溯源码仍保留 V9.1/V9.5 的简化客户 profile：大阶跃 `pulse_delta >= 700us` 后执行 `12ms @ 930` 目标方向驱动、`4ms @ 360` 反向刹车、`3ms @ 220` 尾刹、`24ms` coast gate。V9.6t 不修改这些数字。 |
-| 失败原因复盘 | V9.6r 只挡“运动中小命令重启”；V9.6s 只把 `1-2us` 小变化挡在 motion trigger 外，但仍会让每个已锁存小变化更新控制目标。实测仍抖，说明外部 PWM 小抖需要先在命令确认层被挡住，不能每一帧都进入控制目标。 |
-| V9.6t 源码修改 | `src/app_entry.c` 把外部 PWM 锁存恢复为候选确认：`>=8us` 变化立即接受；`3-7us` 变化需同簇连续 `2` 帧；`1-2us` 变化需同簇连续 `6` 帧。这样固定外部 PWM 的 `1-2us` 来回跳不会刷新马达目标，连续真实细调仍可进入控制。 |
-| 运动触发边界 | 保留 V9.6s 的 `LCDM_SERVO_CMD_STEP_MIN_US=3` 和运动相位 gate：目标显示/锁存与快速运动触发分离，细小变化不应打断“先全速、后分段刹车”的 profile。 |
-| P50-only 构建 | 全 LCDM 页面构建加入 V9.6t 后 Flash 溢出约 `192 B`。为避免动控制核心，本次新增 `SERVO_LCDM_DIAG_ONLY` 编译开关，默认关闭；试机固件打开该开关，只保留 P50 诊断页和底部中键 `EXTPWM/INTPWM` 切换，暂不进入 P30/P40/P70 参数页。 |
-| 构建命令 | `./tools/build_in_ubuntu.sh LTO=1 SERVO_ENABLE_COMM=0 SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1 SERVO_LCDM_DIAG_ONLY=1 SERVO_ENABLE_PA0_POT_POWER=1 BOARD_TSSOP20_DEBUG_PINS=1 SERVO_TJC_UART_ALT_PINS=1 TJC_LCDM_BAUD_OVERRIDE=230400 SERVO_TJC_RX_ENABLE=1 SERVO_HBRIDGE_FORCE_HIZ=0` |
-| 构建结果 | 构建通过：`text=18148 B`、`data=292 B`、`bss=2332 B`。ELF 字符串确认 `EXTPWM`、`INTPWM`、`P50 V9.6t`。 |
-| SHA256 | ELF `9adfaffa33c50b744cf87db368259393d3e6f0ef59445ae86d10b240c8b62ca6`；HEX `44accc98ea9d02aba7de1420b6f54244db10d04aaf560dcf967c4648f344dea9`；BIN `4990cc39d4175cd1590b92ada58760499104a1826f19ece29c4818a5479cadb2`。 |
-| 向量 | V9.6t P50-only 构建向量：`SP=0x20000c00`、`PC=0x08004445`；BIN 大小 `18440 B`。这与原始板载 V9.6 的 `PC=0x0800495d` 不同，不能混称为原始 V9.6。 |
-| 下载状态 | 本条只完成复查、源码修改、构建和记录；尚未下载覆盖板上的原始恢复 `P50 V9.6`。若要试机，必须先 commit/tag，再按刘氏下载法烧录，并以 pyOCD 输出 `Successfully resumed device` 作为成功条件。 |
-| 下载更新 | 用户确认必须下载实测后，使用刘氏下载法执行 `FREQUENCY=100000 ./tools/flash_run_in_ubuntu.sh`。首次 hidapiusb 后端报 `expected DAP_SWJ_CLOCK`，软件断开/重连 Parallels USB 后仍需脚本 reset DAPLink；随后 default backend `100kHz under-reset` 成功连接 `PY32F002Ax5 [Halted]`，完成 `load build/py32f002_servo.hex`，写入运行向量 `SP=0x20000c00`、`PC=0x08004445` 并 `go`，pyOCD 返回 `Successfully resumed device`。按当前判据，板上已运行 `P50 V9.6t`。 |
-| 读回备注 | V9.6t 字符串在 BIN 中偏移 `0x45ef`，地址 `0x080045ef`。下载后尝试用 `mdw` 读向量，但 pyOCD commander 不支持该命令；该次连接退出前目标处于 Halted，随后已单独执行 `go` 并再次返回 `Successfully resumed device`，确认 CPU 已恢复运行。 |
+| 作废范围 | `V9.7-test1`、`V9.6r`、`V9.6s`、`V9.6t`、`V9.6u` 均退出主线，不再作为后续调试依据。 |
+| 作废原因 | 这些版本都不是原始板载 `P50 V9.6` 的可复现源码；现场反馈证明它们没有恢复到原始 V9.6 行为，继续沿这些记录分析只会扩大问题。 |
+| 保留基准 1 | 可复现源码基准只认 tag `v9.5-internal-pwm-stable`，固件字符串 `P50 V9.5`，作为重新修改的起点。 |
+| 保留基准 2 | 原始板载 V9.6 只作为二进制行为参考：`build/board_flash_v96/py32f002_servo_v96_flash.bin`，大小 `20480 B`，SHA256 `303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce`，向量 `SP=0x20000c00`、`PC=0x0800495d`，字符串 `P50 V9.6`。 |
+| 当前接线口径 | 当前 TSSOP20 调试板按 2026-06-20 后硬件改线：外部 PWM/接收机信号为 `PA3 / TIM1_CH1`，电位器反馈为 `PA4 / ADC4`；早期 `PA4 PWM / PA3 ADC` 文档只适用于旧阶段或最终 SOP8 规划。 |
+| 重来原则 | 下一版从 `v9.5-internal-pwm-stable` 新起，不复用 `9.6r/s/t/u` 的源码改动；每次版本号变化必须先记录源码 commit、构建 hash、下载命令和 `Successfully resumed device`，现场失败则立即标记失败，不再当基线。 |
+| 本次源码状态 | 已把 `src/app_entry.c` 和 `Makefile` 恢复到 `v9.5-internal-pwm-stable` 对应源码状态；当前构建字符串为 `P50 V9.5`，没有 `P50 V9.6r/s/t/u`。 |
+| 本次构建检查 | Ubuntu 构建通过：`text=19680 B`、`data=672 B`、`bss=2336 B`；向量 `SP=0x20000c00`、`PC=0x0800497d`；ELF SHA256 `62cafb0a34d6b1c81fca48f66556a8b653fb74b255a45dde4e44fd6db0ef5a3d`；HEX `84a4e9bbb282eddc4bad52d07c0baed6b7879d651fb17ccfc48cc45400a2f724`；BIN `8ca612c7f9ef15c48b8a8d29b877b9b07b923ca7a715eb72b704249436b6986e`。本次未下载到板，板上状态以后需按实际 LCDM/flash 读回确认。 |
