@@ -63,6 +63,7 @@ SYMBOLS = {
     "r01_diag_lock_feedback": ("g_r01_diag_lock_feedback", 2, False),
     "r01_diag_lock_error": ("g_r01_diag_lock_error", 2, True),
     "r01_diag_lock_displacement": ("g_r01_diag_lock_displacement", 2, True),
+    "r01_stage_stats": ("g_r01_stage_stats", 64, False),
     "adc_diag_sample0": ("g_adc_diag_sample0", 2, False),
     "adc_diag_sample1": ("g_adc_diag_sample1", 2, False),
     "adc_diag_sample2": ("g_adc_diag_sample2", 2, False),
@@ -226,6 +227,7 @@ def main():
         "adc_diag_interval_01_q4", "adc_diag_interval_12_q4", "adc_diag_interval_23_q4",
         "adc_diag_batch_fresh"]
     count = 0
+    last_stage_stats = 0
     core_end = "unknown"
     first_frame_pwm_us = None
     max_frame_pwm_us = 0
@@ -258,6 +260,7 @@ def main():
                      "r01_diag_max_vdd_when_request", "r01_diag_lock_reason",
                      "r01_diag_lock_feedback", "r01_diag_lock_error",
                      "r01_diag_lock_displacement"),
+                    ("r01_stage_stats",),
                     ("adc_raw_last", "adc_vdd_compensated_last", "adc_filtered", "vrefint_raw", "vdd_mv", "vdd_sample_valid", "vdd_sample_ms",
                      "vdd_sample_us_q4", "adc_raw_sample_ms", "adc_raw_sample_us_q4"),
                     ("adc_diag_sample0", "adc_diag_sample1", "adc_diag_sample2", "adc_diag_sample3",
@@ -281,6 +284,7 @@ def main():
                     for label in labels:
                         symbol, size, signed = SYMBOLS[label]
                         row[label] = value(data, addresses[symbol] - group_start, size, signed)
+                last_stage_stats = row.get("r01_stage_stats", last_stage_stats)
                 frame_address = addresses[SYMBOLS["frame"][0]]
                 for _attempt in range(3):
                     data = bytes(target.read_memory_block8(frame_address, SYMBOLS["frame"][1]))
@@ -353,6 +357,29 @@ def main():
         "passed": (first_frame_pwm_us == 1503 and saw_sweep_peak and saw_center_return)
                   if (args.expect_center_sweep or args.expect_pwm_sweep) else None,
     }
+    stage_names = (1503, 1504, 1505, 1506)
+    packed_stats = int(last_stage_stats).to_bytes(64, "little")
+    stage_summary = {}
+    for index, pulse_us in enumerate(stage_names):
+        values = [int.from_bytes(packed_stats[index * 16 + field * 2:index * 16 + field * 2 + 2], "little")
+                  for field in range(8)]
+        stage_summary[str(pulse_us)] = {
+            "control_cycles": values[0] & 0x3FFF,
+            "positive_bridge_duty_seen": bool(values[0] & 0x4000),
+            "negative_bridge_duty_seen": bool(values[0] & 0x8000),
+            "raw_adc_min": values[1], "raw_adc_max": values[2],
+            "feedback_adc_min": values[3], "feedback_adc_max": values[4],
+            "vdd_mv_min": values[5], "vdd_mv_max": values[6], "max_abs_bridge_duty": values[7],
+        }
+    internal_stage_sync = {
+        "required": args.expect_center_sweep,
+        "passed": all(stage_summary[str(pulse)]["control_cycles"] >= 500
+                      for pulse in (1504, 1505, 1506)),
+        "minimum_cycles_per_motion_step": 500,
+    }
+    center_sweep_sync["frame_publish_matches_sweep"] = center_sweep_sync["passed"]
+    if args.expect_center_sweep:
+        center_sweep_sync["passed"] = internal_stage_sync["passed"]
     report = {
         "elf": str(args.elf), "elf_sha256": hashlib.sha256(args.elf.read_bytes()).hexdigest(),
         "probe_uid": args.uid, "target": "py32f002ax5", "connect_mode": "attach",
@@ -361,7 +388,9 @@ def main():
         "monitor_sha256": monitor_sha256,
         "requested_interval_ms": args.interval_ms,
         "center_sweep_sync": center_sweep_sync,
+        "internal_stage_sync": internal_stage_sync,
         "center_sweep_trigger_written_by_monitor": trigger_written,
+        "per_command_stage_summary": stage_summary,
         "adc_diag_batch_count_min": adc_diag_batch_min,
         "adc_diag_batch_count_max": adc_diag_batch_max,
         "adc_diag_batches_advanced": (adc_diag_batch_max > 0) if adc_diag_batch_max is not None else False,
@@ -371,8 +400,10 @@ def main():
     }
     args.output.with_suffix(".json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
-    if (args.expect_center_sweep or args.expect_pwm_sweep) and not center_sweep_sync["passed"]:
-        raise SystemExit("Capture failed center-sweep synchronization checks; evidence was saved.")
+    if args.expect_center_sweep and not internal_stage_sync["passed"]:
+        raise SystemExit("Capture did not confirm all internal motion-step stages; evidence was saved.")
+    if args.expect_pwm_sweep and not center_sweep_sync["passed"]:
+        raise SystemExit("Capture failed PWM frame synchronization checks; evidence was saved.")
     if args.expect_center_sweep and not report["adc_diag_batches_advanced"]:
         raise SystemExit("Capture has no fresh four-sample ADC diagnostic batch")
 

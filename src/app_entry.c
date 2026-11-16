@@ -27,6 +27,12 @@
 #ifndef SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
 #define SERVO_ADC_SUBSAMPLE_DIAGNOSTIC 0
 #endif
+#ifndef SERVO_R01_TEST_DUTY_INVERT
+#define SERVO_R01_TEST_DUTY_INVERT 0
+#endif
+#ifndef SERVO_R01_TEST_MAX_DUTY
+#define SERVO_R01_TEST_MAX_DUTY 40
+#endif
 
 volatile uint8_t g_servo_model_record_valid;
 #if defined(SERVO_PRODUCTION_LCDM) && (SERVO_PRODUCTION_LCDM != 0)
@@ -45,11 +51,45 @@ volatile uint8_t g_r01_diag_lock_reason;
 volatile uint16_t g_r01_diag_lock_feedback;
 volatile int16_t g_r01_diag_lock_error;
 volatile int16_t g_r01_diag_lock_displacement;
+/* Per-command aggregate: count, raw min/max, feedback min/max, VDD min/max, peak |duty|. */
+volatile uint16_t g_r01_stage_stats[4][8] = {
+  {0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0U},
+  {0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0U},
+  {0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0U},
+  {0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0U}
+};
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+static uint8_t s_adc_diag_sweep_started;
+#endif
+static void lcdm_r01_stage_record(uint16_t pulse_us, uint16_t raw_adc,
+                                  uint16_t feedback_adc, int16_t applied_duty)
+{
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+  if (s_adc_diag_sweep_started != 0U && (pulse_us >= 1503U) && (pulse_us <= 1506U))
+  {
+    volatile uint16_t *stats = g_r01_stage_stats[pulse_us - 1503U];
+    uint16_t vdd = ADC_Feedback_GetVddMv();
+    if ((stats[0] & 0x3FFFU) != 0x3FFFU) stats[0]++;
+    if (applied_duty > 0) stats[0] |= 0x4000U;
+    if (applied_duty < 0) stats[0] |= 0x8000U;
+    if (raw_adc < stats[1]) stats[1] = raw_adc;
+    if (raw_adc > stats[2]) stats[2] = raw_adc;
+    if (feedback_adc < stats[3]) stats[3] = feedback_adc;
+    if (feedback_adc > stats[4]) stats[4] = feedback_adc;
+    if ((vdd != 0U) && (vdd < stats[5])) stats[5] = vdd;
+    if (vdd > stats[6]) stats[6] = vdd;
+    uint16_t abs_duty = (applied_duty < 0) ?
+      (uint16_t)(-applied_duty) : (uint16_t)applied_duty;
+    if (abs_duty > stats[7]) stats[7] = abs_duty;
+  }
+#else
+  (void)pulse_us; (void)raw_adc; (void)feedback_adc; (void)applied_duty;
+#endif
+}
 #endif
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
 /* The SWD monitor arms the one-shot center sweep after capture has started. */
 volatile uint32_t g_adc_diag_start_request;
-static uint8_t s_adc_diag_sweep_started;
 #endif
 
 #ifndef SERVO_ENABLE_HBRIDGE_IO_TEST
@@ -1160,7 +1200,7 @@ static void run_pa7_tjc_test(void)
 #else
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2"
 #endif
-#define LCDM_SERVO_INTERNAL_TEST_MAX_DUTY 40
+#define LCDM_SERVO_INTERNAL_TEST_MAX_DUTY SERVO_R01_TEST_MAX_DUTY
 #else
 #define LCDM_SERVO_FW_TAG " V10.6"
 #endif
@@ -1443,6 +1483,9 @@ typedef struct __attribute__((packed, aligned(4)))
 #if SERVO_DIRECTION_PROBE
 /* Retain the 1536-byte minimum stack margin in the SWD-only diagnostic image. */
 #define SERVO_CURVE_LOG_CAPACITY 15U
+#elif SERVO_ADC_SUBSAMPLE_DIAGNOSTIC && SERVO_ENABLE_INTERNAL_STEP_TEST
+/* SWD captures the live frame; keep only a short event log to fund stage aggregates. */
+#define SERVO_CURVE_LOG_CAPACITY 4U
 #elif SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
 /* Reserve RAM for raw ADC telemetry while preserving the 1536-byte stack. */
 #define SERVO_CURVE_LOG_CAPACITY 7U
@@ -1898,6 +1941,14 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
       s_lcdm_runtime_pwm_seeded = 1U;
       s_adc_diag_sweep_started = 1U;
       g_adc_diag_start_request = 0U;
+      for (uint32_t stage = 0U; stage < 4U; stage++)
+      {
+        for (uint32_t field = 0U; field < 8U; field++)
+        {
+          g_r01_stage_stats[stage][field] =
+            ((field == 1U) || (field == 3U) || (field == 5U)) ? 0xFFFFU : 0U;
+        }
+      }
       elapsed = 0U;
     }
     else
@@ -1907,28 +1958,18 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
     }
   }
 #endif
-  /* Center-only microstep diagnostic: 1503 to 1506 us in 1 us / 250 ms increments. */
+  /* Center-only diagnostic: hold each 1 us step for one second for clean feedback statistics. */
   /* Give the SWD observer time to attach after the under-reset download. */
   const uint32_t baseline_ms = 30000U;
-  const uint32_t ramp_ms = 750U;
-  const uint32_t top_hold_ms = 1000U;
-  const uint32_t down_start_ms = baseline_ms + ramp_ms + top_hold_ms;
-  const uint32_t down_ms = 750U;
+  const uint32_t step_ms = 1000U;
   if (elapsed < baseline_ms)
   {
     pulse = 1503U;
   }
-  else if (elapsed < (baseline_ms + ramp_ms))
+  else if (elapsed < (baseline_ms + 6U * step_ms))
   {
-    pulse = (uint16_t)(1503U + ((elapsed - baseline_ms) / 250U));
-  }
-  else if (elapsed < down_start_ms)
-  {
-    pulse = 1506U;
-  }
-  else if (elapsed < (down_start_ms + down_ms))
-  {
-    pulse = (uint16_t)(1506U - ((elapsed - down_start_ms) / 250U));
+    static const uint16_t steps[6] = {1504U, 1505U, 1506U, 1505U, 1504U, 1503U};
+    pulse = steps[(elapsed - baseline_ms) / step_ms];
   }
   else
   {
@@ -2721,7 +2762,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
 
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
   /* Hard stop the motion diagnostic after its short center-only command cycle. */
-  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 34000U)
+  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 38000U)
   {
     return lcdm_servo_stop_publish(sample.pulse_us, raw_adc,
                                    s_lcdm_servo_cmd_target_adc, feedback, 0,
@@ -2908,7 +2949,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   abs_error = (error < 0) ? (uint16_t)(-error) : (uint16_t)error;
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
   /* The one-shot center diagnostic must stay coasted after its 34 s window. */
-  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 34000U)
+  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 38000U)
   {
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc,
                                    s_lcdm_servo_cmd_target_adc, feedback, error,
@@ -2918,7 +2959,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
   {
     uint32_t test_elapsed = (uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms);
-    if (s_lcdm_internal_active_started != 0U && test_elapsed < 34000U)
+    if (s_lcdm_internal_active_started != 0U && test_elapsed < 38000U)
     {
       int16_t displacement = (int16_t)((int32_t)feedback - (int32_t)s_lcdm_internal_motion_anchor_adc);
       uint16_t abs_displacement = (displacement < 0) ? (uint16_t)(-displacement) : (uint16_t)displacement;
@@ -2926,8 +2967,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
           ((uint32_t)(now_ms - s_lcdm_internal_last_guard_ms) >= 50U))
       {
         int16_t feedback_delta = (int16_t)((int32_t)feedback - (int32_t)s_lcdm_internal_last_guard_adc);
-        bool moving_away = ((error > 0) && (feedback_delta <= -2)) ||
-                          ((error < 0) && (feedback_delta >= 2));
+        /* Ignore 1–3 ADC quantization/noise reversals; require a persistent >=4-count trend. */
+        bool moving_away = ((error >= 4) && (feedback_delta <= -4)) ||
+                          ((error <= -4) && (feedback_delta >= 4));
         if (abs_displacement >= 8U)
         {
           if (s_lcdm_internal_position_bad_count < 2U)
@@ -2950,7 +2992,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
         {
           s_lcdm_internal_position_bad_count = 0U;
         }
-        if ((abs_error >= 3U) && moving_away)
+        if (moving_away)
         {
           if (s_lcdm_internal_guard_bad_count < 3U)
           {
@@ -3423,8 +3465,8 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
   {
     uint32_t test_elapsed = (uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms);
-    if ((test_elapsed >= 30000U) && (test_elapsed < 34000U) &&
-        ((control_pulse_us != 1503U) || (test_elapsed >= 31750U)))
+    if ((test_elapsed >= 30000U) && (test_elapsed < 36000U) &&
+        (control_pulse_us != 1503U))
     {
       uint16_t test_abs_duty = (uint16_t)(16U + (abs_error * 8U));
       if (test_abs_duty > LCDM_SERVO_INTERNAL_TEST_MAX_DUTY)
@@ -3442,6 +3484,10 @@ static int16_t lcdm_servo_loop_update_fast(void)
         {
           duty = (int16_t)-duty;
         }
+#if SERVO_R01_TEST_DUTY_INVERT
+        /* R8 observed feedback moving opposite a positive target error; probe corrected polarity. */
+        duty = (int16_t)-duty;
+#endif
       }
     }
     else
@@ -3510,6 +3556,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #endif
   if (duty == 0)
   {
+    lcdm_r01_stage_record(control_pulse_us, raw_adc, feedback, 0);
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
                                    feedback, error, LCDM_SERVO_STATE_BRAKE,
                                    (drive_event == LCDM_SERVO_V3_EVENT_BRAKE) ? drive_event : 3U,
@@ -3555,6 +3602,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
   }
 #endif
   HBridge_SetSignedDuty(duty);
+#if SERVO_ENABLE_INTERNAL_STEP_TEST && SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+  lcdm_r01_stage_record(control_pulse_us, raw_adc, feedback, HBridge_GetDuty());
+#endif
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
   if (duty != 0)
   {
