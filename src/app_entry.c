@@ -2948,7 +2948,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   error = (int16_t)((int32_t)s_lcdm_servo_cmd_target_adc - (int32_t)feedback);
   abs_error = (error < 0) ? (uint16_t)(-error) : (uint16_t)error;
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
-  /* The one-shot center diagnostic must stay coasted after its 34 s window. */
+  /* The one-shot center diagnostic must stay coasted after its 38 s window. */
   if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 38000U)
   {
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc,

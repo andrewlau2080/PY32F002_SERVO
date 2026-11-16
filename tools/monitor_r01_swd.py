@@ -68,6 +68,10 @@ SYMBOLS = {
     "adc_diag_sample1": ("g_adc_diag_sample1", 2, False),
     "adc_diag_sample2": ("g_adc_diag_sample2", 2, False),
     "adc_diag_sample3": ("g_adc_diag_sample3", 2, False),
+    "adc_diag_vdd0": ("g_adc_diag_vdd0", 2, False),
+    "adc_diag_vdd1": ("g_adc_diag_vdd1", 2, False),
+    "adc_diag_vdd2": ("g_adc_diag_vdd2", 2, False),
+    "adc_diag_vdd3": ("g_adc_diag_vdd3", 2, False),
     "adc_diag_time0_q4": ("g_adc_diag_time0_q4", 4, False),
     "adc_diag_time1_q4": ("g_adc_diag_time1_q4", 4, False),
     "adc_diag_time2_q4": ("g_adc_diag_time2_q4", 4, False),
@@ -222,6 +226,8 @@ def main():
     fields = ["wall_s"] + [k for k in active if k != "frame"] + list(FRAME) + [
         "tick_after", "input_age_ms", "vdd_age_ms", "vdd_to_adc_age_ms",
         "vdd_to_adc_age_q4",
+        "adc_diag_vdd_age_0_q4", "adc_diag_vdd_age_1_q4",
+        "adc_diag_vdd_age_2_q4", "adc_diag_vdd_age_3_q4",
         "frame_seq_consistent", "error_consistent",
         "vdd_compensation_input_adc", "feedback_mv_est", "feedback_norm_adc_3300",
         "adc_diag_interval_01_q4", "adc_diag_interval_12_q4", "adc_diag_interval_23_q4",
@@ -264,6 +270,7 @@ def main():
                     ("adc_raw_last", "adc_vdd_compensated_last", "adc_filtered", "vrefint_raw", "vdd_mv", "vdd_sample_valid", "vdd_sample_ms",
                      "vdd_sample_us_q4", "adc_raw_sample_ms", "adc_raw_sample_us_q4"),
                     ("adc_diag_sample0", "adc_diag_sample1", "adc_diag_sample2", "adc_diag_sample3",
+                     "adc_diag_vdd0", "adc_diag_vdd1", "adc_diag_vdd2", "adc_diag_vdd3",
                      "adc_diag_time0_q4", "adc_diag_time1_q4", "adc_diag_time2_q4", "adc_diag_time3_q4",
                      "adc_diag_batch_count"),
                     ("r04_scheduler_overrun_contexts", "r04_scheduler_dropped_ticks",
@@ -334,6 +341,9 @@ def main():
                         row[f"adc_diag_interval_{i}{i + 1}_q4"] = (
                             row[f"adc_diag_time{i + 1}_q4"] - row[f"adc_diag_time{i}_q4"]
                         ) & 0xFFFFFFFF
+                    for i in range(4):
+                        age = (row[f"adc_diag_time{i}_q4"] - row["vdd_sample_us_q4"]) & 0xFFFFFFFF
+                        row[f"adc_diag_vdd_age_{i}_q4"] = age if age < 0x80000000 else age - 0x100000000
                     row["adc_diag_batch_fresh"] = int(count_value > 0)
                 if first_frame_pwm_us is None:
                     first_frame_pwm_us = row["frame_pwm_us"]

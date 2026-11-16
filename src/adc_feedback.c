@@ -33,6 +33,10 @@ volatile uint16_t g_adc_diag_sample0;
 volatile uint16_t g_adc_diag_sample1;
 volatile uint16_t g_adc_diag_sample2;
 volatile uint16_t g_adc_diag_sample3;
+volatile uint16_t g_adc_diag_vdd0;
+volatile uint16_t g_adc_diag_vdd1;
+volatile uint16_t g_adc_diag_vdd2;
+volatile uint16_t g_adc_diag_vdd3;
 volatile uint32_t g_adc_diag_time0_q4;
 volatile uint32_t g_adc_diag_time1_q4;
 volatile uint32_t g_adc_diag_time2_q4;
@@ -215,10 +219,10 @@ uint16_t ADC_Feedback_ReadRaw(void)
       uint32_t sample_time_q4 = Board_MicrosQ4();
       switch (i)
       {
-        case 0U: g_adc_diag_sample0 = sample; g_adc_diag_time0_q4 = sample_time_q4; break;
-        case 1U: g_adc_diag_sample1 = sample; g_adc_diag_time1_q4 = sample_time_q4; break;
-        case 2U: g_adc_diag_sample2 = sample; g_adc_diag_time2_q4 = sample_time_q4; break;
-        case 3U: g_adc_diag_sample3 = sample; g_adc_diag_time3_q4 = sample_time_q4; break;
+        case 0U: g_adc_diag_sample0 = sample; g_adc_diag_vdd0 = s_vdd_mv; g_adc_diag_time0_q4 = sample_time_q4; break;
+        case 1U: g_adc_diag_sample1 = sample; g_adc_diag_vdd1 = s_vdd_mv; g_adc_diag_time1_q4 = sample_time_q4; break;
+        case 2U: g_adc_diag_sample2 = sample; g_adc_diag_vdd2 = s_vdd_mv; g_adc_diag_time2_q4 = sample_time_q4; break;
+        case 3U: g_adc_diag_sample3 = sample; g_adc_diag_vdd3 = s_vdd_mv; g_adc_diag_time3_q4 = sample_time_q4; break;
         default: break;
       }
       if (i == 3U)

@@ -84,7 +84,7 @@ def main():
         flags = [flag for flag in flags if flag != 'SERVO_TJC_RX_ENABLE=1']
         flags = flags + ['SERVO_TJC_RX_ENABLE=0']
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1',
-                         'SERVO_R01_TEST_DUTY_INVERT=1', 'SERVO_R01_TEST_MAX_DUTY=60']
+                         'SERVO_R01_TEST_DUTY_INVERT=1', 'SERVO_R01_TEST_MAX_DUTY=100']
     if args.r04_ui_redraw_stress:
         flags = flags + ['SERVO_R04_UI_REDRAW_STRESS=1', 'SERVO_R04_TIMING_TRACE=1']
     if args.adc_subsample_diagnostic:
