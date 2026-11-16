@@ -85,8 +85,6 @@ def main():
     if args.adc_subsample_diagnostic:
         flags = flags + ['SERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1']
     if args.force_coast:
-        if not args.internal_step_test:
-            parser.error('--force-coast requires --internal-step-test')
         flags = flags + ['SERVO_HBRIDGE_FORCE_COAST=1']
     if args.direction_probe:
         if not args.force_coast or not args.internal_step_test:
@@ -160,7 +158,9 @@ def main():
     versions = re.findall(rb'P50 V[0-9A-Za-z.]+', image)
     direction_suffix = ('SIMB2P' + str(args.probe_pulse_us) +
                         ('H' if args.adc_pair_time_tag else ('G' if args.vrefint_settle_fix else 'F')))
-    expected_version = ('P50 ' + version + (direction_suffix if args.direction_probe else ('SIMB2C' if args.force_coast else ('SIMB2' if args.internal_step_test else '')))).encode()
+    expected_suffix = (direction_suffix if args.direction_probe else
+                       ('SIMB2C' if args.force_coast else ('SIMB2' if args.internal_step_test else '')))
+    expected_version = ('P50 ' + version + ('' if args.production_lcdm else expected_suffix)).encode()
     if (args.profile == 'lcdm' and versions != [expected_version]) or (
             args.profile == 'generic' and versions not in ([], [expected_version])):
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))

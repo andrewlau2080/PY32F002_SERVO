@@ -232,3 +232,9 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - **结论**：R01仍未通过——3µs命令已触发受限软件请求，但反馈/实体角度未证明可重复跟随。R02同步监测链路可用，当前负载下未见持续VDD下降；PA4绝对电压、供电拓扑及快速瞬态未测。停止本轮后续自动动作，不再重复盲扫。下一步需要目视确认转臂微动；如不可见，需同步测PA4/模拟地、电位器供电与H桥输出。
 - R9证据：`firmware/evidence/r01_r02_adc_subsample_m3_r9_20261115/capture`，SHA256=`74b67027da500174138b3c3eb90f6963bbfa2504b12d4c2eef9142201046b8d2`；采集报告为同目录`capture.json`。候选BIN SHA256=`3de44ec8b70369fe412a3b2228e07a972a4ebe45fc63980d11f5b76526b8f4c0`。
 - 测试后已恢复R5 force-coast，并核实整片SHA256=`5ad1ea0521c1b03bc99b9a62f9d3b7836a6e2df20299ea90cf21c26bb3a7f51b`、核心Running；读回证据`build/board_readback/20261115_after_r5_restore_after_r9.bin/`。
+
+## 2026-11-16 不驱动电机的生产诊断候选
+
+- 内部step-test加force-coast组合构建失败：RAM链接区超出8B，并触发保留1536B栈空间的链接断言；该失败镜像未生成、未下载。
+- 为避免诊断序列额外占用RAM，构建工具现支持“production LCDM + force-coast”组合。当前候选`build/releases/V10.6_TSSOP20_PROD_FORCE_COAST_R15_20261116_R2/`使用生产LCDM/正式控制路径，H桥驱动层强制四输出coast，无内部扫动测试。Ubuntu构建通过；BIN 16,172B，SHA256=`02b492cbcb561704be1ab0674b725bcd076d5568efc0dca18c601d0c282abc2e`；manifest标记`force_coast=true`、`flashed=false`。
+- Ubuntu探针检查返回“Expected exactly one DAPLink probe; found 0”。因此本轮没有读板、备份或下载；仿真板的当前Flash状态沿用最近归档，不视为本轮确认。接板后先只读整片备份并确认目标，再决定是否下载此force-coast候选。
