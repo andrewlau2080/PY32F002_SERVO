@@ -41,4 +41,4 @@ R01–R12 未通过项留待后续统一复核，本轮未重跑。
 
 - `Servo_ModelStore_Save()`现拒绝缺少model_id、calibration fingerprint、motor supply、非零confidence、学习样本或成功运动计数的记录；这能拦截空/不完整模型，但不能代替运行时稳定性资格或静止证明。
 - 生产双槽存储实现的mock Flash回归扩展为33/33，包含六类模型质量/身份字段拒绝；报告见`firmware/evidence/r13_model_save_quality_20261116/report.json`，SHA256 `0c43b8c948050289b53c61e8ee331ccd619544ce22f090ddafd5092a0f449f47`。
-- TSSOP20生产LCDM Ubuntu构建通过，BIN 16,104B，与VDD保护候选哈希相同；Save仍没有生产调用，被链接器裁掉。R13仍未通过，真实保存、复位重载、掉电及漂移检测未验证。
+- 当前源码的TSSOP20生产LCDM Ubuntu构建通过：`build/releases/V10.6_TSSOP20_R13_R15_20261116/`，BIN 16,104B，SHA256 `8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`。Save仍没有生产调用，被链接器裁掉。R13仍未通过，真实保存、复位重载、掉电及漂移检测未验证。

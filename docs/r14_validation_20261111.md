@@ -35,5 +35,5 @@ R01–R13 未通过项留待后续统一复核，本轮未重跑。
 ## 2026-11-16 保存API输入约束补充
 
 - 保存函数除调用者`qualified_and_stationary`外，现在还拒绝model identity、calibration fingerprint、motor supply、confidence、学习样本和成功运动计数缺失的模型；这是记录自检，不代表完成了运行时资格状态机。
-- 生产双槽mock Flash回归33/33；不变量报告`firmware/evidence/r13_model_save_quality_20261116/report.json`。同日TSSOP20生产构建通过，但Save仍无生产调用且被链接器裁掉。
+- 生产双槽mock Flash回归33/33；报告`firmware/evidence/r13_model_save_quality_20261116/report.json`。当前源码TSSOP20生产构建`build/releases/V10.6_TSSOP20_R13_R15_20261116/`通过，但Save仍无生产调用且被链接器裁掉。
 - R14仍未通过：安全静止窗口、保存节流/变化门槛、生产调用和实体掉电注入尚未实现/验证。

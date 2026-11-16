@@ -44,5 +44,5 @@ R01–R14 未通过项留待后续统一复核，本轮未重跑。
 
 - `ADC_Feedback_IsVddBelow()` 仅在VDD样本有效且不超过100ms时判断欠压；无效或过期样本不会误报为测得欠压。欠压保护现同时进入TSSOP20 LCDM诊断路径和正式`Servo_Control_Update1ms()`生产路径：清除learner样本种子、coast、清除HOLD计时、回报`SERVO_STATE_VDD_LOW`；TJC LCDM显示`VDD LOW`。SOP8路径不包含本改动。
 - R02 ADC+VDD主机模拟42/42；扩展后的R15 LCDM/生产控制源码检查13/13。历史统一TSSOP20回归为526/526；新增5项生产路径/界面检查见`firmware/evidence/r15_adc_fault_20261116/report.json`，SHA256 `002cf46d1bb5d736e34ce88202974c9430cd17226f181f9a3e740642e968ad18`。
-- Ubuntu TSSOP20正式LCDM全量构建已通过：`build/releases/V10.6_R15_GENERIC_VDD_GUARD_20261116/`，BIN 16,104B，SHA256 `8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`；ELF 213,384B，构建产物未下载。
+- Ubuntu TSSOP20正式LCDM全量构建已通过：`build/releases/V10.6_TSSOP20_R13_R15_20261116/`，BIN 16,104B，SHA256 `8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`；ELF 213,384B，构建产物未下载。
 - 欠压阈值目前沿用参数`vdd_warn_drop_mv`，须在实际供电与负载条件下确认不会误停；R15仍未通过。后续实体验证需要仿真板、限流供电，并观察两路H桥输出。

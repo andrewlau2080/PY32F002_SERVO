@@ -1,0 +1,33 @@
+PASS: erased flash starts invalid
+PASS: unqualified save rejected
+PASS: rejected save leaves flash erased
+PASS: zero model identity rejected
+PASS: zero calibration fingerprint rejected
+PASS: unknown motor supply rejected
+PASS: zero confidence rejected
+PASS: model with no learning samples rejected
+PASS: model with no successful movement rejected
+PASS: invalid models leave flash erased
+PASS: first qualified slot saves
+PASS: first slot valid generation one
+PASS: second slot saves
+PASS: second generation selected
+PASS: matching model/profile/calibration/supply loads
+PASS: different model is rejected
+PASS: different profile is rejected
+PASS: different calibration is rejected
+PASS: different supply is rejected
+PASS: unknown supply fails closed
+PASS: context-free initializer fails closed
+PASS: corrupt newest CRC falls back to old slot
+PASS: new save replaces corrupt inactive slot
+PASS: program failure reported
+PASS: program failure preserves active record
+PASS: restart recovers previous valid slot after program failure
+PASS: erase failure reported
+PASS: erase failure leaves active record selected
+PASS: save succeeds with interrupts initially enabled
+PASS: enabled interrupt state is restored
+PASS: save succeeds when caller interrupts are already disabled
+PASS: pre-disabled interrupt state remains disabled
+PASS: test harness clean
