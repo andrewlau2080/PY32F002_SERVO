@@ -1,0 +1,13 @@
+{
+  "files_sha256": {
+    "inc/servo_model_store.h": "beb3f709bd237225ec6c729f6277fed47be7ffbe0d089b85c2c467a0de336561",
+    "src/servo_model_store.c": "1f35feaa78ddec2cf95682db43ae42010dc60d2a162ba041346049fcf9884f34",
+    "tools/r13_host_sim/fake_hal/py32f0xx_hal.h": "b46487f6d0fb0517cfce14489f3e09eac1c5bda7e7a1083d3fd1109eb2be1e5f",
+    "tools/r13_host_sim/test_model_store.c": "b5a52736ebfb1b22a98f193cd9ce25c8f3607e1e99d8d3f28ecc4d9e2024a830",
+    "tools/r13_host_sim/run_model_store_test.py": "a9b56434002cf9998c728a5e0bcbb3074b61c3d6ebba84c80a58fabbb824668f"
+  },
+  "pass_count": 33,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production dual-slot model store with mock Flash; CRC fallback, generations, context match/rejection, save identity/quality guards, qualification false, erase/program failures, and IRQ balance. No real Flash, power-loss timing, or production save scheduler."
+}

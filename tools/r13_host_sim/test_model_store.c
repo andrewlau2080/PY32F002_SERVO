@@ -61,6 +61,9 @@ static ServoLearnedModel make_model(uint16_t model_id, uint16_t confidence)
   model.brake_accel_q8_reverse = 160U;
   model.calibration_fingerprint = 0xA1234567UL;
   model.reference_motor_supply_mv = 5000U;
+  model.motion_sample_count = 32U;
+  model.brake_sample_count = 8U;
+  model.successful_move_count = 4U;
   return model;
 }
 
@@ -73,6 +76,26 @@ int main(void)
   ServoLearnedModel first = make_model(11U, 700U);
   check("unqualified save rejected", !Servo_ModelStore_Save(&first, false));
   check("rejected save leaves flash erased", g_fake_flash[FLASH_SIZE - 3U * FLASH_PAGE_SIZE] == 0xFFU);
+  ServoLearnedModel invalid = first;
+  invalid.model_id = 0U;
+  check("zero model identity rejected", !Servo_ModelStore_Save(&invalid, true));
+  invalid = first;
+  invalid.calibration_fingerprint = 0U;
+  check("zero calibration fingerprint rejected", !Servo_ModelStore_Save(&invalid, true));
+  invalid = first;
+  invalid.reference_motor_supply_mv = 0U;
+  check("unknown motor supply rejected", !Servo_ModelStore_Save(&invalid, true));
+  invalid = first;
+  invalid.confidence_permille = 0U;
+  check("zero confidence rejected", !Servo_ModelStore_Save(&invalid, true));
+  invalid = first;
+  invalid.motion_sample_count = 0U;
+  invalid.brake_sample_count = 0U;
+  check("model with no learning samples rejected", !Servo_ModelStore_Save(&invalid, true));
+  invalid = first;
+  invalid.successful_move_count = 0U;
+  check("model with no successful movement rejected", !Servo_ModelStore_Save(&invalid, true));
+  check("invalid models leave flash erased", g_fake_flash[FLASH_SIZE - 3U * FLASH_PAGE_SIZE] == 0xFFU);
 
   check("first qualified slot saves", Servo_ModelStore_Save(&first, true));
   check("first slot valid generation one", Servo_ModelStore_IsValid() &&

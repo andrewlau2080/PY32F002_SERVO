@@ -164,7 +164,13 @@ bool Servo_ModelStore_IsValid(void)
 bool Servo_ModelStore_Save(const ServoLearnedModel *model,
                            bool qualified_and_stationary)
 {
-  if ((!qualified_and_stationary) || (model == NULL))
+  if ((!qualified_and_stationary) || (model == NULL) ||
+      (model->model_id == 0U) ||
+      (model->calibration_fingerprint == 0U) ||
+      (model->reference_motor_supply_mv == 0U) ||
+      (model->confidence_permille == 0U) ||
+      ((model->motion_sample_count == 0U) && (model->brake_sample_count == 0U)) ||
+      (model->successful_move_count == 0U))
   {
     return false;
   }

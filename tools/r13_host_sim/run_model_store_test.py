@@ -35,7 +35,7 @@ def main():
               "pass_count": result.stdout.count("PASS:"),
               "fail_count": result.stdout.count("FAIL:"),
               "exit_code": result.returncode,
-              "scope": "Production dual-slot model store with mock Flash; CRC fallback, generations, context match/rejection, context-free/unknown-supply fail-closed, qualification false, erase/program failures, and IRQ balance. No real Flash, power-loss timing, or production save policy."}
+              "scope": "Production dual-slot model store with mock Flash; CRC fallback, generations, context match/rejection, save identity/quality guards, qualification false, erase/program failures, and IRQ balance. No real Flash, power-loss timing, or production save scheduler."}
     (args.output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     print("Model-store host checks:", report["pass_count"], "passed,", report["fail_count"], "failed")
     if result.returncode:
