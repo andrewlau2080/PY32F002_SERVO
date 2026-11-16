@@ -79,6 +79,10 @@ def main():
     flags = (PRODUCTION_LCDM_FLAGS if args.production_lcdm else
              (FLAGS if args.profile == 'lcdm' else GENERIC_FLAGS))
     if args.internal_step_test:
+        # The diagnostic is armed and observed over SWD; touch RX is unused and
+        # reserving it costs scarce RAM needed by the telemetry/stack budget.
+        flags = [flag for flag in flags if flag != 'SERVO_TJC_RX_ENABLE=1']
+        flags = flags + ['SERVO_TJC_RX_ENABLE=0']
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1']
     if args.r04_ui_redraw_stress:
         flags = flags + ['SERVO_R04_UI_REDRAW_STRESS=1', 'SERVO_R04_TIMING_TRACE=1']

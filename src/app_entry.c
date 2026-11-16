@@ -279,12 +279,14 @@ static void lcdm_r04_reset_window(void)
   s_r04_timing_last_start_us = 0U;
 }
 #endif
+#if SERVO_TJC_RX_ENABLE
 static volatile uint8_t s_lcdm_rx_ring[LCDM_RX_RING_SIZE];
 static volatile uint8_t s_lcdm_rx_head;
 static volatile uint8_t s_lcdm_rx_tail;
 static volatile uint16_t s_lcdm_rx_overflow_count;
 static uint8_t s_lcdm_touch_frame[9];
 static uint8_t s_lcdm_touch_index;
+#endif
 #endif
 
 #ifndef LCDM_TJC_BAUD
@@ -394,6 +396,7 @@ static void lcdm_runtime_wait_ms_with_control(uint32_t ms)
   lcdm_runtime_service_motor_control(R04_SERVICE_CONTEXT_WAIT);
 }
 
+#if SERVO_TJC_RX_ENABLE
 static void lcdm_rx_ring_reset(void)
 {
   uint32_t primask = app_irq_save();
@@ -418,6 +421,7 @@ static bool lcdm_rx_ring_pop(uint8_t *byte)
   app_irq_restore(primask);
   return popped;
 }
+#endif
 
 static void lcdm_runtime_uart_set_baud(uint32_t baud)
 {
@@ -441,15 +445,18 @@ static void lcdm_runtime_uart_set_baud(uint32_t baud)
   }
   s_lcdm_runtime_uart_ready = true;
   s_pa7_tjc_baud = baud;
+#if SERVO_TJC_RX_ENABLE
   lcdm_rx_ring_reset();
   USART1->CR1 |= USART_CR1_RXNEIE;
   USART1->CR3 |= USART_CR3_EIE;
   HAL_NVIC_SetPriority(USART1_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(USART1_IRQn);
+#endif
 }
 
 void LCDM_Runtime_IRQHandler(void)
 {
+#if SERVO_TJC_RX_ENABLE
   uint32_t sr = USART1->SR;
 
   if ((sr & (USART_SR_RXNE | USART_SR_ORE | USART_SR_NE | USART_SR_FE | USART_SR_PE)) != 0U)
@@ -466,6 +473,7 @@ void LCDM_Runtime_IRQHandler(void)
       s_pa7_tjc_rx_frame_error_count++;
     }
   }
+#endif
 }
 #endif
 
@@ -522,7 +530,7 @@ static void pa7_tjc_delay_ms_with_led(uint32_t ms)
 
 static void pb2_tjc_clear_rx_errors(void)
 {
-#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
+#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST && SERVO_TJC_RX_ENABLE
   volatile uint32_t sr;
   volatile uint32_t dr;
 
@@ -545,7 +553,7 @@ static void pb2_tjc_clear_rx_errors(void)
 
 static void pb2_tjc_drain_rx(void)
 {
-#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
+#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST && SERVO_TJC_RX_ENABLE
   if (!s_lcdm_runtime_uart_ready)
   {
     return;
@@ -563,7 +571,7 @@ static void pb2_tjc_drain_rx(void)
 
 static bool pb2_tjc_read_byte(uint8_t *value, uint32_t timeout_ms)
 {
-#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
+#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST && SERVO_TJC_RX_ENABLE
   uint32_t start = HAL_GetTick();
 
   do
@@ -577,7 +585,7 @@ static bool pb2_tjc_read_byte(uint8_t *value, uint32_t timeout_ms)
   } while ((uint32_t)(HAL_GetTick() - start) < timeout_ms);
 
   return false;
-#else
+#elif SERVO_TJC_RX_ENABLE
   uint32_t bit_ticks = SystemCoreClock / s_pa7_tjc_baud;
   uint32_t timeout_ticks = (SystemCoreClock / 1000U) * timeout_ms;
   uint32_t elapsed = 0U;
@@ -619,6 +627,10 @@ static bool pb2_tjc_read_byte(uint8_t *value, uint32_t timeout_ms)
     elapsed += systick_elapsed_since(&previous);
   }
 
+  return false;
+#else
+  (void)value;
+  (void)timeout_ms;
   return false;
 #endif
 }
@@ -2895,6 +2907,15 @@ static int16_t lcdm_servo_loop_update_fast(void)
   error = (int16_t)((int32_t)s_lcdm_servo_cmd_target_adc - (int32_t)feedback);
   abs_error = (error < 0) ? (uint16_t)(-error) : (uint16_t)error;
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
+  /* The one-shot center diagnostic must stay coasted after its 34 s window. */
+  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 34000U)
+  {
+    return lcdm_servo_stop_publish(control_pulse_us, raw_adc,
+                                   s_lcdm_servo_cmd_target_adc, feedback, error,
+                                   LCDM_SERVO_STATE_HOLD, 3U, true);
+  }
+#endif
+#if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
   {
     uint32_t test_elapsed = (uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms);
     if (s_lcdm_internal_active_started != 0U && test_elapsed < 34000U)
@@ -3584,6 +3605,7 @@ static void lcdm_wait_1ms_with_heartbeat(void)
 
 static bool lcdm_read_touch(LcdmRuntimeTouch *touch, uint16_t wait_ms)
 {
+#if SERVO_TJC_RX_ENABLE
   for (uint16_t ms = 0U; ms < wait_ms; ms++)
   {
     uint8_t byte;
@@ -3619,6 +3641,11 @@ static bool lcdm_read_touch(LcdmRuntimeTouch *touch, uint16_t wait_ms)
   }
 
   return false;
+#else
+  (void)touch;
+  (void)wait_ms;
+  return false;
+#endif
 }
 
 static int8_t lcdm_menu_row_from_xy(uint16_t x, uint16_t y, uint8_t max_items)
