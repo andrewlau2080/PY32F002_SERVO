@@ -137,6 +137,11 @@ def read_symbols(elf):
     return found
 
 
+def diagnostic_snapshot_consistent(seq_before, seq_after):
+    """Accept only an unchanged, completed ADC diagnostic write generation."""
+    return seq_before == seq_after and (seq_after & 1) == 0
+
+
 def value(data, offset, size, signed=False):
     return int.from_bytes(data[offset:offset + size], "little", signed=signed)
 
@@ -341,7 +346,7 @@ def main():
                     seq_before = row["adc_diag_seq"]
                     seq_after = int(target.read32(addresses["g_adc_diag_seq"]))
                     row["adc_diag_seq_after"] = seq_after
-                    row["adc_diag_batch_consistent"] = int(seq_before == seq_after and not (seq_after & 1))
+                    row["adc_diag_batch_consistent"] = int(diagnostic_snapshot_consistent(seq_before, seq_after))
                     adc_diag_batch_min = count_value if adc_diag_batch_min is None else min(adc_diag_batch_min, count_value)
                     adc_diag_batch_max = count_value if adc_diag_batch_max is None else max(adc_diag_batch_max, count_value)
                     for i in range(3):
@@ -427,6 +432,8 @@ def main():
         raise SystemExit("Capture failed PWM frame synchronization checks; evidence was saved.")
     if args.expect_center_sweep and not report["adc_diag_batches_advanced"]:
         raise SystemExit("Capture has no fresh four-sample ADC diagnostic batch")
+    if args.expect_center_sweep and report["adc_diag_consistent_rows"] == 0:
+        raise SystemExit("Capture has no coherent ADC diagnostic snapshots; inspect adc_diag_torn_rows")
 
 
 if __name__ == "__main__":
