@@ -1,0 +1,10 @@
+{
+  "production_source": "/Users/andrewlau/qtprj/Steering Engine/MOTOR/PY32F002_SERVO/src/servo_params.c",
+  "production_source_sha256": "52cc3d731ec0c03b31beb11be110135ce55606033f9d6afd283b25c98c3895fe",
+  "harness_sha256": "8b6c4b787c1bac56347df15943be7785275e435889dfd6e930065b5d2f48e88d",
+  "generated_c_sha256": "58a0f4a76698e20d7408c099f5a8e5ff8b8259266614fc6cf24b1e9111d70b2c",
+  "pass_count": 9,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production parameter defaults, validation and initialization with simulated Flash."
+}

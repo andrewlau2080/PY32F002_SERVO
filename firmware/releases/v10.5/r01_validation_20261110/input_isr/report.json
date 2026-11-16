@@ -1,0 +1,8 @@
+{
+  "production_source": "src/pwm_input.c",
+  "production_source_sha256": "8bc4492fa866d32d3faad964dd63e299196e223fffcaf519e4a73cee2deff243",
+  "test_source_sha256": "f38216b785c4768336f34a07da694236faac9cbd9f534cbf325250d00fa9b518",
+  "pass_count": 38,
+  "fail_count": 0,
+  "scope": "Production PWM_Input_EdgeISR compiled against simulated timer and GPIO; no physical waveform or motor movement."
+}

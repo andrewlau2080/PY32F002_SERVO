@@ -1,0 +1,59 @@
+{
+  "scope": "Generic production control in simplified one-millisecond host plant; no physical H-bridge/motor or LCDM.",
+  "sources_sha256": {
+    "src/servo_control.c": "299cdde8897ca1797eec57f1fb4761b574b9234e59bc95c17432f0b6448b1af8",
+    "src/servo_adaptive.c": "908fbe0bf6fcb04dfab423e1c1cbceb50f413f7ffd65221fb1a6ca6cf041be03",
+    "tools/servo_control_host_sim.c": "0effc4e155c4557c05128e2ebfdcd46fd063df96099c91f68b4756557e90e67a"
+  },
+  "matches_previous_trace": true,
+  "segments": [
+    {
+      "segment": 0,
+      "from_us": 1000,
+      "to_us": 1500,
+      "samples": 302,
+      "state": 1,
+      "final_error_adc": 4
+    },
+    {
+      "segment": 1,
+      "from_us": 1500,
+      "to_us": 2000,
+      "samples": 302,
+      "state": 1,
+      "final_error_adc": -1
+    },
+    {
+      "segment": 2,
+      "from_us": 2000,
+      "to_us": 1500,
+      "samples": 302,
+      "state": 1,
+      "final_error_adc": 1
+    },
+    {
+      "segment": 3,
+      "from_us": 1500,
+      "to_us": 1000,
+      "samples": 302,
+      "state": 1,
+      "final_error_adc": -4
+    },
+    {
+      "segment": 4,
+      "from_us": 1000,
+      "to_us": 2000,
+      "samples": 302,
+      "state": 1,
+      "final_error_adc": 5
+    },
+    {
+      "segment": 5,
+      "from_us": 2000,
+      "to_us": 1000,
+      "samples": 302,
+      "state": 1,
+      "final_error_adc": -5
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+{
+  "firmware": "V10.2",
+  "capture_seconds": 99.92,
+  "poll_rows": 1295,
+  "error_consistent_rows": 1252,
+  "unique_error_consistent_frames": 734,
+  "torn_or_inconsistent_rows_excluded": 43,
+  "input_probe_rows": 202,
+  "input_valid_values": [
+    1
+  ],
+  "input_period_us_values": [
+    19986
+  ],
+  "input_no_edge_final_snapshot": {
+    "tick": 527702,
+    "last_edge_ms": 345165,
+    "pulse_count": 15190,
+    "edge_count": 30389,
+    "state": 3,
+    "state_name": "BAD"
+  },
+  "center_target_adc_range": [
+    2049,
+    2055
+  ],
+  "center_feedback_adc_range": [
+    863,
+    3074
+  ],
+  "center_raw_adc_range": [
+    864,
+    3076
+  ],
+  "center_raw_vs_filtered_max_abs_delta": 18,
+  "center_error_adc_range": [
+    -1019,
+    1189
+  ],
+  "center_near_error_257_512": {
+    "drive_frames": 106,
+    "duty_ge_900_frames": 84,
+    "full_duty_percent": 79.2
+  },
+  "by_target": {
+    "1183": {
+      "frames": 4,
+      "feedback_min": 909,
+      "feedback_max": 2215,
+      "drive_frames": 4,
+      "full_duty_frames": 4
+    },
+    "1184": {
+      "frames": 61,
+      "feedback_min": 471,
+      "feedback_max": 3141,
+      "drive_frames": 34,
+      "full_duty_frames": 21
+    },
+    "1186": {
+      "frames": 119,
+      "feedback_min": 421,
+      "feedback_max": 3108,
+      "drive_frames": 68,
+      "full_duty_frames": 49
+    },
+    "1188": {
+      "frames": 51,
+      "feedback_min": 730,
+      "feedback_max": 2030,
+      "drive_frames": 18,
+      "full_duty_frames": 11
+    },
+    "2049": {
+      "frames": 11,
+      "feedback_min": 1338,
+      "feedback_max": 2933,
+      "drive_frames": 9,
+      "full_duty_frames": 5
+    },
+    "2051": {
+      "frames": 126,
+      "feedback_min": 872,
+      "feedback_max": 2995,
+      "drive_frames": 72,
+      "full_duty_frames": 47
+    },
+    "2052": {
+      "frames": 122,
+      "feedback_min": 863,
+      "feedback_max": 2995,
+      "drive_frames": 62,
+      "full_duty_frames": 41
+    },
+    "2055": {
+      "frames": 54,
+      "feedback_min": 873,
+      "feedback_max": 3074,
+      "drive_frames": 24,
+      "full_duty_frames": 15
+    },
+    "2056": {
+      "frames": 5,
+      "feedback_min": 1700,
+      "feedback_max": 2361,
+      "drive_frames": 3,
+      "full_duty_frames": 3
+    },
+    "2917": {
+      "frames": 1,
+      "feedback_min": 2742,
+      "feedback_max": 2742,
+      "drive_frames": 1,
+      "full_duty_frames": 0
+    },
+    "2920": {
+      "frames": 27,
+      "feedback_min": 1335,
+      "feedback_max": 3322,
+      "drive_frames": 20,
+      "full_duty_frames": 11
+    },
+    "2921": {
+      "frames": 66,
+      "feedback_min": 965,
+      "feedback_max": 3318,
+      "drive_frames": 41,
+      "full_duty_frames": 27
+    },
+    "2924": {
+      "frames": 40,
+      "feedback_min": 2214,
+      "feedback_max": 3344,
+      "drive_frames": 22,
+      "full_duty_frames": 10
+    },
+    "2925": {
+      "frames": 38,
+      "feedback_min": 2600,
+      "feedback_max": 3272,
+      "drive_frames": 16,
+      "full_duty_frames": 10
+    },
+    "2926": {
+      "frames": 9,
+      "feedback_min": 2651,
+      "feedback_max": 3150,
+      "drive_frames": 1,
+      "full_duty_frames": 1
+    }
+  },
+  "parameter_crc": "valid at all 13 integrity samples; input_timeout_ms=100",
+  "limits": [
+    "Raw polling is about 13 Hz; it does not capture PWM switching edges or instantaneous peaks.",
+    "The primary curve reader did not collect both sequence-lock words; rows with error != target-feedback were excluded, then duplicate seq_tail rows were removed.",
+    "The final auxiliary snapshot had no new PWM edges for 182.5 seconds, so BAD/coast there is the configured input-timeout response, not evidence of a control-loop deadlock."
+  ]
+}

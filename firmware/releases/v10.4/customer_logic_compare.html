@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>CUSTOMER LOGICDATA vs VSG</title>
+  <style>
+    body{margin:0;font-family:Arial,'PingFang SC',sans-serif;background:#f7f7f7;color:#222}
+    .bar{position:sticky;top:0;z-index:2;padding:10px 14px;background:#fff;border-bottom:1px solid #ddd;font-size:14px}
+    main{max-width:1320px;margin:0 auto;padding:12px}
+    img{display:block;width:100%;background:#fff;border:1px solid #ddd}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+    .panel{background:#fff;border:1px solid #ddd;padding:10px}
+    h2{font-size:16px;margin:0 0 8px}
+    p{margin:6px 0;font-size:13px;color:#444}
+    .warn{color:#b00020;font-weight:700}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th,td{border:1px solid #ddd;padding:5px 6px;text-align:right;white-space:nowrap}
+    th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+    th{background:#f0f0f0}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="bar">CUSTOMER 对比 VSG 起始点对齐 | 只维护这个页面，不重复开窗口 | VSG: 有效 | <span id="stamp"></span></div>
+  <main>
+    <img id="cmp" src="customer_logic_compare.svg" alt="CUSTOMER logic compare VSG">
+    <div class="panel">
+      <h2>当前对比状态</h2>
+      <p>VSG CSV: <code>build/v10.2_field_capture/servo_curve_v102.csv</code></p>
+      <p>判定: <strong>有效</strong>，原因: valid</p>
+      <p>对齐: 客户第一段有效 drive = 0ms；我们 VSG 目标跳变或第一笔非零 H桥 duty = 0ms。</p>
+      <p class="warn">Customer timing source: PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata, Channel 2 pulse train at about 49.9 kHz. Four action clusters span 11.2–13.3 ms; clearest split is 7.195/2.006/3.166 ms. 2026/PA7 serial captures carry RX/TX metadata; channel labels do not identify motor direction.</p>
+    </div>
+    <div class="grid">
+      <section class="panel">
+        <h2>客户 LOGICDATA 分段</h2>
+        <table>
+<thead><tr>
+<th>cluster</th>
+<th>role</th>
+<th>start ms</th>
+<th>duration ms</th>
+<th>pulses</th>
+<th>kHz</th>
+</tr></thead><tbody>
+<tr><td>1</td><td>drive</td><td>0.000</td><td>0.281</td><td>15</td><td>49.89</td></tr>
+<tr><td>1</td><td>reverse_brake</td><td>0.866</td><td>0.281</td><td>15</td><td>49.89</td></tr>
+<tr><td>1</td><td>reverse_brake</td><td>2.020</td><td>4.029</td><td>202</td><td>49.89</td></tr>
+<tr><td>1</td><td>reverse_brake</td><td>6.635</td><td>4.610</td><td>231</td><td>49.89</td></tr>
+<tr><td>2</td><td>drive</td><td>0.000</td><td>0.281</td><td>15</td><td>49.90</td></tr>
+<tr><td>2</td><td>reverse_brake</td><td>0.577</td><td>6.633</td><td>332</td><td>49.90</td></tr>
+<tr><td>2</td><td>reverse_brake</td><td>7.504</td><td>2.006</td><td>101</td><td>49.90</td></tr>
+<tr><td>2</td><td>reverse_brake</td><td>9.812</td><td>3.447</td><td>173</td><td>49.90</td></tr>
+<tr><td>3</td><td>drive</td><td>0.000</td><td>0.561</td><td>29</td><td>49.91</td></tr>
+<tr><td>3</td><td>reverse_brake</td><td>1.443</td><td>4.027</td><td>202</td><td>49.91</td></tr>
+<tr><td>3</td><td>reverse_brake</td><td>5.767</td><td>2.006</td><td>101</td><td>49.91</td></tr>
+<tr><td>3</td><td>reverse_brake</td><td>8.083</td><td>3.446</td><td>173</td><td>49.90</td></tr>
+<tr><td>3</td><td>reverse_brake</td><td>12.407</td><td>0.281</td><td>15</td><td>49.90</td></tr>
+<tr><td>4</td><td>drive</td><td>0.000</td><td>7.195</td><td>360</td><td>49.90</td></tr>
+<tr><td>4</td><td>reverse_brake</td><td>7.508</td><td>2.006</td><td>101</td><td>49.89</td></tr>
+<tr><td>4</td><td>reverse_brake</td><td>9.813</td><td>3.166</td><td>159</td><td>49.90</td></tr>
+</tbody></table>
+      </section>
+      <section class="panel">
+        <h2>我们 VSG 分段</h2>
+        <table>
+<thead><tr>
+<th>role</th>
+<th>start ms</th>
+<th>duration ms</th>
+<th>avg duty</th>
+<th>max duty</th>
+<th>events</th>
+<th>error</th>
+</tr></thead><tbody>
+<tr><td>BRAKE</td><td>0.0</td><td>0.0</td><td>0</td><td>0</td><td>BRAKE</td><td>-1957..-1957</td></tr>
+<tr><td>lock</td><td>73.0</td><td>152.0</td><td>-930</td><td>930</td><td>LOCK</td><td>-1858..-476</td></tr>
+<tr><td>brake/decel</td><td>303.0</td><td>308.0</td><td>360</td><td>360</td><td>CROSS_BRAKE</td><td>258..713</td></tr>
+<tr><td>drive</td><td>994.0</td><td>77.0</td><td>820</td><td>1000</td><td>DRIVE</td><td>911..1585</td></tr>
+<tr><td>hold/coast</td><td>41956.0</td><td>305.0</td><td>0</td><td>0</td><td>HOLD</td><td>-219..204</td></tr>
+<tr><td>hold/coast</td><td>42863.0</td><td>226.0</td><td>0</td><td>0</td><td>HOLD</td><td>-206..215</td></tr>
+<tr><td>drive</td><td>43791.0</td><td>78.0</td><td>966</td><td>1000</td><td>DRIVE</td><td>320..778</td></tr>
+<tr><td>brake/decel</td><td>43951.0</td><td>384.0</td><td>-108</td><td>360</td><td>DECEL/CROSS_BRAKE</td><td>-402..175</td></tr>
+<tr><td>hold/coast</td><td>44572.0</td><td>76.0</td><td>0</td><td>0</td><td>HOLD</td><td>-62..147</td></tr>
+<tr><td>drive</td><td>44959.0</td><td>77.0</td><td>-823</td><td>1000</td><td>DRIVE</td><td>-1640..-924</td></tr>
+<tr><td>drive</td><td>45658.0</td><td>75.0</td><td>0</td><td>1000</td><td>DRIVE</td><td>-302..720</td></tr>
+<tr><td>drive</td><td>46371.0</td><td>79.0</td><td>856</td><td>1000</td><td>DRIVE</td><td>546..1137</td></tr>
+</tbody></table>
+      </section>
+    </div>
+  </main>
+  <script>
+    setInterval(() => {
+      const now = Date.now();
+      document.getElementById('cmp').src = 'customer_logic_compare.svg?t=' + now;
+      document.getElementById('stamp').textContent = new Date(now).toLocaleTimeString();
+    }, 1000);
+  </script>
+</body>
+</html>

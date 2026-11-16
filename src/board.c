@@ -1,6 +1,7 @@
 #include "board.h"
 #include "main.h"
 #include "servo_config.h"
+#include "hbridge.h"
 
 #ifndef BOARD_HSI_TRIM_OFFSET
 #define BOARD_HSI_TRIM_OFFSET (-5)
@@ -93,6 +94,10 @@ static void Board_DebugAttachWindow(void)
 void Board_Init(void)
 {
   HAL_Init();
+#if SERVO_DIRECTION_EARLY_COAST
+  /* Force inactive bridge outputs before clock setup, ADC init and attach wait. */
+  HBridge_Init();
+#endif
   Board_SystemClockInit();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   Board_PotPowerInit();

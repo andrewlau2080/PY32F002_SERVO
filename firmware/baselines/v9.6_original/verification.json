@@ -1,0 +1,13 @@
+{
+  "version": "P50 V9.6",
+  "full_original_matches": true,
+  "reserved_128_bytes_preserved": true,
+  "core_status_from_download": "Running",
+  "sha256": "303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce",
+  "sp": "0x20000c00",
+  "pc": "0x0800495d",
+  "version_address": "0x08004b6e",
+  "pre_download_backup": "PY32F002_SERVO/build/board_readback/20261105_110641_795514/before.bin",
+  "post_download_readback": "PY32F002_SERVO/build/board_readback/20261105_110719_879232/before.bin",
+  "product_stability_verified": false
+}

@@ -1,0 +1,9 @@
+{
+  "version": "P50 V10.0",
+  "running": true,
+  "application_readback_matches": true,
+  "reserved_128_bytes_preserved": true,
+  "flash_sha256": "1399cfb410bffeaf2bdc1e4743a2bdee550ba94a1ec3122ce3337dc583291fbc",
+  "pre_backup": "build/board_readback/20261105_115438_157983/before.bin",
+  "post_readback": "build/board_readback/20261105_115504_499071/before.bin"
+}

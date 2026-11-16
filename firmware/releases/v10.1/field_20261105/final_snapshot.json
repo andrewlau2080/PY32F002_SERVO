@@ -1,0 +1,21 @@
+{
+  "sample": 0,
+  "wall": 1793852105.6564014,
+  "core": "State.RUNNING",
+  "params_crc_ok": true,
+  "input_timeout_ms": 100,
+  "params_hex": "50565253030080008403dc05340858020008a70d0000000000000200080080015203a0000300e803000100010800f40104002c01f401640000000000c80005000300050004000400040003000000040002001000080014001800c0003c0078004001780008000300e40cfa0050001400b400dc000001000152000000743f8c65",
+  "time_ms": 337030,
+  "pwm_us": 1502,
+  "target_adc": 2051,
+  "feedback_adc": 2230,
+  "error_adc": -179,
+  "duty": 0,
+  "event": 2,
+  "uwTick": 336971,
+  "s_lcdm_servo_current_duty": 0,
+  "s_lcdm_servo_current_state": 1,
+  "s_edge_count": 33686,
+  "s_last_edge_ms": 337001,
+  "s_pulse_count": 16843
+}

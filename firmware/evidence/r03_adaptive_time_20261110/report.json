@@ -1,0 +1,13 @@
+{
+  "files_sha256": {
+    "src/servo_adaptive.c": "908fbe0bf6fcb04dfab423e1c1cbceb50f413f7ffd65221fb1a6ca6cf041be03",
+    "inc/servo_adaptive.h": "7da7366575cef1c913ba0752baea6963f6f7007d1b878cfc2a2caaf5aa0c3bba",
+    "inc/servo_model_store.h": "898f48ba4490c31dc2536a18945452b363ad59f8d58bfddbb6769475c551d94b",
+    "tools/r03_host_sim/test_adaptive_time.c": "573daf8e4186b68c1a5272dffed1a3a6da9c825069da2b283bddf3d198b65157",
+    "tools/r03_host_sim/run_adaptive_time_tests.py": "b74e204dd5a089f39a32dd2d13f6da6adf7a608691f5039792bb8424abc10797"
+  },
+  "pass_count": 19,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production adaptive estimator with injected velocity and timestamps; no motor or LCDM observer."
+}

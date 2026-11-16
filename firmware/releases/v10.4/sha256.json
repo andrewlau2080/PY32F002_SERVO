@@ -1,0 +1,16 @@
+{
+  "board_readback_20261105_142628.bin": "d1680ce3880d7016408b30f832c68ef96fb8cc69997df54d9091aca75a10218e",
+  "board_readback_20261105_142628.json": "52951b4ab0950e6d9ea812a32833717f6acfd4a3d5385a734d37ce5dfc5588cd",
+  "build.log": "312bd97dc7c953a39880d84fdeef1b2c781689b6c71de9cb0daba5290e86371c",
+  "customer_logic_blocks.csv": "6d772d22c4878e2d2c9a011993ad25919a69261f0e5ba90256bdf30c463f0bdc",
+  "customer_logic_compare.html": "c9a9059f4eee799726da7a316eb77b13071a68500a1d93acc2d52a650647bf17",
+  "customer_logic_compare.svg": "89903b06089a0079f78cfc7bfe8ac16d45876c61726137620838f443fb4285ee",
+  "download.log": "32d36f10e3147febc04cc91cf6b89b9fb3386f332dd4e2426461ba5a73a87b20",
+  "manifest.json": "fe6f52673006b8519b65add47eca38d45b20ac1e962b12ae6ad04d704f8b1aff",
+  "py32f002_servo.bin": "95986e6b49d8b5f1631cba4a1c543a3c1f90b2bb98e3b5457a2ca7d438ae592f",
+  "py32f002_servo.elf": "2a72d966a81cef7df6971995a8c887a5e8a9a99e72abadd84e89dafcc4621d71",
+  "py32f002_servo.hex": "d1414e283de99c0cea0848a2817c103ae36cc65cf7b7e0128d9c1caedbfa726d",
+  "py32f002_servo.map": "8c2957a23b5b977394041b41f29be5108c32e4a9d60bfa1571be007c206b583b",
+  "reference_waveform_analysis.md": "85867377897c60f7414c2eabfb2013bf5c6a4504fff098d42ef25a38932da6d9",
+  "source.tar.gz": "636e4ae11b6f264ddf4b1ebc50046d54b3c75f8cef2c8f5795ec7459a8c6ef14"
+}

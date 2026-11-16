@@ -1,0 +1,13 @@
+{
+  "files_sha256": {
+    "src/servo_adaptive.c": "908fbe0bf6fcb04dfab423e1c1cbceb50f413f7ffd65221fb1a6ca6cf041be03",
+    "inc/servo_adaptive.h": "7da7366575cef1c913ba0752baea6963f6f7007d1b878cfc2a2caaf5aa0c3bba",
+    "inc/servo_model_store.h": "898f48ba4490c31dc2536a18945452b363ad59f8d58bfddbb6769475c551d94b",
+    "tools/r05_host_sim/test_object_response.c": "d91e24d988e7b981186fcaabc2f02399c69e6bc626fb0a0bef0a5f8d64e92547",
+    "tools/r05_host_sim/run_object_response_tests.py": "ea02045f3751495736f0e4cf4064360f6a2023ce65bde54cdfc845882aceddff"
+  },
+  "pass_count": 10,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production adaptive module with synthetic speed response at fixed duty; no physical voltage/load/bridge/mechanism."
+}

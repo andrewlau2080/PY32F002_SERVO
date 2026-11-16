@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-12",
+  "candidate": "V10.6SIMB2 / candidate09_center_step",
+  "capture": "simb2_center_sweep.csv",
+  "samples": 170,
+  "elapsed_seconds": 27.08,
+  "core_start": "RUNNING",
+  "core_end": "RUNNING",
+  "captured_pwm_us_min_max": [1503, 1543],
+  "capture_started_at_pwm_us": 1536,
+  "initial_ramp_not_captured": true,
+  "raw_adc_min_max": [2039, 2044],
+  "filtered_adc_min_max": [2041, 2041],
+  "target_adc_min_max": [2052, 2122],
+  "feedback_adc_min_max": [2039, 2046],
+  "error_adc_min_max": [11, 82],
+  "signed_duty_min_max": [0, 160],
+  "state_counts": {"HOLD": 107, "DRIVE": 63},
+  "duty_at_positive_error": "capped at 160 for the captured DRIVE portion",
+  "after_restore_v10_5": {
+    "samples": 27,
+    "input_pwm_us_min_max": [1501, 1503],
+    "raw_adc_min_max": [2039, 2042],
+    "target_adc_min_max": [2049, 2055],
+    "feedback_adc_min_max": [2040, 2041],
+    "error_adc_min_max": [9, 14],
+    "state": "HOLD",
+    "duty": 0
+  },
+  "pre_sweep_baseline_feedback_adc": [2103, 2104],
+  "interpretation": "Post-test feedback is about 63 ADC counts lower than the earlier stationary baseline. Since capture began after the sweep had already reached 1536 us, the initial command-to-feedback transition was missed. During the captured positive-error section, duty reached 160 while feedback remained nearly constant. This does not establish the direction of motion; do not repeat until the missing transition can be captured safely.",
+  "board_after_test": "P50 V10.5, full 20KB readback SHA256 2b8eb8be6240a0a246907a35df5cad8f84e64cff6e5c8b9668db64a8f8c79a34"
+}

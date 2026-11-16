@@ -1,0 +1,49 @@
+{
+  "files_sha256": {
+    "inc/board.h": "0082d2f466828fdeb222c75d03035b44e982056ae762343d3d1f7933cd32370c",
+    "src/pwm_input.c": "d321ee1d32bfdc1631930246843a15b622da0f29e1e992f4f3cec95967042ee2",
+    "tools/r01_host_sim/test_pwm_capture.c": "f4238cf17b3269b30cb1cc07c88ce60fe29ac3ba3ebb2b136a7cb9d1413ada33",
+    "tools/r01_host_sim/py32f0xx_hal.h": "5e0dfbbafa7d109dfc050c7b18df29d66a3838fb9e9b3c985d4d514a1c6b5fdb"
+  },
+  "profiles": {
+    "development_default": {
+      "flags": [
+        "-DBOARD_TSSOP20_DEBUG_PINS=1",
+        "-DR01_EXPECT_CHANNEL=1"
+      ],
+      "pass_count": 46,
+      "fail_count": 0,
+      "exit_code": 0
+    },
+    "sop8_default": {
+      "flags": [
+        "-DBOARD_TSSOP20_DEBUG_PINS=0",
+        "-DR01_EXPECT_CHANNEL=3"
+      ],
+      "pass_count": 46,
+      "fail_count": 0,
+      "exit_code": 0
+    },
+    "development_override": {
+      "flags": [
+        "-DBOARD_TSSOP20_DEBUG_PINS=0",
+        "-DBOARD_SOP8_PINOUT=0",
+        "-DR01_EXPECT_CHANNEL=1"
+      ],
+      "pass_count": 46,
+      "fail_count": 0,
+      "exit_code": 0
+    },
+    "sop8_override": {
+      "flags": [
+        "-DBOARD_TSSOP20_DEBUG_PINS=1",
+        "-DBOARD_SOP8_PINOUT=1",
+        "-DR01_EXPECT_CHANNEL=3"
+      ],
+      "pass_count": 46,
+      "fail_count": 0,
+      "exit_code": 0
+    }
+  },
+  "scope": "Actual board header and input ISR with simulated timer/GPIO; no physical device."
+}

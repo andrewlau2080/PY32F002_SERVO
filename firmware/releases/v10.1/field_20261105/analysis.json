@@ -1,0 +1,55 @@
+{
+  "version": "P50 V10.1",
+  "download_verified": true,
+  "reserved_parameters_preserved": true,
+  "flash_sha256": "fda6fb516be78528d7a54e8c139a726ea29efb1aafb5b2dd11c305546cd09e5c",
+  "monitor_samples": 60,
+  "monitor_duration_seconds": 64.46811127662659,
+  "parameter_crc_good": 60,
+  "timeout_values_ms": [
+    100
+  ],
+  "parameter_distinct_blocks": 1,
+  "core_states": [
+    "State.RUNNING"
+  ],
+  "coarse_inconsistent_frame_samples_excluded": [
+    24,
+    40
+  ],
+  "post_test_hold_rows": 179,
+  "post_test_hold_span_ms": 2990,
+  "post_test_hold_feedback_range": [
+    2192,
+    2196
+  ],
+  "post_test_hold_error_range": [
+    -144,
+    -139
+  ],
+  "post_test_nonzero_drive_samples": 1,
+  "final_snapshot": {
+    "core": "State.RUNNING",
+    "params_crc_ok": true,
+    "input_timeout_ms": 100,
+    "uwTick": 336971,
+    "time_ms": 337030,
+    "pwm_us": 1502,
+    "target_adc": 2051,
+    "feedback_adc": 2230,
+    "error_adc": -179,
+    "duty": 0,
+    "s_lcdm_servo_current_state": 1
+  },
+  "conclusions": [
+    "V10.0 RAM parameters were corrupted; timeout=0 caused BAD state and coast while CPU/PWM remained alive. Stack overwrite is the primary suspected mechanism.",
+    "V10.1 sampled checks all retain valid unchanged params and timeout=100ms; final check at uptime 337s is also valid.",
+    "A separate positioning issue remains: a ~240 ADC quiet HOLD band permits 142-179 ADC offsets without correction.",
+    "A sampled 1us command change coincides with one -80 duty DRIVE sample after HOLD; command_step still admits small command changes into the drive path."
+  ],
+  "limits": [
+    "1-second integrity samples cannot resolve motion profiles or prove peak overshoot; 2/60 inconsistent telemetry frames excluded.",
+    "3-second hold trace documents an offset and one small drive sample; it does not prove long-term stability or static holding torque.",
+    "No exact instruction trace proving the offending stack write; RAM evidence and changed stack/display path support the diagnosis."
+  ]
+}

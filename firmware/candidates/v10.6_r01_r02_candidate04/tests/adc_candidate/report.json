@@ -1,0 +1,22 @@
+{
+  "files_sha256": {
+    "src/adc_feedback.c": "2dc872637584f86993b4a02a886420b264823e8dee601d821e9a570e06fe00d7",
+    "inc/board.h": "0082d2f466828fdeb222c75d03035b44e982056ae762343d3d1f7933cd32370c",
+    "tools/r02_host_sim/test_adc_feedback.c": "602aed0f2394ebceed510e409891f559d1e644fbaaa0ee7c553eddf938970e68",
+    "tools/r02_host_sim/py32f0xx_hal.h": "48b64eb2455f3a3648f89f9efcd5d7b8283be03c745a511372d7667f5c62e1ba",
+    "tools/r02_host_sim/run_adc_tests.py": "4c137785c15e49d1ffe91a4506ef4082548f8a18dc2b953b13c0eecfae17d8d4"
+  },
+  "profiles": {
+    "development": {
+      "pass_count": 16,
+      "fail_count": 0,
+      "exit_code": 0
+    },
+    "sop8": {
+      "pass_count": 16,
+      "fail_count": 0,
+      "exit_code": 0
+    }
+  },
+  "scope": "Production ADC source with simulated channel conversions, no physical ADC or motor."
+}

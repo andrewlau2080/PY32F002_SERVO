@@ -1,0 +1,47 @@
+{
+  "capture": "2026-11-10 around 17:41 Asia/Shanghai",
+  "source": "physical V10.5 target, Ubuntu pyOCD/DAPLink SWD attach",
+  "elf": "firmware/releases/v10.5/py32f002_servo.elf",
+  "requested_interval_ms": 50,
+  "observed_interval_ms": {
+    "min": 63,
+    "median": 73.5,
+    "max": 568
+  },
+  "samples": 91,
+  "unique_target_timestamps": 91,
+  "duration_ms": 12091,
+  "consistent_error_frames": 91,
+  "pwm_us_range": [
+    1501,
+    1503
+  ],
+  "target_adc_range": [
+    2049,
+    2052
+  ],
+  "feedback_adc_range": [
+    2279,
+    2280
+  ],
+  "error_adc_range": [
+    -231,
+    -227
+  ],
+  "duty_values": [
+    0
+  ],
+  "state_codes": {
+    "1": 91
+  },
+  "last_model_confidence_permille": 998,
+  "last_model_forward_speed_gain_q8": 2197,
+  "last_model_reverse_speed_gain_q8": 7417,
+  "last_model_forward_drive_samples": 4532,
+  "last_model_reverse_drive_samples": 4001,
+  "limitations": [
+    "Model confidence is an internal sample-derived weight, not a measured probability of correct behavior.",
+    "This is a brief snapshot of HOLD at approximately 1502 us; it does not capture a command step or establish the cause of the position error.",
+    "SWD sampling cannot validate carrier edges or the 2-3 ms brake phases; physical dual-channel measurements are required."
+  ]
+}

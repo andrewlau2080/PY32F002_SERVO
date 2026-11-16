@@ -1,0 +1,11 @@
+{
+  "files_sha256": {
+    "src/servo_control.c": "299cdde8897ca1797eec57f1fb4761b574b9234e59bc95c17432f0b6448b1af8",
+    "src/servo_adaptive.c": "908fbe0bf6fcb04dfab423e1c1cbceb50f413f7ffd65221fb1a6ca6cf041be03",
+    "tools/r01_host_sim/test_generic_mapping.c": "c09899ed83492ef67a8b3c5056ce2ad34982346824cd08c9193852e28c474942"
+  },
+  "pass_count": 7,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Generic mapping only; no physical motor."
+}

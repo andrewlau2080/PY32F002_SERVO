@@ -1,0 +1,30 @@
+{
+  "elf": "firmware/candidates/v10.6_r01_batch_candidate08/build/py32f002_servo.elf",
+  "elf_sha256": "4a2f59ae36771fc7d56151e3023f85b3bf7df9fc540209e7d58bddfc951dcbeb",
+  "probe_uid": "070000011a5a5cc500000000000c00b6a5a5a5a597969908",
+  "target": "py32f002ax5",
+  "connect_mode": "attach",
+  "core_start": "State.RUNNING",
+  "core_end": "State.RUNNING",
+  "samples": 311,
+  "start_time": "2026-11-12T00:39:00.979204+08:00",
+  "monitor_sha256": "648ab9cfd4594a2b52fa59113e423da34b29f8124a6dc511d5c91a1c163a4753",
+  "requested_interval_ms": 50,
+  "elapsed_seconds": 40.124,
+  "symbol_addresses": {
+    "s_lcdm_servo_latched_pulse_us": "0x20000024",
+    "uwTick": "0x200002e0",
+    "s_lcdm_servo_vel_q4": "0x200002e4",
+    "g_servo_curve_frame": "0x200002f4",
+    "s_lcdm_servo_current_state": "0x20000320",
+    "s_lcdm_servo_current_duty": "0x20000338",
+    "g_servo_adaptive_confidence_permille": "0x2000037e",
+    "g_servo_adaptive_speed_gain_q8_forward": "0x20000380",
+    "g_servo_adaptive_speed_gain_q8_reverse": "0x20000382",
+    "g_servo_adaptive_drive_samples_forward": "0x20000388",
+    "g_servo_adaptive_drive_samples_reverse": "0x2000038a",
+    "g_servo_model_record_valid": "0x200003e6",
+    "s_lcdm_pwm_source": "0x200003f6"
+  },
+  "note": "Observed SWD samples only; no stimulus or target state changes were issued."
+}

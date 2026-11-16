@@ -1,0 +1,13 @@
+{
+  "files_sha256": {
+    "src/servo_adaptive.c": "908fbe0bf6fcb04dfab423e1c1cbceb50f413f7ffd65221fb1a6ca6cf041be03",
+    "inc/servo_adaptive.h": "7da7366575cef1c913ba0752baea6963f6f7007d1b878cfc2a2caaf5aa0c3bba",
+    "inc/servo_model_store.h": "898f48ba4490c31dc2536a18945452b363ad59f8d58bfddbb6769475c551d94b",
+    "tools/r05_host_sim/test_adaptive_quality.c": "96a75a158c9b813901cea0817b98ba9d6ed3d284dc7d3c2a0df34761517052d8",
+    "tools/r05_host_sim/run_adaptive_quality_tests.py": "9d472d5e611cd817edbc5a485e605fb7b9960ffec8f94136f14193a997245fd2"
+  },
+  "pass_count": 15,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production adaptive learner with injected duty, velocity, time and validity; no real bridge, ADC or mechanism."
+}

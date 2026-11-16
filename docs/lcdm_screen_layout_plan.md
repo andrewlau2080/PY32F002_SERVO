@@ -4034,3 +4034,244 @@ P50 `Input state` 含义：`FRESH` 表示当前 PWM 有效；`NO EDGE H/L` 表�
 | 重来原则 | 下一版从 `v9.5-internal-pwm-stable` 新起，不复用 `9.6r/s/t/u` 的源码改动；每次版本号变化必须先记录源码 commit、构建 hash、下载命令和 `Successfully resumed device`，现场失败则立即标记失败，不再当基线。 |
 | 本次源码状态 | 已把 `src/app_entry.c` 和 `Makefile` 恢复到 `v9.5-internal-pwm-stable` 对应源码状态；当前构建字符串为 `P50 V9.5`，没有 `P50 V9.6r/s/t/u`。 |
 | 本次构建检查 | Ubuntu 构建通过：`text=19680 B`、`data=672 B`、`bss=2336 B`；向量 `SP=0x20000c00`、`PC=0x0800497d`；ELF SHA256 `62cafb0a34d6b1c81fca48f66556a8b653fb74b255a45dde4e44fd6db0ef5a3d`；HEX `84a4e9bbb282eddc4bad52d07c0baed6b7879d651fb17ccfc48cc45400a2f724`；BIN `8ca612c7f9ef15c48b8a8d29b877b9b07b923ca7a715eb72b704249436b6986e`。本次未下载到板，板上状态以后需按实际 LCDM/flash 读回确认。 |
+
+2026-07-05 P50 V9.5 重新下载记录：
+
+| 项目 | 内容 |
+|---|---|
+| 下载原因 | 用户要求先把 `9.5` 下载到仿真端实测，作为重来后的可复现基线。 |
+| 下载前核对 | 当前产物字符串包含 `EXTPWM`、`INTPWM`、`P50 V9.5`；`P50 V9.5` 位于 `0x08004b8e`；向量 `SP=0x20000c00`、`PC=0x0800497d`。 |
+| 下载命令 | macOS pyOCD：`/tmp/pyocd-mac-venv/bin/pyocd flash -t py32f002ax5 --pack /tmp/py32-pack/Puya.PY32F0xx_DFP.1.2.2.pack -f 100000 -O connect_mode=under-reset build/py32f002_servo.hex`。 |
+| 烧录结果 | pyOCD 擦除 `20480 bytes`，编程 `20352 bytes`，速度约 `1.43 kB/s`。 |
+| 刘氏运行 | commander 写 `SP=0x20000c00`、`PC=0x0800497d` 后 `go`，返回 `Successfully resumed device`。 |
+| 读回确认 | 读 `0x08004b8e` 得到 ASCII `P50 V9.5`，读完再次 `go` 并返回 `Successfully resumed device`。当前仿真端应运行 `P50 V9.5`。 |
+
+2026-07-05 V9.5 到 V9.6 抖动原因回溯记录：
+
+| 项目 | 内容 |
+|---|---|
+| 回溯触发 | 用户回忆原问题是“开始不会，时间一长慢慢用了就会抖动”，最后 `V9.6` 基本解决。要求按历史记录把导致抖动的原因逐项找回，而不是继续凭感觉改 PID。 |
+| 最早同类记录 | 2026-06-09 “静止慢漂自适应下载记录”明确记录用户原话：“开始一半一半，会嗞嗞声，约20秒后回复平静”；随后又补充“然后一段时间后，又嗞嗞声”。当时判断为 HOLD 参考 ADC 太死，机械回弹、电位器慢漂、温升或供电微变会让旧参考点和当前反馈逐渐偏离，误差重新越过安静带后再次触发反驱。 |
+| 慢漂学习试错 | 2026-06-09 “静止学习窗口限制下载记录”又记录“约一分钟后静止，静止后手拨不再响，但过一段时间又响一下”。结论是长期学习会把真实外力也当作漂移吸收，锁止功能被放掉；正确方向是只在刚到位短窗口学习机械回弹，随后冻结参考，外力偏移仍要反驱。 |
+| Brake-first 结论 | 后续 “静止 Brake-first 锁止下载记录”确认短脉冲/Coast 方案不是根本解法，静止区主要应先进入 `HOLD/Brake`，不要长期低 duty `DRV`。轻微偏移由 H 桥刹车/短接锁住，明显偏移并连续确认后才主动反驱。 |
+| 运动未进 HOLD | “GitHub 参考与运动到位捕获” 和 “近目标停滞捕获” 记录确认另一个原因是程序一直显示 `DRV`，说明运动阶段没有真正交给静止 HOLD/Brake 接管。只要状态仍卡在运动阶段，静止 Brake-first 写得再多也没机会生效，会持续小 duty 输出并嗞嗞。 |
+| ADC 跳点原因 | 2026-06-09 “ADC 跳点剔除与 W 验证下载记录”确认必须先稳定控制用 ADC：`R` 是原始采样，`C` 是闭环实际采用值，`W` 改成统计剔除后的 `C` 波动。若静止时 `W` 不能接近 0，假 ADC 跳点会反复触发 HOLD 退出和 H 桥 `DRV`。这一步之后用户反馈“目前嗞嗞声搞定了”，证明 ADC 跳点剔除和静止不乱驱动方向有效。 |
+| 锁止慢漂复现 | 2026-06-17 “LOCK 保持锁力并加快外力响应版记录”再次出现用户原话“现在会过一段时间会嗞嗞声”。当时已把问题拆成两类：外力/放手时 LOCK 反向出力太慢；静止一段时间后慢漂越过 HOLD 边界导致 H 桥重新进入 LOCK 嗞嗞。处理方向是保持 `LOCK_BASE=300`、斜率 `>>7`、`Lmax=930`，取消 LOCK 分支通用 slew 限速，并增加 `HOLD_QUIET_DRIFT_BAND` 让低速小慢漂继续 Brake，不进入 LOCK 嗞嗞。 |
+| 外部 PWM 原因 | 2026-06-20 到 2026-06-21 的 `V7.10h/P50J/P50K/P50L/P50M` 记录确认外部 PWM 也会造成类似“刚开始乱晃，过一段时间又正常”。根因不是 PID，而是外部 PWM 小跳变或毛刺把 `pulse_delta != 0` 当成新命令，刷新目标、退出 HOLD/LOCK 或重置运动相位。后续用 PA3/TIM1 硬件捕获、命令门控、运动中小扰动不重启相位、大阶跃才重启相位来分层处理。 |
+| 内部 PWM 长测原因 | 2026-06-23 `V9.2-V9.5` 记录确认内部 PWM 下的间歇晃动主因不是外部输入，而是末端状态机：LOCK 阶段曾用单次 fast raw，ADC residual 会触发 fast observer，静止噪声被积分成速度；HOLD/LOCK 后小误差仍可掉回 `event12/event18` 注入能量；V9.4 长测约 900s 后仍在 `abs(error)=150..220 count` 重新进入大 duty，最后 V9.5 把末端静默/过冲 HOLD 带扩大到 `240 count` 才作为内部稳定基准。 |
+| 关键结论 | 导致“开始不会，时间一长会抖”的原因不是单一 PID 参数，而是多条链叠加：ADC 跳点和慢漂、HOLD 参考点策略、静止 LOCK/Brake 触发边界、运动阶段迟迟不进 HOLD、外部 PWM 小跳变重置目标、过点后 `event12/event18` 重新注入能量。V9.6 能接近理想，应该是这些路径被同时压住，而不是单纯调大死区或改一组 PID。 |
+| V9.6 定位线索 | 板上 `V9.6` 镜像读回向量为 `SP=0x20000c00`、`PC=0x0800495d`，字符串地址 `0x08004b6e: P50 V9.6`。历史记录中 `P50J 外部 PWM 与内部自测差异收尾记录` 的下载启动向量同样是 `PC=0x0800495d`，其核心改动是“外部 PWM 小变化可更新目标，但运动中小于阈值的扰动不再重置加速/刹车流程”，并保留 `>=8us` 立即接受、`1-7us` 连续确认的输入门控。这个 PC 重合是当前最强线索：原始 `V9.6` 很可能与 `P50J` 附近源码布局高度接近，之后再合入 V9.2-V9.5 末端 HOLD/LOCK 抑制或仅改版本标记。 |
+| 证据边界 | 当前仍未找到与板上 `P50 V9.6` SHA256 `303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce` 字节级一致的源码提交、HEX 或 ELF。不能把 `P50J`、`V9.5` 或 `V9.6r/s/t/u` 冒充原始 `V9.6`。但后续恢复应优先围绕 `P50J` 的外部命令衔接线索和 `V9.5` 的内部末端稳定线索做交叉复原。 |
+| 下一步恢复原则 | 不要从 `V9.6r/s/t/u` 继续；不要先动 PID。若要重建可测试版，应从可追溯源码 `v9.5-internal-pwm-stable` 起，最小化加入 `P50J/P50K` 外部 PWM 命令门控和运动相位不被小扰动重置的逻辑，同时保留 V9.5 的 ADC 平均采样、去 residual-only fast observer、LOCK 8 次确认、末端 `240 count` 静默/HOLD 带。每次下载必须记录 commit、HEX/BIN hash、启动向量和实测结论。 |
+
+2026-07-05 P50 V9.6R1 恢复测试版构建记录：
+
+| 项目 | 内容 |
+|---|---|
+| 目的 | 不直接刷 `P50J/P50K`，而是在可追溯 `V9.5` 源码上只恢复外部 PWM 命令衔接保护：运动中小 PWM 扰动只更新目标，不重新进入 `ACCEL`；大阶跃或非运动状态仍启动新动作。 |
+| 源码改动 | `src/app_entry.c`：固件标记改为 `P50 V9.6R1`；新增 `motion_phase_active` 判断；`command_step` 从原来的 `target_changed` 改为 `target_motion_changed || (target_changed && !motion_phase_active)`。未改 PID、客户 profile、ADC 平均采样、LOCK 8 次确认、末端 `240 count` HOLD/静默带。 |
+| 构建命令 | `./tools/build_in_ubuntu.sh LTO=1 BOARD_TSSOP20_DEBUG_PINS=1 SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1 SERVO_ENABLE_COMM=0`。 |
+| 构建结果 | Ubuntu 构建通过，`text=19580 B`、`data=672 B`、`bss=2336 B`。 |
+| 字符串/向量 | `EXTPWM` 位于 `0x08004ae0`、`INTPWM` 位于 `0x08004ae7`、`P50 V9.6R1` 位于 `0x08004b26`；向量 `SP=0x20000c00`、`PC=0x08004915`。该 PC 不等于原板载 `V9.6` 的 `0x0800495d`，所以本版只能叫恢复测试版，不能冒充原始 `V9.6`。 |
+| SHA256 | ELF `d41ef6f934a6496afc1e5515d029ff4563449c2af2f8085ad9be6c32d357a371`；HEX `8153cb45edec6448a4c53f532e2bcd435cb0dd32853e281ad2898770672ff44b`；BIN `ba7d91a45808d0e16f8b5bdc33c10c2cdb4344cb47b436768fdddeaa83ebd572`。 |
+| 下载状态 | 已下载到板。macOS DAPLink/pyOCD 使用 `./tools/flash_run_on_macos.sh`，脚本读出向量 `SP=0x20000c00`、`PC=0x08004915`，以 `2MHz`、`connect_mode=under-reset` 连接 `PY32F002Ax5`，执行 `halt/load/wreg sp/wreg pc/go`，返回 `Successfully resumed device`。 |
+| 读回确认 | 下载后用 pyOCD `read8 0x08004b26 12` 读回：`50 35 30 20 56 39 2e 36 52 31 00`，ASCII 为 `P50 V9.6R1`；随后再次写 `SP=0x20000c00`、`PC=0x08004915` 并 `go`，返回 `Successfully resumed device`。当前板上运行 `P50 V9.6R1`。 |
+| 现场测试重点 | 先固定外部 `1500us/2000us` 长时间观察是否还会“开始不抖、过一段时间抖/嗞嗞”；再快速切换 `1000/1500/2000us`，看运动中小 PWM 抖动是否还打断相位。若仍抖，下一步抓 SWD 曲线，重点看 `command_step` 后是否仍出现 `event12/event18` 或 LOCK 误触发。 |
+
+2026-07-05 P50 V9.6R1 重新下载确认记录：
+
+| 项目 | 内容 |
+|---|---|
+| 重下原因 | 用户反馈“没下载到”，因此不用脚本合并流程，改为显式两步：先单独 `pyocd flash`，再 `pyocd commander` 读回版本并手动写 `SP/PC/go`。 |
+| 探针 | macOS 端 pyOCD 可见 `Arm DAPLink CMSIS-DAP`，UID `070000011a5a5cc500000000000c00b6a5a5a5a597969908`。 |
+| Flash 命令 | `/tmp/pyocd-mac-venv/bin/pyocd flash -t py32f002ax5 --pack /tmp/py32-pack/Puya.PY32F0xx_DFP.1.2.2.pack -f 100000 -O connect_mode=under-reset build/py32f002_servo.hex`。 |
+| Flash 结果 | pyOCD 完成擦写流程；因片内内容已与当前 HEX 一致，结果为 `programmed 0 bytes`、`skipped 20352 bytes`。这表示目标 Flash 已经是当前 `P50 V9.6R1` 内容，不是写入失败。 |
+| 读回确认 | commander 读 `0x08004b26` 得到 `50 35 30 20 56 39 2e 36 52 31 00 2d`，ASCII 为 `P50 V9.6R1`。 |
+| 运行确认 | commander 写 `SP=0x20000c00`、`PC=0x08004915` 后执行 `go`，返回 `Successfully resumed device`。当前板上应运行 `P50 V9.6R1`。 |
+
+2026-07-05 P50 V9.6R1 LCDM 引脚参数修正下载记录：
+
+| 项目 | 内容 |
+|---|---|
+| 问题现象 | 用户反馈重新下载后 LCDM 没显示，并询问是否改动了 LCDM 驱动脚。 |
+| 原因确认 | 源码没有改 `tjc_lcdm.c` 或 `app_hal_msp.c` 的 LCDM 驱动脚；但上一版构建命令遗漏现场 LCDM 物理层参数，只带了 `SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1`，没有带 `SERVO_TJC_UART_ALT_PINS=1` 和 `TJC_LCDM_BAUD_OVERRIDE=230400`。因此固件会按默认 USART1 `PA2/PA3`、`9600bps` 初始化，当前现场接线 `PA7/PB2`、`230400bps` 的屏幕收不到命令。 |
+| 修正构建 | 重新按现场完整 LCDM 参数构建：`LTO=1 SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1 SERVO_ENABLE_PA0_POT_POWER=1 BOARD_TSSOP20_DEBUG_PINS=1 SERVO_TJC_UART_ALT_PINS=1 TJC_LCDM_BAUD_OVERRIDE=230400 SERVO_TJC_RX_ENABLE=1 SERVO_HBRIDGE_FORCE_HIZ=0 SERVO_ENABLE_COMM=0`。 |
+| 构建结果 | 构建通过，`text=19672 B`、`data=672 B`、`bss=2336 B`。版本字符串仍为 `P50 V9.6R1`；`SP=0x20000c00`、`PC=0x08004971`；字符串地址 `0x08004b82`。 |
+| SHA256 | ELF `3f53ac606f38488f9692d1f88a3c8319d1667cc07cb7a3047c8f0a5be5daf07c`；HEX `8a27481b58e92d8b465ebbefe3d5e80adb74737779c6ea3f83390f17d5b8e415`；BIN `032656c9d859a5bdb85e35681dab2b890c65a46ab97f2ca4a4169effa5defa4b`。 |
+| 下载结果 | macOS pyOCD 擦除 `20480 bytes`、编程 `20352 bytes`、`skipped 0 bytes`，速度约 `1.38 kB/s`。 |
+| 读回/运行 | commander 读 `0x08004b82` 得到 `50 35 30 20 56 39 2e 36 52 31 00 2d`，ASCII 为 `P50 V9.6R1`；随后写 `SP=0x20000c00`、`PC=0x08004971` 并 `go`，返回 `Successfully resumed device`。当前板上应运行 PA7/PB2、230400bps LCDM 版本。 |
+
+2026-07-05 P50 V9.6R2 VSG 自查与外部小抖动修正记录：
+
+| 项目 | 内容 |
+|---|---|
+| 触发原因 | 用户指出不能再靠现场语言描述，应启用 VSG/SWD 曲线自行核对问题点。 |
+| VSG 第一轮发现 | `build/servo_curve_live/v96r1_after_reset_ext_8s/servo_curve_live.csv` 显示外部固定中位时 `pwm_us/pwm_raw_us=1500..1503us`，输入链路正常；但目标 ADC 随 1-3us 小跳在 `2048..2052` 间变化，固定中位仍出现 `event12` 和偶发 `-80 duty`。这说明问题不是 LCDM 引脚，也不是外部 PWM 大跳，而是 `pulse_delta != 0` 仍把 1us 级测量抖动当成新命令，导致 HOLD 退出。 |
+| VSG 工具修正 | 发现实时帧 fallback 可能在极端情况下接受“error 看似合理但 seq 未稳定”的帧，造成 `event=2` 但 duty 非零的误导。已修改 `tools/live_servo_curve_swd.py`：`sample_target_frame()` 不再返回 fallback，只接受 `seq_head==seq_tail` 且偶数的稳定帧；重试次数提升到 24。后续关键判断优先用 `dump_servo_curve_log.py` 的 halt 后 ring-buffer 冻结读回。 |
+| ring 证据 | `build/servo_curve_live/v96r2_ring_after_static.csv` 在修正前可靠读到一条固定中位异常：`pwm_us=1503`、`target_adc=2052`、`feedback_adc=2059`、`error=-7`、`duty=-80`、`state=2`、`event=13`。这证明小误差仍会被命令小跳带入减速/驱动分支。 |
+| 源码修正 | `src/app_entry.c`：版本标记改为 `P50 V9.6R2`；P60 默认 `Stb` 从 `4us` 调到 `3us`，覆盖 VSG 看到的 `1500..1503us` 固定抖动；命令判定从 `pulse_delta != 0` 触发改为只用映射后的 `target_delta > LCDM_SERVO_CMD_HOLD_EXIT_EXTRA / MOTION_EXIT_EXTRA` 判断是否退出 HOLD/重启运动。未改 PID、ADC、H 桥、LCDM 引脚和波特率。 |
+| 下载保护 | 使用固定脚本 `tools/build_flash_lcdm_runtime_macos.sh` 构建/下载，脚本预检 `SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1`、`BOARD_TSSOP20_DEBUG_PINS=1`、`SERVO_TJC_UART_ALT_PINS=1`、`LCDM_TJC_BAUD=230400`、`SERVO_ENABLE_PA0_POT_POWER=1`，避免再次漏掉 LCDM 现场配置。 |
+| 构建下载 | 构建通过：`text=19660 B`、`data=672 B`、`bss=2336 B`；`SP=0x20000c00`、`PC=0x08004965`；字符串 `P50 V9.6R2` 位于 `0x08004b76`。pyOCD 擦除 `20480 bytes`、编程 `20352 bytes`、`skipped 0 bytes`；读回 `P50 V9.6R2` 并 `Successfully resumed device`。 |
+| VSG/ring 验证 | 修正后导出 `build/servo_curve_live/v96r2_ring_after_cmdstep_fix.csv`，共 `35` 条：`pwm_us=1502..1503`，`target_adc` 固定 `2055`，`feedback_adc=2057..2064`，`error=-9..-2`，事件全为 `event=2`，状态全为 `state=1`，`duty=0`，`velocity_q4=0`，`bad_err=0`。固定中位的小跳误触发已压住。 |
+| 下一步观察 | 后续若用户再反馈运动中/长时间后抖动，继续用 VSG/ring 分开判断：若固定 PWM 下 `target_adc` 不变但出现 `event13/16/18`，查 HOLD/LOCK 边界；若 `target_adc` 随外部输入跳，查 PWM 输入/锁存；若目标和事件都稳定但机械抖，转向电位器噪声、电源或机械齿隙。 |
+| 第二轮现场复现 | 用户反馈“又开始抖了”后立即 dump ring：`build/servo_curve_live/v96r2_ring_when_shaking.csv` 共 `35` 条，`pwm_us=2000`、`target_adc=2916` 全程固定，排除外部 PWM/目标跳变。数据链路为：误差 `+242` 时 `event12 duty=971`，随后 `error=+233` 立即进入 `event2 duty=0`；惯性继续冲到 `error=-231`，再从 `event12 duty=-80` 拉到 `duty=-1000`；反向后又在 `error=+240` 进入 `event2 duty=0`，继续冲到 `error=-175`。根因是 overshoot 后 `LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND=240` 允许运动尾段在约 240 count 误差就 HOLD/coast，放手太早导致来回摆。 |
+| 第二轮源码修正 | 为适配 20KB Flash，尝试相位区分式修正会超 Flash `4-8 bytes`，未下载。最终采用零体积修正：只把 `LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND` 从 `240` 改为 `64`，避免运动中 240 count 提前 HOLD。其余 PID、输入锁存、LCDM 引脚、ADC 和 H 桥参数不改。 |
+| 第二轮构建下载 | 固定脚本构建/下载通过：`text=19660 B`、`data=672 B`、`bss=2336 B`；`SP=0x20000c00`、`PC=0x08004965`；字符串 `P50 V9.6R2` 位于 `0x08004b76`。pyOCD 擦除 `4096 bytes`、编程 `4096 bytes`、`skipped 16256 bytes`；读回 `P50 V9.6R2` 并 `Successfully resumed device`。下载后短等导出 `build/servo_curve_live/v96r2_ring_after_overshoot64.csv`，当前 `count=0`，说明刚下载后的几秒内未触发 ring 日志。 |
+
+2026-07-05 P50 V9.6R3-R6 内部运行死循环追踪记录：
+
+| 项目 | 内容 |
+|---|---|
+| 测试边界 | 用户明确指出“现在都只测内部信号”“还没到测外部信号那个地步”。本轮只看运行时内部 `1000/2000us` 源，不把外部 PWM 捕获/门控作为原因。 |
+| R3 修正 | `P50 V9.6R3` 只改 `LOCK` 退出：宽静默窗口只允许原本已经在 `HOLD` 的状态继续 HOLD，不允许 `LOCK/event16` 打出大 duty 后立刻用 `v7_static_lock_band` 回到 `HOLD/event2`。目的为切断 `event16 duty=930 -> event2 -> 再 event16` 的死循环。 |
+| R4 修正 | `P50 V9.6R4` 在 R3 基础上放宽 HOLD 内部静默：已经处于 `PHASE_HOLD` 且误差在 `v7_static_lock_band` 内时继续 HOLD，不再因为一次观测速度尖峰退出到 `event12/13`。R4 下载读回 `P50 V9.6R4`，固定脚本确认 PA7/PB2、230400bps LCDM 参数未变。 |
+| R4 运行发现 | R4 开始运行后，低位回程仍出现普通控制收尾振荡：`build/servo_curve_live/v96r4_after_run_*.csv` 中低位 `1000us` 回程多次出现 `maxE=1400..1757`、`maxD=900..1000`；典型链路为客户 profile 结束后普通 `event12/13` 接管，近目标仍出现 `duty 591/630` 等较大补偿，随后又能进入 HOLD。说明问题不是外部输入，而是内部大行程回程的近目标普通控制过猛。 |
+| R5 试错 | `P50 V9.6R5` 尝试只限制普通 `event13/DECEL` 的输出上限到 `LCDM_SERVO_V3_RETURN_MAX_DUTY=360`。结果证明不够：`build/servo_curve_live/v96r5_run_watch_*.csv` 中 `event13` 被压住，但 `event12` 在约 `250 count` 误差处仍从 `240/400/560/720/880` 爬到 `1000`；随后又出现 `target=1188 feedback=1728 error=-540 duty=-80 event12` 长时间拉不回。 |
+| R6 当前修正 | `P50 V9.6R6` 将近目标普通控制限幅扩展到 `event12/DRIVE` 和 `event13/DECEL`：当 `abs_error <= brake_max_band` 且不是客户 profile 直驱时，`duty_calc` 限制在 `+/-LCDM_SERVO_V3_RETURN_MAX_DUTY`。保留客户 profile 的 `930/360/220` 启动/反刹/尾段，不改外部 PWM、LCDM 引脚、ADC 或 H 桥。 |
+| R6 构建下载 | 固定脚本构建/下载通过：`text=19676 B`、`data=672 B`、`bss=2336 B`；`SP=0x20000c00`、`PC=0x08004975`；字符串 `P50 V9.6R6` 位于 `0x08004b86`。pyOCD 擦除 `8192 bytes`、编程 `8064 bytes`、`skipped 12288 bytes`；读回 `P50 V9.6R6` 并 `Successfully resumed device`。 |
+| R6 监控结果 | `build/servo_curve_live/v96r6_long_watch_*.csv` 约 80 秒内部监控未再复现 R5 的 `error≈540 duty=-80` 卡死。大行程启动段仍会有 `event12` 大 duty，这是客户 profile/追赶阶段；但收尾段多数回到 `event2/duty0`，低位收尾典型为 `maxE=137/163/189/279/428`、`maxD<=360`，没有继续累积成 R5 的长时间偏离。 |
+| 当前结论 | 内部阶段的“越跑越严重”主要不是输入源，也不是 LCDM，而是近目标普通控制允许 `event12/13` 在几百 count 内继续大 duty 注入，过点后又只用小 duty 拉回，形成越跑越大的振荡。R6 当前压住了这条链路，但还需要现场继续长时间观察；若再复现，应继续抓 ring，看是否是 `event18` 吸能不足、HOLD 过早清速度，还是机械/电位器回弹。 |
+
+2026-07-05 客户LOGICDATA/VSG沟通与调试原则记录：
+
+| 项目 | 内容 |
+|---|---|
+| 用户要求 | 调试不能再只靠语言描述、单独CSV或反复微调；必须恢复当初客户 `LOGICDATA` 与我们 VSG 上下并排对比的方法。 |
+| 对齐原则 | 对比图必须从动作起始点对齐：客户 `LOGICDATA` 以第一段有效驱动起点为 `t=0`，我们 VSG 以目标跳变或第一笔非零 H桥 duty 为 `t=0`，不能按文件绝对时间或采样开始时间对齐。 |
+| 共同查看 | 只维护一个对比页面 `build/customer_logic_compare/customer_logic_compare.html`，不重复打开多个界面；我和用户看同一张图，直接确认哪里和客户波形不一致。 |
+| 修改原则 | 有客户 `LOGICDATA` 时，优先复刻客户驱动/反刹/尾段/空窗波形；PID、限幅、死区只能用于最后收尾，不能替代波形复刻，更不能慢慢乱试。 |
+| 当前教训 | `P50 V9.6R7` 用全局 `event12/event13` 限幅造成整体变慢，偏离客户波形学习路线；后续不得把这类慢速限幅当作主方案。 |
+
+
+2026-11-05 V9.6L1 多点振荡采集与原版 V9.6 恢复记录：
+
+| 项目 | 内容 |
+|---|---|
+| 采集 | Ubuntu SSH + DAPLink/HID attach，两轮 7080 + 4992 行，控制时间跨度 120s + 115s；有效去重事件 385 条。第二轮存在 1072 个重复控制时间，停止发布后的尾端旧帧不作稳定证据。采集已停止。 |
+| 数据 | 固定 1503us、目标 2052 ADC，反馈可在 1739..2346 摆动，duty 正反满幅；多处周期约 0.3..0.4s。HOLD 全部报告零估算速度，但反馈仍移动。后段另出现 event8 方向报警。 |
+| 分析 | HOLD 清零估算速度 + Brake 实际 Coast + 越过 240 ADC 保持带后大 duty 反追，是重点循环嫌疑。未测电流/马达端波形，不能据软件状态认定真实刹车。详见 build/stability_20261105_105601/analysis.html。 |
+| 保全 | 已保存当前源码及 L1 ELF/BIN/HEX 快照、hash、v9.5-internal-pwm-stable 源码归档，以及前后完整 Flash。L2 保留速度的草稿仅存 build 目录，未构建通过、未下载，工作源码恢复修改前状态。 |
+| 恢复选择 | 按用户要求试下载历史较稳定原版，明确选择原始 P50 V9.6 板载镜像，不冒充由源码重建。备份镜像 SHA256 303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce。 |
+| 下载验收 | tools/download_py32_ubuntu.sh -t py32f002ax5 build/stability_20261105_105601/recovery_v96/original_v96_app.elf；2M under-reset 首次成功，Core Running。应用 20352 字节封装 ELF 前后逐字节一致，当前 128 字节参数区保留。下载后完整 20480 字节读回与原版 SHA256 完全相同。SP 0x20000c00，PC 0x0800495d，版本字符串 0x08004b6e。 |
+| 当前状态 | 板上为 P50 V9.6；工程默认 build 仍是 L1，不要误下默认产物。原版 ELF 位于上述 recovery_v96 目录，无实时采集占用探针。当前硬件下是否恢复稳定仍需用户对照测试。 |
+
+
+2026-11-05 原始 V9.6 基准封存与 V10.x 版本约定：
+
+| 项目 | 内容 |
+|---|---|
+| 用户指令 | “请拿这个V9.6版本来改了，今天开始，升级到10.0版本开始，接下来就是10.1，10.2......” |
+| 已执行 | 原始 V9.6 完整 BIN、保留参数的应用 ELF/BIN、SHA256、下载日志与验证清单封存至 firmware/baselines/v9.6_original/；README 记录新的开发规则。 |
+| 版本顺序 | 新系列从 V10.0 开始，之后 V10.1、V10.2……；每次交付测试的修改单独编号并保存结果，失败版本保留，不复用编号。 |
+| 源码边界 | 原始 V9.6 二进制可恢复，尚无完全对应源码。工作区仍是 L1；未把 L1 或 L2 草稿改名为 V10.0。V10.0 的下一项实际工作是恢复/核对原版源码及可复现构建。 |
+| 板上状态 | 本次只封存基准和记录约定，板上仍运行原始 P50 V9.6；没有构建或下载 V10.0，也没有恢复实时采集。 |
+
+本轮继续入口：
+
+```bash
+cd "/Users/andrewlau/qtprj/Steering Engine/MOTOR/PY32F002_SERVO"
+ codex resume 01a1a947-6580-7ac0-b02d-9e708b216d67
+```
+
+
+2026-11-05 V10.0 反汇编与离线执行重建记录：
+
+| 项目 | 内容 |
+|---|---|
+| 用户授权 | 恢复原代码、逐项比对和修正，使用反编译等更强工具；新系列从 V10.0 开始。 |
+| 执行方法 | 原始 V9.6 完整 Thumb 反汇编 + angr/VEX CFG、函数比对和伪代码；从 e3542a0 可追溯 C 源码逐项恢复。完整证据归档 firmware/releases/v10.0/verification_evidence.tar.gz。 |
+| 已恢复的区别 | 目标更新与运动重启分离：1–2us 可更新目标，>=3us 重启阶段；移除 cmd_sensitive 和 ADC-delta 命令触发；命令重启的 hold_deviation_count 处理按原版指令对齐。没有套用 L1/L2 或修改 PID。原 ADC/PWM/H 桥/板级模块与基准源码一致，完整 LCDM UI 恢复。 |
+| 验证结果 | 基本 315/315、扩展 79/79 控制单步执行一致；6 个 LCDM 页离线输出命令一致。扩展包括客户 profile 的 0/11/12/15/16/18/19/42/43/100ms、正反方向、LOCK 确认、ADC 无效和首次命令。ADC/PWM/显示格式化及等待为模型，不是实物验证或完整形式化证明。 |
+| 构建 | tools/build_v10_ubuntu.py；Ubuntu GCC 10.3.1；固定 SDK 1.4.4 子集，PA7/PB2 230400bps，A 型号完整 UI。text=19612 data=672 bss=2328；BIN 20284 B；原版仍保留。 |
+| 源码及版本 | 工作区 src/app_entry.c 已恢复为 V10.0 重建代码；L1 工作源码先备份到 build/v10_recovery/workspace_l1_before_restore.c。当前版本完整源码、SDK 哈希、ELF/BIN/HEX、构建日志及证据存 firmware/releases/v10.0/，后续测试修改依次 V10.1、V10.2，不覆盖本版。 |
+| 证据边界 | 未找到原始逐字节对应 C 文本；重建 BIN 与原版不逐字节一致。当前是经过具体状态对照的行为重建，不冒充精确找回。LCDM 时序、触屏参数编辑、全状态覆盖及马达动态稳定性仍需核验。 |
+| 板上状态 | 本轮未下载；板上仍是原始 P50 V9.6，无采集进程占用仿真器。下一步在同样条件下对照原版与 V10.0 的现场表现，再按单项波形差异形成 V10.1。 |
+
+继续入口：
+
+```bash
+cd "/Users/andrewlau/qtprj/Steering Engine/MOTOR/PY32F002_SERVO"
+codex resume 01a1a947-6580-7ac0-b02d-9e708b216d67
+```
+
+
+2026-11-05 11:55 V10.0 首次现场下载与采集：
+
+| 项目 | 内容 |
+|---|---|
+| 下载授权 | 用户要求立即下载调试，继续执行 V10.0。 |
+| 下载前备份 | build/board_readback/20261105_115438_157983/before.bin，原始 P50 V9.6，SHA256 303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce。 |
+| 下载 | firmware/releases/v10.0/py32f002_servo.elf；Ubuntu ELF 标准入口、py32f002ax5、2M under-reset 首次成功，Core Running。 |
+| 读回 | build/board_readback/20261105_115504_499071；版本 P50 V10.0 @0x08004b4a，SP=0x20000c00，PC=0x08004939，整片 SHA256 1399cfb410bffeaf2bdc1e4743a2bdee550ba94a1ec3122ce3337dc583291fbc。应用逐字节一致，128 字节参数区保留。 |
+| 现场记录 | build/releases/V10.0/field_20261105/servo_curve_live.csv；启动 180 秒 attach 实时采集，使用 V10.0 ELF 符号，等待现场中低中高中往返动作；未判定产品稳定通过。 |
+
+
+2026-11-05 V10.0 无阻力/无反应故障定位及 V10.1 内存修复：
+
+| 项目 | 内容 |
+|---|---|
+| 用户约束 | 明确“不要恢复9.6”“在10.0找问题”；按 V10.x 继续，不自行回退。 |
+| 故障现象 | 复位键后能动一下，随后无阻力、无响应。V10.0 标记现场失败。 |
+| 核心证据 | 四次快照 uwTick 92589→93540，PWM edge_count 9240→9336、pulse_count 4617→4659；核心 RUNNING、PRIMASK=0、无 HardFault 活动，PC 在 UART 常规读取路径。不是 CPU 已停死。 |
+| 参数损坏 | SRAM s_params=0x20000728，后半段出现 0x2000087b、0x08003ae9 等栈/代码地址；input_timeout_ms 从默认100变为0，stall/ADC等参数也损坏。state=BAD(3)，s_duty=0、HBridge COAST；这解释输入仍在而电机无响应。证据 build/releases/V10.0/fault_series_115930/。 |
+| 栈风险 | V10.0 静态RAM约1976B，剩余栈1096B；LCDM text 有320B局部缓冲，snprintf 与显示/控制嵌套会压缩空间。此前离线UI检查替代了格式化，漏掉真实栈路径。 |
+| V10.1 修改 | LCDM 整数/字符串专用有界格式化替代 snprintf；局部命令缓冲320→160B；调试ring35→16，读取工具从ELF推导容量；链接保留并断言1536B栈。PID、引脚、230400波特率及H桥策略不变。 |
+| 编译检查 | Flash17132B（text16560+data572）；静态RAM1480B，至栈顶1592B；snprintf/_sbrk均不再链接。Host ASan/UBSan格式化输出、边界/负数/截断/哨兵测试通过。ARM端真实新格式化的UI命令序列正在核对。 |
+
+
+2026-11-05 V10.1 下载及本轮数据核对结论：
+
+| 项目 | 内容 |
+|---|---|
+| 下载验收 | V10.1 合格构建选自 build/releases/V10.1_qualified，归档 firmware/releases/v10.1。2M under-reset成功，Running；读回版本 @0x08003f99，SP=0x20000c00 PC=0x08003e05；应用匹配、128B参数保留。完整Flash SHA256 fda6fb516be78528d7a54e8c139a726ea29efb1aafb5b2dd11c305546cd09e5c。 |
+| 用户试完后核对 | 60次/64.47秒完整性监测，参数CRC60/60、input_timeout_ms=100、参数块完全一致；PWM约49.99Hz，核心Running，未见BAD/方向报警。最终补读约337秒仍CRC有效。粗采2帧误差不一致剔除，不能用1Hz数据判断峰值过冲。 |
+| 剩余问题 | 前段中位约23秒误差0..5；往返后3秒179帧补采目标2051..2055、反馈2192..2196、误差-144..-139，178帧HOLD/duty0；1502→1503us后抓到1帧event12/duty-80。最后单次补读误差-179仍HOLD。两补读窗口间非连续，不能直接认定漂移。 |
+| 原因判断 | V10.0无响应的直接原因是RAM参数损坏导致timeout=0，主疑显示/控制嵌套栈覆盖；V10.1采样窗口中未复现。剩余定位偏差由默认240 ADC宽HOLD/过冲带允许停偏；1us变化仍可穿过HOLD短暂驱动。HBridge_Brake仍为Coast，无输出不等于有锁力。 |
+| 状态与下一步 | 本轮采集已结束，板上V10.1。下一版V10.2应逐项处理HOLD进入/退出、微小命令门控，再用高频完整动作对照客户波形；不以全局限速或盲调PID掩盖问题。报告 firmware/releases/v10.1/field_20261105/analysis.html。 |
+
+
+2026-11-05 V10.2抖动复采与V10.3软占空上限：
+
+| 项目 | 内容 |
+|---|---|
+| 板上确认 | V10.2整片读回确认，Flash SHA256 cdbf0b5f20b5244db15c520949f79fd9388cdf182f234b77efa6a32a43adc782；目标 py32f002ax5。 |
+| 数据质量 | 约99.92秒、1295次SWD轮询；按`error_adc == target_adc - feedback_adc`剔除43个异步撕裂帧，再按seq_tail去重，保留734帧。轮询约13Hz，无法观察PWM载波瞬时边沿；数据仅用于控制低频行为判断。 |
+| 抖动证据 | 中心目标2049–2055 ADC期间，原始ADC范围864–3076、反馈范围863–3074（原始与滤波反馈最大相差18），误差范围−1019至+1189；确认是实际位置往返，不是观察器显示伪差。误差257–512 ADC的中心附近有效驱动帧中，84/106帧（79.2%）占空绝对值≥900，目标来回穿越时仍持续高能量驱动。参数CRC 13/13抽检通过、输入超时100ms。 |
+| 输入失联辨析 | 辅助读数显示PWM period约19986us；最后输入边沿/脉冲计数停滞后，运行状态为BAD、占空0，这是100ms超时后的coast保护。不能将无输入时的旧曲线帧当成控制死循环，也不能将其与输入有效期间的抖动混淆。 |
+| V10.3修改 | 保留V10.2 HOLD与小指令门控；普通闭环在误差小于620 ADC时加入线性输出软上限，误差0附近240、620处640。大误差移动和客户直驱波形不变。 |
+| 构建下载 | Ubuntu构建通过，text16572B/data572B；2MHz under-reset下载成功并运行。整片20KB读回版本P50 V10.3，应用区逐字节匹配；参数页128B与下载前一致。完整读回SHA256 08e34edf16b7205c38248e61cd255d5179f4d855a76e33ab1e60737c9bd1c34f。 |
+| 状态 | V10.3现场稳定性尚未验证。V10.2原始数据、采集程序及分析存放`firmware/releases/v10.3/field_v10.2_20261105/`。下一步需在输入PWM持续有效的情况下重复同样往返并采集V10.3曲线，重点比较误差257–512时占空是否下降、是否减少过冲/反向切换。 |
+
+
+2026-11-05 客户 LOGICDATA 对齐及 V10.4 波形改进：
+
+| 项目 | 内容 |
+|---|---|
+| 数据核验 | `2026/PA7串口*.logicdata` 包含RX/TX注释及通用Channel2/3标记；通道映射不足以单独确定电机正反向。H桥时序主要参考`PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata`的Channel2边沿记录。 |
+| 客户波形 | 49.89–49.91kHz载波，4个动作窗口11.2–13.3ms；检测到的PWM活动累计9.2–12.4ms。最清晰一组为7.195ms、2.006ms、3.166ms，支持约7/2/3ms驱动/反刹/尾段节奏；占空按已有客户基线930/360/220，不从单通道脉宽自行推断。原始波形和对齐页保存在`firmware/releases/v10.4/`。 |
+| 与VSG差异 | V10.2动作常见500µs步进，但客户profile门槛为700µs，未进入客户波形；中心目标附近误差257–512 ADC的有效驱动帧79.2%达到±900以上，因此运行普通闭环并持续过点。 |
+| V10.4代码 | 门槛降至400µs；profile改为7ms驱动、2ms反刹、3ms尾段、24mscoast；误差提前进入HOLD带不再取消定时波形；profile运行中的小命令变化不清除原profile。保留V10.3近目标软占空上限。 |
+| 构建下载 | Ubuntu构建通过，text16580B/data572B；2MHz under-reset下载成功并Running。整片20KB读回版本P50 V10.4，应用区逐字节匹配，末尾128B参数页保留；Flash SHA256 d1680ce3880d7016408b30f832c68ef96fb8cc69997df54d9091aca75a10218e。 |
+| 状态 | V10.4现场稳定性待复测。用户应按低→中→高→中→低重复动作，并保持输入PWM持续；重点核对event14/17时序、过冲次数和中心误差段占空。 |
+
+
+2026-11-05 V10.4实时客户波形与六方向切换对照：
+
+| 项目 | 内容 |
+|---|---|
+| Mac实时页面 | `build/customer_logic_compare/customer_logic_compare.html`：Safari中显示客户原始Channel 2边沿活动在上、V10.4 SWD动作曲线在下；单页自动刷新实测曲线。`build/servo_curve_live/servo_curve_live.csv`仍由Mac实时页/Ubuntu SWD链路追加。 |
+| 客户原始段 | 从`PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata`按时间排序恢复最后一组Channel 2原始边沿时标，三段为7.195/2.006/3.166ms，分别360/101/159个记录边沿。此解析不含边沿极性/高低脉宽，页面如实标成边沿标记。 |
+| 实测六动作 | 页面按完整序列绘制1000→1500→2000→1500→1000→2000→1000六个命令变化；各行在下一条命令边沿处截断，避免把后续动作混进前一段。 |
+| 初步差距 | 所选完整序列的首段动作窗口内，反馈越过目标约201–436 ADC；五段采样到的最大duty为1000，另一段为592。实测仍明显偏离客户约7/2/3ms脉冲节奏后稳定收尾的目标。 |
+| 采样限制 | 当前SWD帧间隔中位约12ms、P95约90ms，低于客户各阶段时长的分辨需求；event14/17采样稀少不能据此判定阶段缺失。当前先保留V10.4，不凭低频图修改阶段时间；下一步需用固件变化环形记录/更快硬件逻辑采样确认profile阶段和退出后的普通闭环占空。 |
+
+
+2026-11-05 客户单档与双向对称PWM对照修正：
+
+| 项目 | 内容 |
+|---|---|
+| 唯一基准 | 按用户要求仅使用 `PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata`；不混入 `2026/PA7串口*.logicdata`。 |
+| 对照页面 | `build/customer_logic_compare/customer_logic_compare.html` 单页自动刷新。上方显示 CUSTOMER Channel 2 的时间边沿标记；下方六个方向动作显示 VSG 有符号 duty 映射出的正向与反向两路对称占空比包络。ADC 目标/反馈曲线已从该比较图移除。 |
+| 数据边界 | 当前对 CUSTOMER 文件的提取只能还原 Channel 2 时间标记，不能解出电平极性、脉宽或另一条方向通道；下方两路是 duty 到方向通道的逻辑映射，不是逻辑分析仪实测的 MCU 引脚波形。VSG 采样也无法解析约20µs周期的载波。 |
+| 输出检查 | `hbridge.c` 现有逻辑以 duty 正负选择正/反方向，两个方向互斥，并让被选方向的一对输入脚同步输出；PWM 载波由 20µs 软件节拍产生，默认频率参数为 1kHz。不能把 CUSTOMER 记录的约50kHz重复间隔直接设成当前软件 PWM 频率，否则每周期只有一个 ISR 步进，PWM 将退化为常高/常低。 |
+| 后续改动依据 | 目前可确认的是客户重复间隔明显快于当前驱动载波；要把物理输出改到客户频率，需先确认当前板卡的 H 桥引脚定时器复用与实测引脚映射，再改为硬件 PWM 并用逻辑分析仪同时采集两条方向输出。仅凭当前单通道文件不改写 H 桥相位/极性。 |

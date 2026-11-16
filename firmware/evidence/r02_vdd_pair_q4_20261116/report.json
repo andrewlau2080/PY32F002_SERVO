@@ -1,0 +1,15 @@
+{
+  "scope": "TSSOP20 LCDM VDD correction source and host ADC simulation only; no SOP8, physical ADC, motor, full firmware build, or flash.",
+  "profile": "TSSOP20",
+  "pass_count": 38,
+  "fail_count": 0,
+  "monitor_script_ast": "pass",
+  "source_sha256": {
+    "src/adc_feedback.c": "1e39a78be94721dc4d72070b68c63c0e7e3d227b2b57ceea587213c3ca883133",
+    "inc/adc_feedback.h": "31d244baa3674fd0b560b79c3ed73e590acc04b098c5d07f27192f49f15111da",
+    "src/app_entry.c": "2dcf0b4dc693b5c8227d91c1306730c3e534f23c1041127762dea6c2ff000349",
+    "tools/monitor_r01_swd.py": "329d41230e18b125fd484095348fb8b000fff851c0fe2e3eaa4c5befd40812ee",
+    "tools/r02_host_sim/test_adc_feedback.c": "9ae8a1ce7cf09295c6f5aa909a4523436bb180c3f568f72880ff5a2d21c2502c",
+    "inc/board.h": "0082d2f466828fdeb222c75d03035b44e982056ae762343d3d1f7933cd32370c"
+  }
+}

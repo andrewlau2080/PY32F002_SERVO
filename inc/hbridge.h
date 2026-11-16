@@ -20,4 +20,12 @@ void HBridge_TickISR(void);
 int16_t HBridge_GetDuty(void);
 HBridgeState HBridge_GetState(void);
 
+#if SERVO_DIRECTION_PROBE
+/* Debug build only: one explicitly armed hardware-limited positive pulse. */
+extern volatile uint32_t g_direction_probe_request;
+extern volatile uint32_t g_direction_probe_status;
+extern volatile uint16_t g_direction_probe_adc;
+void HBridge_DirectionProbeService(uint16_t raw_adc, uint32_t now_ms);
+#endif
+
 #endif

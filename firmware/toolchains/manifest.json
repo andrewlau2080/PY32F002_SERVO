@@ -1,0 +1,11 @@
+{
+  "sdk_upstream": "https://github.com/OpenPuya/PY32F0xx_Firmware",
+  "sdk_tag": "1.4.4",
+  "sdk_commit": "cbd42177c484fad16bd9250279cfaf12b9f630d1",
+  "archive": "openpuya_1.4.4_servo_subset.tar.gz",
+  "sha256": "9f0511ea5ef700022c76b4b7da1f3e6d85cfe6669b6608aeb03ca2d7cb90f01a",
+  "startup_upstream_commit": "ae83041d2ed88a0eace4fb4ab522a41c83882a92",
+  "startup_path": "Projects/PY32F002A-STK/Example/GPIO/GPIO_Toggle/EIDE/startup_py32f002xx.s",
+  "startup_sha256": "a6e1000c687cf650c1b720d6aa2249e69a3b358dd2c539bb1630cb1dac3d751a",
+  "scope": "Only HAL/CMSIS headers and sources needed by servo, PY32F002 system initialization, GNU startup, and upstream licenses. No B target libraries."
+}

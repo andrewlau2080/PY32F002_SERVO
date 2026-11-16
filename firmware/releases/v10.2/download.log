@@ -1,0 +1,5 @@
+2026-11-05 12:20 Asia/Shanghai
+Target: py32f002ax5; DAPLink UID 070000011a5a5cc500000000000c00b6a5a5a5a597969908
+Command: download_py32_ubuntu.sh -t py32f002ax5 firmware/releases/v10.2/py32f002_servo.elf
+Result: 2 MHz under-reset; successfully halted, programmed, resumed; core running.
+Readback: full 20480-byte Flash verified; application prefix matches release BIN; final 128-byte parameter page matches pre-flash V10.1; SHA256=cdbf0b5f20b5244db15c520949f79fd9388cdf182f234b77efa6a32a43adc782

@@ -1,0 +1,37 @@
+{
+  "status": "V10.0 reconstructed baseline built; not flashed",
+  "original_version": "P50 V9.6",
+  "source_found_byte_exact": false,
+  "original_flash_sha256": "303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce",
+  "source_base_commit": "e3542a047aedbe6e2f627c2930ca4f26aae7b6ce",
+  "reconstruction_changes": [
+    "Target update and motion restart separated: 1-2us updates target, >=3us restarts phase; initial command starts phase.",
+    "Removed dead cmd_sensitive countdown and ADC-delta command triggers, per original control disassembly.",
+    "Motion restart does not reset hold_deviation_count, matching original instruction sequence.",
+    "Preserved ADC/PWM/H-bridge files and V9.6 HOLD behavior; did not apply L1/L2 tuning.",
+    "Restored original full runtime UI rather than L1 diagnostic-only UI."
+  ],
+  "offline_checks": {
+    "control_basic": 315,
+    "control_extended": 79,
+    "ui_pages": [
+      50,
+      13,
+      30,
+      40,
+      70,
+      1
+    ],
+    "passed": true,
+    "v10_control_prefix_matches_tested_reconstruction": true
+  },
+  "limitations": [
+    "Reconstructed C is not proven to be the original source text or a byte-exact original application.",
+    "394 concrete single-step cases are sampled software equivalence, not exhaustive formal proof or a dynamic motor model.",
+    "ADC/PWM inputs were modeled; hardware interrupts, noise, current, and real UART timings were not tested.",
+    "UI check intercepts display output, models snprintf equally and skips waits; it does not test real touch/UART timing.",
+    "angr CFG matching and pseudocode have heuristic boundaries, especially Cortex-M0 long-branch thunks.",
+    "Original board V9.6 remains installed; V10.0 hardware stability unverified."
+  ],
+  "next_version_after_any_test_modification": "V10.1"
+}

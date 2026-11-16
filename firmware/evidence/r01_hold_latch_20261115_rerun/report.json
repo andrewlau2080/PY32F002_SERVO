@@ -1,0 +1,8 @@
+{
+  "source_sha256": "46b09dc4a5f7878074f33b9ebe390e376ce5c46deb202454e51a5709beb378c0",
+  "harness_sha256": "f4cb1d1f97dda5209ca60f7491d3c27913bc3478783878bd8c27345b825e0320",
+  "pass_count": 5,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production-source invariant checks for elapsed HOLD/offset timing and overshoot timer retention; no real timer, ADC, PWM or mechanics."
+}

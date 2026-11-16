@@ -1,0 +1,18 @@
+{
+  "build.log": "fa7d1de715e82f0dca79584ae152602578153c0366980e496c46fca414627429",
+  "field_v10.2_20261105/analysis_v102.json": "86dfbe5e002cb96d24053e03d4592fea8937ffad0344012dacaafacc1a539fb8",
+  "field_v10.2_20261105/analyze_capture.py": "b5f7d65a7bae023ab96f4a4e004c8894a7e6ad7a5eb3bb5a8fb39fa85f93f817",
+  "field_v10.2_20261105/board_readback_before.bin": "cdbf0b5f20b5244db15c520949f79fd9388cdf182f234b77efa6a32a43adc782",
+  "field_v10.2_20261105/capture.py": "beaab0e7629e590674b9334258b58b6390fb22d7b8be2b8264ce746cc9340f11",
+  "field_v10.2_20261105/capture_inputs.py": "ac0bc9e064caf4e042a4ae0ff4797fe8c22ce13150192b94ec3b511907555a2b",
+  "field_v10.2_20261105/servo_curve_v102.csv": "ab7c4ae3325d3da3aa6b79b481204ffe89c0e4b38d5dd1800fa98ed3e8de183d",
+  "field_v10.2_20261105/servo_inputs_v102.csv": "80fee4b2eac06fda31c199143cfd77ae742cddab48dc54969cbaefe13478899a",
+  "manifest.json": "461db2eb05e3bb15036531725c2d42aaae08e2adb2bde7c0baa7a6700e464c4d",
+  "py32f002_servo.bin": "625f905bb39bde9bf2b0c9b12e0bb8cea6147db003e6f983f9cae61be49d1289",
+  "py32f002_servo.elf": "6cc173a6c195178c73ea1cbc030e332ec6284577f0e8deb76a49798796885180",
+  "py32f002_servo.hex": "ee35f7530f2a72a83493a6c6f8d7d95cabb25370dd42a49cda6cab41967d792b",
+  "py32f002_servo.map": "278af1ce8aecc675dc5e80af7edb2b7e2a535a11b3f035a1d2d0c1eea1d908ac",
+  "readback_20261105_123343/before.bin": "08e34edf16b7205c38248e61cd255d5179f4d855a76e33ab1e60737c9bd1c34f",
+  "readback_20261105_123343/report.json": "c297be9d619c1ca8f3eff3b1479e58e5ff833e07eafd6819c0a80f01189b9e57",
+  "source.tar.gz": "f2d8305c77c76eb6fc623ef95a821baa9965da1dd695237419302d6a0702161c"
+}

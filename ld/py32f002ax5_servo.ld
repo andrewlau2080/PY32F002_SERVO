@@ -2,13 +2,15 @@ ENTRY(Reset_Handler)
 
 _estack = ORIGIN(RAM) + LENGTH(RAM);
 _Min_Heap_Size = 0x000;
-_Min_Stack_Size = 0x400;
+_Min_Stack_Size = 0x600;
 
-/* Reserve the final 128-byte flash page for ServoParams. */
+/* Reserve 3 x 128-byte pages: two transactional learned-model slots and ServoParams. */
 MEMORY
 {
 RAM (xrw)   : ORIGIN = 0x20000000, LENGTH = 3K
-FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 20K - 128
+FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 20K - 384
+MODEL_A (r) : ORIGIN = 0x08000000 + 20K - 384, LENGTH = 128
+MODEL_B (r) : ORIGIN = 0x08000000 + 20K - 256, LENGTH = 128
 PARAM (r)   : ORIGIN = 0x08000000 + 20K - 128, LENGTH = 128
 }
 
@@ -114,6 +116,8 @@ SECTIONS
     . = . + _Min_Stack_Size;
     . = ALIGN(8);
   } >RAM
+
+  ASSERT(_ebss + _Min_Stack_Size <= _estack, "Servo static RAM leaves less than 1536 bytes for stack")
 
   .servo_params (NOLOAD) :
   {

@@ -1,12 +1,21 @@
 #include "servo_control.h"
+#include "servo_adaptive.h"
 #include "adc_feedback.h"
 #include "hbridge.h"
 #include "pwm_input.h"
 #include "servo_params.h"
+#include "servo_stability_timer.h"
 #include "py32f0xx_hal.h"
+
+#define SERVO_HOLD_SETTLE_MAX_VELOCITY_Q4 36U
+#define SERVO_HOLD_SETTLE_MAX_SAMPLE_GAP_MS 4U
 
 static ServoStatus s_status;
 static uint16_t s_last_feedback;
+static uint16_t s_velocity_last_feedback;
+static uint32_t s_velocity_last_time_ms;
+static uint8_t s_velocity_seeded;
+static uint8_t s_velocity_input_was_valid;
 static uint16_t s_ramped_target;
 static uint8_t s_target_seeded;
 static uint8_t s_startup_done;
@@ -17,6 +26,9 @@ static uint16_t s_prev_startup_input;
 static uint16_t s_prev_startup_feedback;
 static uint8_t s_hold_active;
 static uint32_t s_hold_enter_ms;
+static ServoStabilityTimer s_hold_settle_timer;
+static uint32_t s_hold_settle_last_ms;
+static uint16_t s_hold_settle_target_adc;
 static int8_t s_last_drive_dir;
 static int8_t s_reverse_pending_dir;
 static uint32_t s_startup_until_ms;
@@ -190,6 +202,10 @@ void Servo_Control_Init(void)
   s_status.motor_duty = 0;
   s_status.input_valid = false;
   s_last_feedback = s_status.feedback_adc;
+  s_velocity_last_feedback = s_status.feedback_adc;
+  s_velocity_last_time_ms = HAL_GetTick();
+  s_velocity_seeded = 0U;
+  s_velocity_input_was_valid = 0U;
   s_ramped_target = s_status.feedback_adc;
   s_target_seeded = 0U;
   s_startup_done = 0U;
@@ -200,6 +216,9 @@ void Servo_Control_Init(void)
   s_prev_startup_feedback = s_status.feedback_adc;
   s_hold_active = 0U;
   s_hold_enter_ms = HAL_GetTick();
+  ServoStabilityTimer_Reset(&s_hold_settle_timer);
+  s_hold_settle_last_ms = HAL_GetTick();
+  s_hold_settle_target_adc = 0xFFFFU;
   s_last_drive_dir = 0;
   s_reverse_pending_dir = 0;
   s_startup_until_ms = HAL_GetTick() + Servo_Params_Get()->startup_delay_ms;
@@ -222,10 +241,13 @@ void Servo_Control_Update1ms(void)
   int16_t error;
   int16_t duty = 0;
   uint32_t now_ms = HAL_GetTick();
+  uint32_t hold_dt_ms = now_ms - s_hold_settle_last_ms;
   uint32_t adc_span = params->adc_max_count - params->adc_min_count;
   uint32_t us_span = params->pulse_high_us - params->pulse_lower_us;
   uint16_t deadband_count = params->deadband_count_min;
   uint16_t hold_limit;
+
+  s_hold_settle_last_ms = now_ms;
 
   /* Dead Band 用 us 表示更贴近调试软件；运行时换算成 ADC count。 */
   if (us_span > 0U)
@@ -259,6 +281,7 @@ void Servo_Control_Update1ms(void)
       s_status.target_adc = feedback;
       s_status.error_adc = 0;
       s_status.motor_duty = 0;
+      ServoStabilityTimer_Reset(&s_hold_settle_timer);
       return;
     }
 
@@ -266,6 +289,46 @@ void Servo_Control_Update1ms(void)
     s_startup_ramping = (params->startup_step_count > 0U) ? 1U : 0U;
     s_ramped_target = feedback;
   }
+
+  int32_t velocity_q4 = 0;
+  bool velocity_valid = false;
+  if ((s_velocity_seeded == 0U) ||
+      ((input_valid != false) && (s_velocity_input_was_valid == 0U)))
+  {
+    /* 输入恢复首帧只重建速度基准，避免把失联期间位移当成瞬时速度。 */
+    s_velocity_last_feedback = feedback;
+    s_velocity_last_time_ms = now_ms;
+    s_velocity_seeded = 1U;
+  }
+  else
+  {
+    uint32_t dt_ms = now_ms - s_velocity_last_time_ms;
+    if (dt_ms != 0U)
+    {
+      if (dt_ms <= SERVO_ADAPTIVE_MAX_SAMPLE_GAP_MS)
+      {
+        velocity_q4 = (((int32_t)feedback - (int32_t)s_velocity_last_feedback) * 16) /
+                      (int32_t)dt_ms;
+        velocity_valid = true;
+      }
+      /* A long gap reseeds the baseline without teaching from stale data. */
+      s_velocity_last_feedback = feedback;
+      s_velocity_last_time_ms = now_ms;
+    }
+  }
+  s_velocity_input_was_valid = input_valid ? 1U : 0U;
+  if (velocity_q4 > 32767)
+  {
+    velocity_q4 = 32767;
+  }
+  else if (velocity_q4 < -32768)
+  {
+    velocity_q4 = -32768;
+  }
+  Servo_Adaptive_Update(now_ms,
+                       (int16_t)velocity_q4,
+                       HBridge_GetDuty(),
+                       input_valid && (s_startup_done != 0U) && velocity_valid);
 
   if (!input_valid)
   {
@@ -278,6 +341,7 @@ void Servo_Control_Update1ms(void)
       s_status.error_adc = 0;
       s_status.motor_duty = 0;
       s_hold_active = 0U;
+      ServoStabilityTimer_Reset(&s_hold_settle_timer);
       return;
     }
 
@@ -325,6 +389,11 @@ void Servo_Control_Update1ms(void)
   }
 
   error = (int16_t)((int32_t)effective_target - (int32_t)feedback);
+  if (s_hold_settle_target_adc != effective_target)
+  {
+    s_hold_settle_target_adc = effective_target;
+    ServoStabilityTimer_Reset(&s_hold_settle_timer);
+  }
   s_status.target_adc = effective_target;
   s_status.error_adc = error;
   uint16_t abs_error = abs_i16(error);
@@ -334,7 +403,19 @@ void Servo_Control_Update1ms(void)
     hold_limit = deadband_count;
   }
 
-  if (abs_error <= hold_limit)
+  bool velocity_settled = velocity_valid &&
+                          (abs_i16((int16_t)velocity_q4) <=
+                           SERVO_HOLD_SETTLE_MAX_VELOCITY_Q4);
+  bool hold_candidate = (abs_error <= hold_limit) && velocity_settled;
+  uint32_t stable_dt_ms = (hold_dt_ms <= SERVO_HOLD_SETTLE_MAX_SAMPLE_GAP_MS) ?
+                          hold_dt_ms : (SERVO_HOLD_SETTLE_MAX_SAMPLE_GAP_MS + 1U);
+  bool hold_confirmed = ServoStabilityTimer_Update(&s_hold_settle_timer,
+                                                    hold_candidate,
+                                                    stable_dt_ms,
+                                                    params->hold_settle_ms,
+                                                    SERVO_HOLD_SETTLE_MAX_SAMPLE_GAP_MS);
+
+  if (hold_confirmed)
   {
     /* 进入到位区后按参数选择滑行、持续刹车或短刹车后滑行。 */
     if (s_hold_active == 0U)

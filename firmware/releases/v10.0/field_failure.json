@@ -1,0 +1,11 @@
+{
+  "field_result": "failed",
+  "user_report": "Reset briefly restores motion, then no resistance/no response",
+  "do_not_rollback_to_v96": true,
+  "diagnosis": "CPU and PWM counters advance; s_params RAM tail contains stack/code addresses; input_timeout_ms becomes 0; runtime state BAD (3), H-bridge coast. Stack overwrite is primary suspected cause.",
+  "evidence": [
+    "build/releases/V10.0/fault_20261105_115807",
+    "build/releases/V10.0/fault_series_115930"
+  ],
+  "next_fix": "V10.1: bounded small formatter, smaller LCDM local buffer and diagnostic ring, minimum 1536-byte stack reservation; PID unchanged."
+}

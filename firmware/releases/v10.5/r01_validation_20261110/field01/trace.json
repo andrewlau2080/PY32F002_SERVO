@@ -1,0 +1,26 @@
+{
+  "elf": "/tmp/servo_r01_20261110_field01/py32f002_servo.elf",
+  "elf_sha256": "dbfc7e5ac7b2038c0f50dea0b7f5cba6c4ae8301e9707d39e673b49b7673d960",
+  "probe_uid": "070000011a5a5cc500000000000c00b6a5a5a5a597969908",
+  "target": "py32f002ax5",
+  "connect_mode": "attach",
+  "core_start": "State.RUNNING",
+  "core_end": "State.RUNNING",
+  "samples": 241,
+  "requested_interval_ms": 50,
+  "elapsed_seconds": 20.065,
+  "symbol_addresses": {
+    "s_lcdm_servo_latched_pulse_us": "0x2000001c",
+    "s_raw_pulse_us": "0x2000002c",
+    "s_last_pulse_us": "0x2000002e",
+    "s_candidate_pulse_us": "0x20000030",
+    "uwTick": "0x200002e0",
+    "s_edge_count": "0x20000324",
+    "s_valid": "0x20000330",
+    "s_last_edge_ms": "0x20000334",
+    "s_pulse_count": "0x20000338",
+    "g_servo_curve_frame": "0x2000034c",
+    "s_lcdm_pwm_source": "0x200003e3"
+  },
+  "note": "Observed SWD samples only; no stimulus or target state changes were issued."
+}

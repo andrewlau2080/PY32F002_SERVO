@@ -1,0 +1,2 @@
+overshoot=100, abs_error=100, cycles=32, HOLD calls=32, cycles past HOLD=0, deviation_count=0
+OBSERVED: latched overshoot repeatedly resets the static correction confirmation.

@@ -1,0 +1,30 @@
+{
+  "requirement": "R07",
+  "created_utc": "2026-11-15T11:29:59.108221+00:00",
+  "compile_command": [
+    "cc",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-I",
+    "/Users/andrewlau/qtprj/Steering Engine/MOTOR/PY32F002_SERVO/inc",
+    "/Users/andrewlau/qtprj/Steering Engine/MOTOR/PY32F002_SERVO/tools/r07_host_sim/test_control_adjustment.c",
+    "/Users/andrewlau/qtprj/Steering Engine/MOTOR/PY32F002_SERVO/src/servo_adaptive.c",
+    "-o",
+    "PY32F002_SERVO/firmware/evidence/r07_control_adjustment_20261115_ratelimit/r07_control_adjustment"
+  ],
+  "test_command": [
+    "PY32F002_SERVO/firmware/evidence/r07_control_adjustment_20261115_ratelimit/r07_control_adjustment"
+  ],
+  "passed": 21,
+  "failed": 1,
+  "return_code": 1,
+  "source_sha256": {
+    "tools/r07_host_sim/test_control_adjustment.c": "eaab6f12a89e2b301856826b6e61c5082bdc2095262e3bd41728206ffce679e7",
+    "src/servo_adaptive.c": "dcdb5207906835e1138b4d08878d44b97d635ff1cd02dd5d1fc9ddaa772a53d3",
+    "inc/servo_adaptive.h": "fd7c0c15fa84fd41ef108d0e5c1c778da7fb697c242db8ad1360768030927e16",
+    "src/app_entry.c": "76e61f2f5f16683dc7a603e8a5ada2114ca4f4434a9b4ac6ad415882a67810d7"
+  },
+  "scope": "Production adaptive gain/feedforward helpers and one-step EMA/confidence update with synthetic data; no board or physical plant."
+}

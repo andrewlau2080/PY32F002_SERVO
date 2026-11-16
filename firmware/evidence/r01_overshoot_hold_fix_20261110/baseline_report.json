@@ -1,0 +1,7 @@
+{
+  "source_sha256": "e08c80d1cedffb95154caa669206a7825d8429b3907d1f64aae194a68ec7963f",
+  "harness_sha256": "37eb2924696792e8c9a45c1d41d9f4a6901dd199740904c0a0ecc32a4fde8671",
+  "exit_code": 1,
+  "observed_stuck_in_hold": true,
+  "scope": "Extracted LCDM HOLD decision and actual hold helper, with no ADC, PWM or mechanical model."
+}

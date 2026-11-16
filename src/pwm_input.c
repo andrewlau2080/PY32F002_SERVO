@@ -50,6 +50,21 @@ bool PWM_Input_IsFresh(void)
 #define PWM_INPUT_DIAG_FRAME_MAX_US   30000U
 #define PWM_INPUT_CONTROL_FRAME_MIN_US 3000U
 #define PWM_INPUT_CONTROL_FRAME_MAX_US PWM_INPUT_DIAG_FRAME_MAX_US
+#if BOARD_PWM_CAPTURE_CHANNEL == 1U
+#define PWM_INPUT_TIM_FLAG            TIM_SR_CC1IF
+#define PWM_INPUT_TIM_INTERRUPT       TIM_DIER_CC1IE
+#define PWM_INPUT_TIM_ENABLE          TIM_CCER_CC1E
+#define PWM_INPUT_TIM_POLARITY        TIM_CCER_CC1P
+#define PWM_INPUT_TIM_CAPTURE         (TIM1->CCR1)
+#elif BOARD_PWM_CAPTURE_CHANNEL == 3U
+#define PWM_INPUT_TIM_FLAG            TIM_SR_CC3IF
+#define PWM_INPUT_TIM_INTERRUPT       TIM_DIER_CC3IE
+#define PWM_INPUT_TIM_ENABLE          TIM_CCER_CC3E
+#define PWM_INPUT_TIM_POLARITY        TIM_CCER_CC3P
+#define PWM_INPUT_TIM_CAPTURE         (TIM1->CCR3)
+#else
+#error Unsupported PWM input capture channel
+#endif
 #ifndef PWM_INPUT_1KHZ_WIDTH_DIAG_ONLY
 #define PWM_INPUT_1KHZ_WIDTH_DIAG_ONLY 0U
 #endif
@@ -83,7 +98,7 @@ static void raw_window_reset_to(uint16_t width)
 static void accept_pulse_width(uint16_t width)
 {
   /*
-   * PA3/TIM1_CH1 is hardware-captured. Accept each legal control frame here.
+   * TIM1 captures the configured board input. Accept each legal frame here.
    * A fast external sweep changes every 20 ms servo frame, so multi-frame
    * candidate confirmation can keep resetting and make the servo lag. Static
    * jitter suppression belongs in the command latch/hold layer.
@@ -124,7 +139,7 @@ void PWM_Input_Init(void)
   uint32_t timer_hz = SystemCoreClock;
   uint32_t prescaler = timer_hz / 1000000U;
 
-  /* PA3/TIM1_CH1 hardware input capture. TIM1 runs at 1 MHz, so CCR1 is us. */
+  /* TIM1 runs at 1 MHz; the board profile selects CH1 or CH3 capture. */
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_TIM1_CLK_ENABLE();
 
@@ -132,7 +147,7 @@ void PWM_Input_Init(void)
   gpio.Mode = GPIO_MODE_AF_PP;
   gpio.Pull = GPIO_NOPULL;
   gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-  gpio.Alternate = GPIO_AF13_TIM1;
+  gpio.Alternate = BOARD_PWM_IN_AF;
   HAL_GPIO_Init(BOARD_PWM_IN_PORT, &gpio);
 
   if (prescaler == 0U)
@@ -145,11 +160,17 @@ void PWM_Input_Init(void)
   TIM1->PSC = prescaler - 1U;
   TIM1->ARR = 0xFFFFU;
   TIM1->CNT = 0U;
+  TIM1->CCMR1 = 0U;
+  TIM1->CCMR2 = 0U;
+#if BOARD_PWM_CAPTURE_CHANNEL == 1U
   TIM1->CCMR1 = TIM_CCMR1_CC1S_0;
-  TIM1->CCER = TIM_CCER_CC1E;
+#else
+  TIM1->CCMR2 = TIM_CCMR2_CC3S_0;
+#endif
+  TIM1->CCER = PWM_INPUT_TIM_ENABLE;
   TIM1->EGR = TIM_EGR_UG;
   TIM1->SR = 0U;
-  TIM1->DIER = TIM_DIER_CC1IE;
+  TIM1->DIER = PWM_INPUT_TIM_INTERRUPT;
   TIM1->CR1 = TIM_CR1_CEN;
 
   s_waiting_falling = 0U;
@@ -165,12 +186,12 @@ void PWM_Input_EdgeISR(void)
   uint16_t capture_us;
   uint32_t now_ms = HAL_GetTick();
 
-  if ((TIM1->SR & TIM_SR_CC1IF) == 0U)
+  if ((TIM1->SR & PWM_INPUT_TIM_FLAG) == 0U)
   {
     return;
   }
-  TIM1->SR &= ~TIM_SR_CC1IF;
-  capture_us = (uint16_t)TIM1->CCR1;
+  TIM1->SR &= ~PWM_INPUT_TIM_FLAG;
+  capture_us = (uint16_t)PWM_INPUT_TIM_CAPTURE;
   s_edge_count++;
 
   if (s_waiting_falling == 0U)
@@ -182,13 +203,13 @@ void PWM_Input_EdgeISR(void)
     s_last_rise_us = capture_us;
     s_have_rise = 1U;
     s_waiting_falling = 1U;
-    TIM1->CCER |= TIM_CCER_CC1P;
+    TIM1->CCER |= PWM_INPUT_TIM_POLARITY;
     return;
   }
 
   uint16_t width = (uint16_t)(capture_us - s_last_rise_us);
   s_waiting_falling = 0U;
-  TIM1->CCER &= ~TIM_CCER_CC1P;
+  TIM1->CCER &= ~PWM_INPUT_TIM_POLARITY;
 
   if ((width >= SERVO_INPUT_CAPTURE_MIN_US) &&
       (width <= SERVO_INPUT_CAPTURE_MAX_US) &&

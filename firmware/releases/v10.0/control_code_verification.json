@@ -1,0 +1,7 @@
+{
+  "tested_reference": "gate3_noreset.bin",
+  "range_start": "0x08000000",
+  "range_end_exclusive": "0x08001e1c",
+  "bytes_identical": true,
+  "note": "Same control machine code as the 315-case emulated reconstruction; original V9.6 remains a different binary."
+}

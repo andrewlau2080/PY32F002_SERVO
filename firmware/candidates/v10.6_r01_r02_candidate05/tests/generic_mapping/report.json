@@ -1,0 +1,9 @@
+{
+  "source": "src/servo_control.c",
+  "source_sha256": "42ac46ff5eb06673ef9ce96953ff3569d9395286678d8eb59ee7bfd598f09d67",
+  "test_source_sha256": "c09899ed83492ef67a8b3c5056ce2ad34982346824cd08c9193852e28c474942",
+  "pass_count": 7,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production generic mapping with configured parameter values and host stubs; no physical servo."
+}

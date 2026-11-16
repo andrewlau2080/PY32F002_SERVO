@@ -1,0 +1,12 @@
+{
+  "files_sha256": {
+    "inc/lcdm_trajectory.h": "aa97748fb96d0d5bf2555dee5c181ffa69e3fdefde15b15194fffa4fd6c13193",
+    "tools/r08_host_sim/test_lcdm_trajectory.c": "a65dda0e26dedbc84fde6c413e338ab3614f65c51e50b544fc314fbdc1e6d135",
+    "tools/r08_host_sim/run_lcdm_trajectory_test.py": "46c2e73da05d48ee140a52235a8a6f52e3b9102de6a901d686a2e435d1cd4188",
+    "src/app_entry.c": "d51cc6953fb4943914ccfc5444107e2b89dee6234974e89439ebe013f52b479d"
+  },
+  "pass_count": 16,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production LCDM trajectory helper; elapsed-tick acceleration/speed bounds, direction reversal, endpoint completion, and stale-tick reseed. No motor or ADC hardware."
+}

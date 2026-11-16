@@ -1,0 +1,19 @@
+{
+  "host": "andrew@10.211.55.4",
+  "target": "py32f002ax5",
+  "uid": "070000011a5a5cc500000000000c00b6a5a5a5a597969908",
+  "action": "read",
+  "before": {
+    "bytes": 20480,
+    "sha256": "08e34edf16b7205c38248e61cd255d5179f4d855a76e33ab1e60737c9bd1c34f",
+    "sp": "0x20000c00",
+    "pc": "0x08003e11",
+    "versions": [
+      {
+        "address": "0x08003fa5",
+        "text": "P50 V10.3"
+      }
+    ]
+  },
+  "verified": true
+}

@@ -1,0 +1,56 @@
+{
+  "version": "V10.6",
+  "candidate": "candidate07",
+  "target": "py32f002ax5",
+  "profile": "lcdm",
+  "build_host": "Parallels Ubuntu Linux",
+  "build_path": "/media/psf/MOTOR_PY32F002_SERVO",
+  "flags": [
+    "LTO=1",
+    "BOARD_TSSOP20_DEBUG_PINS=1",
+    "SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1",
+    "SERVO_ENABLE_PA0_POT_POWER=1",
+    "SERVO_TJC_UART_ALT_PINS=1",
+    "TJC_LCDM_BAUD_OVERRIDE=230400",
+    "SERVO_TJC_RX_ENABLE=1",
+    "SERVO_ENABLE_COMM=0"
+  ],
+  "built": true,
+  "flashed": false,
+  "hardware_stability_verified": false,
+  "size": {
+    "text": 18280,
+    "data": 576,
+    "bss_reported_by_size": 2496,
+    "static_ram_data": 576,
+    "static_ram_bss": 960,
+    "reserved_min_stack": 1536,
+    "ram_total": 3072,
+    "bin_bytes": 18856,
+    "application_flash_limit": 20096,
+    "flash_headroom": 1240
+  },
+  "artifacts": {
+    "py32f002_servo.elf": {
+      "bytes": 154060,
+      "sha256": "028317e3077b9a5df64dc81ffafca6c5ecce014eedd5477d40805e55dc6907bf"
+    },
+    "py32f002_servo.bin": {
+      "bytes": 18856,
+      "sha256": "41197e2983576e2f624efe3d5e98278c011bde1930f90234c74483a4c2a0fd0f"
+    },
+    "py32f002_servo.hex": {
+      "bytes": 53090,
+      "sha256": "b5be36be61543c4ae139267f881bb7f1b64048363e6aab6a55aa31c4d59526af"
+    },
+    "py32f002_servo.map": {
+      "bytes": 67393,
+      "sha256": "5ff6fbff01efb044437703cdfb810aeed7a38fb1dda10e6a1c18f7f2e7128c94"
+    }
+  },
+  "initial_sp": "0x20000c00",
+  "reset_pc": "0x800447d",
+  "version_strings": [
+    "P50 V10.6"
+  ]
+}

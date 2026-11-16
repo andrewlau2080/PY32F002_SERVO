@@ -1,0 +1,11 @@
+{
+  "files_sha256": {
+    "inc/lcdm_velocity_observer.h": "a7a6b6cf335dd7de809b93123c1d45fe05c70536ec651e060cc90d0b68e99bbb",
+    "tools/r03_host_sim/test_lcdm_observer.c": "8bc500c591d6476aeb5d5545bee1540a9382334fd19e06c8ba5895be41122eef",
+    "tools/r03_host_sim/run_lcdm_observer_test.py": "23fb20d0236614d8f4375977d656c9f4eaab0e93e7f27daca0bf82cde435afdf"
+  },
+  "pass_count": 16,
+  "fail_count": 3,
+  "exit_code": 1,
+  "scope": "Production LCDM observer helper with injected ADC and HAL ticks; no motor or ADC hardware."
+}

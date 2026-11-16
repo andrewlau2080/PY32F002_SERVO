@@ -1,5 +1,7 @@
 # Servo Motion Curve Tuning
 
+> Architecture authority: `servo_adaptive_motion_architecture.md` (2026-11-08). The formulas and numeric values below document earlier trials, not the selected adaptive controller. Do not treat old fixed thresholds as new defaults or change PID/duty from this historical page alone.
+
 日期：2026-06-11
 
 目的：把过冲调试从“改几个数字试一下”改为“曲线/分段/实测结果”对照。后续每次改固件，必须在这里记录曲线变化和 P50 实测结果，避免回到旧问题。

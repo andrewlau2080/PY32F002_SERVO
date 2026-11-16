@@ -39,7 +39,18 @@ CURVE_VARS = [
     ("state", "g_servo_curve_state", "u8"),
     ("event", "g_servo_curve_event", "u8"),
     ("pwm_candidate_count", "g_servo_curve_pwm_candidate_count", "u8"),
+    ("model_confidence_pm", "g_servo_adaptive_confidence_permille", "u16"),
+    ("model_speed_gain_fwd_q8", "g_servo_adaptive_speed_gain_q8_forward", "u16"),
+    ("model_speed_gain_rev_q8", "g_servo_adaptive_speed_gain_q8_reverse", "u16"),
+    ("model_brake_fwd_q8", "g_servo_adaptive_brake_accel_q8_forward", "u16"),
+    ("model_brake_rev_q8", "g_servo_adaptive_brake_accel_q8_reverse", "u16"),
+    ("model_samples_fwd", "g_servo_adaptive_drive_samples_forward", "u16"),
+    ("model_samples_rev", "g_servo_adaptive_drive_samples_reverse", "u16"),
 ]
+ADAPTIVE_LABELS = {
+    "model_confidence_pm", "model_speed_gain_fwd_q8", "model_speed_gain_rev_q8",
+    "model_brake_fwd_q8", "model_brake_rev_q8", "model_samples_fwd", "model_samples_rev",
+}
 
 CURVE_SYNC_HEAD = "g_servo_curve_seq_head"
 CURVE_SYNC_TAIL = "g_servo_curve_seq_tail"
@@ -229,7 +240,8 @@ def run_nm(elf: Path) -> dict[str, int]:
         parts = line.split()
         if len(parts) >= 3 and parts[2] in wanted | optional:
             symbols[parts[2]] = int(parts[0], 16)
-    missing = sorted(wanted - set(symbols))
+    optional = {symbol for label, symbol, _kind in CURVE_VARS if label in ADAPTIVE_LABELS}
+    missing = sorted((wanted - optional) - set(symbols))
     if missing:
         raise SystemExit("Missing symbols in ELF: " + ", ".join(missing))
     return symbols
@@ -315,7 +327,10 @@ def read_value(target, var: CurveVar) -> int:
 
 
 def sample_target_individual(target, variables: list[CurveVar]) -> dict[str, int]:
-    return {var.label: read_value(target, var) for var in variables}
+    row = {var.label: read_value(target, var) for var in variables}
+    for label in ADAPTIVE_LABELS:
+        row.setdefault(label, 0)
+    return row
 
 
 def sample_target_block(target, variables: list[CurveVar], symbols: dict[str, int]) -> dict[str, int] | None:
@@ -330,7 +345,7 @@ def sample_target_block(target, variables: list[CurveVar], symbols: dict[str, in
     end = max(address + kind_size(kind) for address, _label, kind in items)
     length = end - base
 
-    for _attempt in range(8):
+    for _attempt in range(24):
         head_before = int(target.read32(head_addr))
         if head_before & 1:
             time.sleep(0.001)
@@ -348,6 +363,8 @@ def sample_target_block(target, variables: list[CurveVar], symbols: dict[str, in
         head = decoded["seq_head"]
         tail = decoded["seq_tail"]
         row = {var.label: decoded[var.label] for var in variables}
+        for label in ADAPTIVE_LABELS:
+            row.setdefault(label, 0)
         expected_error = int(row["target_adc"]) - int(row["feedback_adc"])
         frame_is_stable = (head == tail) and ((head & 1) == 0)
         error_is_stable = abs(int(row["error_adc"]) - expected_error) <= 2
@@ -358,9 +375,9 @@ def sample_target_block(target, variables: list[CurveVar], symbols: dict[str, in
     return None
 
 
-def sample_target_frame(target, frame_addr: int) -> dict[str, int] | None:
-    fallback: dict[str, int] | None = None
-    for _attempt in range(8):
+def sample_target_frame(target, frame_addr: int, variables: list[CurveVar]) -> dict[str, int] | None:
+    best_row: dict[str, int] | None = None
+    for _attempt in range(24):
         data = list(target.read_memory_block8(frame_addr, CURVE_FRAME_SIZE))
         decoded = {
             label: decode_value(data, offset, kind)
@@ -368,17 +385,19 @@ def sample_target_frame(target, frame_addr: int) -> dict[str, int] | None:
         }
         head = decoded["seq_head"]
         tail = decoded["seq_tail"]
-        row = {label: decoded[label] for label, _symbol, _kind in CURVE_VARS}
+        row = {label: decoded[label] for label in decoded if label not in {"seq_head", "seq_tail"}}
+        for var in variables:
+            if var.label in ADAPTIVE_LABELS:
+                row[var.label] = read_value(target, var)
+        for label in ADAPTIVE_LABELS:
+            row.setdefault(label, 0)
         expected_error = int(row["target_adc"]) - int(row["feedback_adc"])
-        if abs(int(row["error_adc"]) - expected_error) <= 4:
-            fallback = row
-        if (head != tail) or (head & 1):
-            time.sleep(0.001)
-            continue
         if abs(int(row["error_adc"]) - expected_error) <= 2:
-            return row
+            if (head == tail) and ((head & 1) == 0):
+                return row
+            best_row = row
         time.sleep(0.001)
-    return fallback
+    return best_row
 
 
 def demo_sample(index: int) -> dict[str, int]:
@@ -407,6 +426,13 @@ def demo_sample(index: int) -> dict[str, int]:
         "overshoot_adc": max(0, -error if (target > previous and error < 0) else error if (target < previous and error > 0) else 0),
         "state": 2 if moving else 1,
         "event": 1 if moving else 2,
+        "model_confidence_pm": 0,
+        "model_speed_gain_fwd_q8": 0,
+        "model_speed_gain_rev_q8": 0,
+        "model_brake_fwd_q8": 0,
+        "model_brake_rev_q8": 0,
+        "model_samples_fwd": 0,
+        "model_samples_rev": 0,
     }
 
 
@@ -707,7 +733,8 @@ def write_svg(path: Path, rows: list[dict[str, int]], title: str) -> None:
     svg.extend(panel("位置曲线", plotted_rows, POSITION_SERIES, (70, 90, 980, 230)))
     svg.extend(panel("控制量", plotted_rows, CONTROL_SERIES, (70, 380, 980, 230)))
     svg.extend(hbridge_response_panel(plotted_rows, (70, 670, 980, 260)))
-    svg.append('<text x="70" y="985" font-size="12" fill="#444">事件：2保持，12驱动，13减速，14预测刹车，15受限回位，16静止外力锁止，17近点阻尼，18过点吸能</text>')
+    svg.append(f'<text x="70" y="976" font-size="12" fill="#444">在线模型：置信度 {latest.get("model_confidence_pm", 0)}/1000 | 速度增益 F/R {latest.get("model_speed_gain_fwd_q8", 0)}/{latest.get("model_speed_gain_rev_q8", 0)} | 制动估计 F/R {latest.get("model_brake_fwd_q8", 0)}/{latest.get("model_brake_rev_q8", 0)} | 驱动样本 F/R {latest.get("model_samples_fwd", 0)}/{latest.get("model_samples_rev", 0)}</text>')
+    svg.append('<text x="70" y="998" font-size="12" fill="#444">事件：2保持，12驱动，13减速，14预测刹车，15受限回位，16静止外力锁止，17近点阻尼，18过点吸能</text>')
     svg.append("</svg>")
     path.write_text("\n".join(svg), encoding="utf-8")
 
@@ -734,7 +761,7 @@ def write_html(path: Path, svg_name: str, csv_name: str, cycle_name: str | None,
 </head>
 <body>
   <div class="bar">
-    主曲线刷新: 1秒 | 采样间隔: {interval_ms}ms |
+    主曲线刷新: 1秒 | 目标采样间隔: {interval_ms}ms（实际以时间戳为准） |
     CSV: <a href="{html.escape(csv_name)}">{html.escape(csv_name)}</a> |
     H桥大图: <a href="hbridge_response.html">hbridge_response.html</a> |
     {cycle_line}
@@ -775,7 +802,7 @@ def write_hbridge_html(path: Path, svg_name: str, csv_name: str, interval_ms: in
 </head>
 <body>
   <div class="bar">
-    PWM/外力快照: 仅外部PWM变化或静止外力触发后刷新 | 采样间隔: {interval_ms}ms |
+    PWM/外力快照: 仅外部PWM变化或静止外力触发后刷新 | 目标采样间隔: {interval_ms}ms（实际以时间戳为准） |
     CSV: <a href="{html.escape(csv_name)}">{html.escape(csv_name)}</a> |
     主曲线: <a href="servo_curve_live.html">servo_curve_live.html</a>
     <span id="stamp"></span>
@@ -841,7 +868,8 @@ def main() -> None:
         target = None
     else:
         symbols = run_nm(Path(args.elf))
-        variables = [CurveVar(label, symbol, kind, symbols[symbol]) for label, symbol, kind in CURVE_VARS]
+        variables = [CurveVar(label, symbol, kind, symbols[symbol])
+                     for label, symbol, kind in CURVE_VARS if symbol in symbols]
         frame_addr = symbols.get(CURVE_FRAME_SYMBOL)
         session = open_target(args)
         target = session.target
@@ -860,7 +888,7 @@ def main() -> None:
                 if args.demo:
                     row = demo_sample(index)
                 elif frame_addr is not None:
-                    row = sample_target_frame(target, frame_addr)
+                    row = sample_target_frame(target, frame_addr, variables)
                 else:
                     row = sample_target_block(target, variables, symbols)
                 if row is None:
@@ -913,7 +941,7 @@ def main() -> None:
             if args.demo:
                 row = demo_sample(index)
             elif frame_addr is not None:
-                row = sample_target_frame(target, frame_addr)
+                row = sample_target_frame(target, frame_addr, variables)
             else:
                 row = sample_target_block(target, variables, symbols)
             if row is None:

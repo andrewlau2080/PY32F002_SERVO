@@ -1,0 +1,782 @@
+Archive member included to satisfy reference by file (symbol)
+
+/usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+                              build/startup_py32f002xx.o (__libc_init_array)
+/usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+                              /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o (memcpy)
+/usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+                              /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o (memset)
+/usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+                              /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o (strlen)
+/usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+                              /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o (__gnu_thumb1_case_sqi)
+/usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+                              /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o (__gnu_thumb1_case_shi)
+/usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+                              /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o (__aeabi_uidiv)
+/usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+                              /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o (__aeabi_idiv)
+/usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+                              /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o) (__aeabi_idiv0)
+
+Discarded input sections
+
+ .text          0x0000000000000000       0x14 build/startup_py32f002xx.o
+ .data          0x0000000000000000        0x0 build/startup_py32f002xx.o
+ .bss           0x0000000000000000        0x0 build/startup_py32f002xx.o
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .data          0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+ .bss           0x0000000000000000        0x0 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+RAM              0x0000000020000000 0x0000000000000c00 xrw
+FLASH            0x0000000008000000 0x0000000000004f80 xr
+PARAM            0x0000000008004f80 0x0000000000000080 r
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+LOAD build/app_entry.o
+LOAD /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+LOAD build/lcdm_format.o
+LOAD build/board.o
+LOAD build/adc_feedback.o
+LOAD build/pwm_input.o
+LOAD build/hbridge.o
+LOAD build/servo_control.o
+LOAD build/servo_params.o
+LOAD build/app_hal_msp.o
+LOAD build/app_it.o
+LOAD build/system_py32f0xx.o
+LOAD build/py32f0xx_hal.o
+LOAD build/py32f0xx_hal_rcc.o
+LOAD build/py32f0xx_hal_gpio.o
+LOAD build/py32f0xx_hal_adc.o
+LOAD build/py32f0xx_hal_pwr.o
+LOAD build/py32f0xx_hal_flash.o
+LOAD build/py32f0xx_hal_cortex.o
+LOAD build/py32f0xx_hal_uart.o
+LOAD build/startup_py32f002xx.o
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libm.a
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libnosys.a
+START GROUP
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a
+END GROUP
+START GROUP
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a
+END GROUP
+                0x0000000020000c00                _estack = (ORIGIN (RAM) + LENGTH (RAM))
+                0x0000000000000000                _Min_Heap_Size = 0x0
+                0x0000000000000600                _Min_Stack_Size = 0x600
+
+.isr_vector     0x0000000008000000       0xc0
+                0x0000000008000000                . = ALIGN (0x4)
+ *(.isr_vector)
+ .isr_vector    0x0000000008000000       0xc0 build/startup_py32f002xx.o
+                0x0000000008000000                g_pfnVectors
+                0x00000000080000c0                . = ALIGN (0x4)
+
+.text           0x00000000080000c0     0x3d98
+                0x00000000080000c0                . = ALIGN (0x4)
+ *(.text)
+ .text          0x00000000080000c0     0x3844 /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                0x00000000080027c0                _init
+                0x00000000080027c2                entry
+                0x00000000080037b0                NMI_Handler
+                0x00000000080037b2                HardFault_Handler
+                0x00000000080037b8                SVC_Handler
+                0x00000000080037ba                PendSV_Handler
+                0x00000000080037bc                SysTick_Handler
+                0x00000000080037cc                EXTI2_3_IRQHandler
+                0x00000000080037e4                EXTI4_15_IRQHandler
+                0x00000000080037e6                TIM1_CC_IRQHandler
+                0x00000000080037ee                TIM16_IRQHandler
+                0x0000000008003894                USART1_IRQHandler
+                0x00000000080038d4                SystemInit
+ .text          0x0000000008003904       0x44 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+                0x0000000008003904                __libc_init_array
+ .text          0x0000000008003948       0xa4 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+                0x0000000008003948                memcpy
+ .text          0x00000000080039ec       0xa8 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+                0x00000000080039ec                memset
+ .text          0x0000000008003a94       0x5c /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+                0x0000000008003a94                strlen
+ .text          0x0000000008003af0       0x14 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+                0x0000000008003af0                __gnu_thumb1_case_sqi
+ .text          0x0000000008003b04       0x14 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+                0x0000000008003b04                __gnu_thumb1_case_shi
+ .text          0x0000000008003b18      0x114 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+                0x0000000008003b18                __udivsi3
+                0x0000000008003b18                __aeabi_uidiv
+                0x0000000008003c24                __aeabi_uidivmod
+ .text          0x0000000008003c2c      0x1d4 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+                0x0000000008003c2c                __aeabi_idiv
+                0x0000000008003c2c                __divsi3
+                0x0000000008003df8                __aeabi_idivmod
+ .text          0x0000000008003e00        0x4 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+                0x0000000008003e00                __aeabi_ldiv0
+                0x0000000008003e00                __aeabi_idiv0
+ *(.text*)
+ .text.Reset_Handler
+                0x0000000008003e04       0x50 build/startup_py32f002xx.o
+                0x0000000008003e04                Reset_Handler
+ .text.Default_Handler
+                0x0000000008003e54        0x2 build/startup_py32f002xx.o
+                0x0000000008003e54                I2C1_IRQHandler
+                0x0000000008003e54                SPI1_IRQHandler
+                0x0000000008003e54                RCC_IRQHandler
+                0x0000000008003e54                Default_Handler
+                0x0000000008003e54                EXTI0_1_IRQHandler
+                0x0000000008003e54                ADC_COMP_IRQHandler
+                0x0000000008003e54                FLASH_IRQHandler
+                0x0000000008003e54                TIM1_BRK_UP_TRG_COM_IRQHandler
+                0x0000000008003e54                LPTIM1_IRQHandler
+ *(.glue_7)
+ .glue_7        0x0000000008003e56        0x0 linker stubs
+ *(.glue_7t)
+ .glue_7t       0x0000000008003e56        0x0 linker stubs
+ *(.eh_frame)
+ *(.init)
+ *(.fini)
+                0x0000000008003e58                . = ALIGN (0x4)
+ *fill*         0x0000000008003e56        0x2 
+                0x0000000008003e58                _etext = .
+
+.vfp11_veneer   0x0000000008003e58        0x0
+ .vfp11_veneer  0x0000000008003e58        0x0 linker stubs
+
+.v4_bx          0x0000000008003e58        0x0
+ .v4_bx         0x0000000008003e58        0x0 linker stubs
+
+.iplt           0x0000000008003e58        0x0
+ .iplt          0x0000000008003e58        0x0 build/startup_py32f002xx.o
+
+.rodata         0x0000000008003e58      0x258
+                0x0000000008003e58                . = ALIGN (0x4)
+ *(.rodata)
+ .rodata        0x0000000008003e58       0xa0 /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+ *(.rodata*)
+ .rodata.str1.1
+                0x0000000008003ef8      0x1b7 /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                        0x1cd (size before relaxing)
+                0x00000000080040b0                . = ALIGN (0x4)
+ *fill*         0x00000000080040af        0x1 
+
+.rel.dyn        0x00000000080040b0        0x0
+ .rel.iplt      0x00000000080040b0        0x0 build/startup_py32f002xx.o
+
+.ARM.extab
+ *(.ARM.extab* .gnu.linkonce.armextab.*)
+
+.ARM            0x00000000080040b0        0x0
+                0x00000000080040b0                __exidx_start = .
+ *(.ARM.exidx*)
+                0x00000000080040b0                __exidx_end = .
+
+.preinit_array  0x00000000080040b0        0x0
+                0x00000000080040b0                PROVIDE (__preinit_array_start = .)
+ *(.preinit_array*)
+                0x00000000080040b0                PROVIDE (__preinit_array_end = .)
+
+.init_array     0x00000000080040b0        0x0
+                0x00000000080040b0                PROVIDE (__init_array_start = .)
+ *(SORT_BY_NAME(.init_array.*))
+ *(.init_array*)
+                0x00000000080040b0                PROVIDE (__init_array_end = .)
+
+.fini_array     0x00000000080040b0        0x0
+                [!provide]                        PROVIDE (__fini_array_start = .)
+ *(SORT_BY_NAME(.fini_array.*))
+ *(.fini_array*)
+                [!provide]                        PROVIDE (__fini_array_end = .)
+                0x00000000080040b0                _sidata = LOADADDR (.data)
+
+.vect_data      0x0000000020000000        0x0 load address 0x00000000080040b0
+                0x0000000020000000                . = ALIGN (0x4)
+ *(.vectable_sram)
+
+.data           0x0000000020000000      0x23c load address 0x00000000080040b0
+                0x0000000020000000                . = ALIGN (0x4)
+                0x0000000020000000                _sdata = .
+ *(.data)
+ .data          0x0000000020000000      0x23c /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+ *(.data*)
+                0x000000002000023c                . = ALIGN (0x4)
+                0x000000002000023c                _edata = .
+
+.igot.plt       0x000000002000023c        0x0 load address 0x00000000080042ec
+ .igot.plt      0x000000002000023c        0x0 build/startup_py32f002xx.o
+                0x000000002000023c                . = ALIGN (0x4)
+
+.bss            0x000000002000023c      0x38c load address 0x00000000080042ec
+                0x000000002000023c                _sbss = .
+                0x000000002000023c                __bss_start__ = _sbss
+ *(.bss)
+ .bss           0x000000002000023c      0x38c /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+ *(.bss*)
+ *(COMMON)
+                0x00000000200005c8                . = ALIGN (0x4)
+                0x00000000200005c8                _ebss = .
+                0x00000000200005c8                __bss_end__ = _ebss
+
+._user_heap_stack
+                0x00000000200005c8      0x600 load address 0x00000000080042ec
+                0x00000000200005c8                . = ALIGN (0x8)
+                [!provide]                        PROVIDE (end = .)
+                [!provide]                        PROVIDE (_end = .)
+                0x00000000200005c8                . = (. + _Min_Heap_Size)
+                0x0000000020000bc8                . = (. + _Min_Stack_Size)
+ *fill*         0x00000000200005c8      0x600 
+                0x0000000020000bc8                . = ALIGN (0x8)
+                0x0000000000000001                ASSERT (((_ebss + _Min_Stack_Size) <= _estack), Servo static RAM leaves less than 1536 bytes for stack)
+
+.servo_params   0x0000000008004f80        0x0
+                0x0000000008004f80                . = ALIGN (0x4)
+ *(.servo_params)
+                0x0000000008004f80                . = ALIGN (0x4)
+
+/DISCARD/
+ libc.a(*)
+ libm.a(*)
+ libgcc.a(*)
+
+.ARM.attributes
+                0x0000000000000000       0x2a
+ *(.ARM.attributes)
+ .ARM.attributes
+                0x0000000000000000       0x2a /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+ .ARM.attributes
+                0x000000000000002a       0x22 build/startup_py32f002xx.o
+ .ARM.attributes
+                0x000000000000004c       0x2c /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .ARM.attributes
+                0x0000000000000078       0x2c /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .ARM.attributes
+                0x00000000000000a4       0x2c /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .ARM.attributes
+                0x00000000000000d0       0x2c /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+ .ARM.attributes
+                0x00000000000000fc       0x1e /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+ .ARM.attributes
+                0x000000000000011a       0x1e /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+ .ARM.attributes
+                0x0000000000000138       0x1e /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .ARM.attributes
+                0x0000000000000156       0x1e /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .ARM.attributes
+                0x0000000000000174       0x1e /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+OUTPUT(build/py32f002_servo.elf elf32-littlearm)
+LOAD linker stubs
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc.a
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libm.a
+LOAD /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a
+
+.comment        0x0000000000000000       0x33
+ .comment       0x0000000000000000       0x34 /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+ .comment       0x0000000000000000       0x33 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+                                         0x34 (size before relaxing)
+ .comment       0x0000000000000033       0x34 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .comment       0x0000000000000033       0x34 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .comment       0x0000000000000033       0x34 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+
+.debug_info     0x0000000000000000      0x55f
+ .debug_info    0x0000000000000000      0x11a /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .debug_info    0x000000000000011a      0x15c /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .debug_info    0x0000000000000276      0x13d /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .debug_info    0x00000000000003b3       0xee /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+ .debug_info    0x00000000000004a1       0x26 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+ .debug_info    0x00000000000004c7       0x26 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+ .debug_info    0x00000000000004ed       0x26 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_info    0x0000000000000513       0x26 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_info    0x0000000000000539       0x26 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+
+.debug_abbrev   0x0000000000000000      0x33a
+ .debug_abbrev  0x0000000000000000       0xcc /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .debug_abbrev  0x00000000000000cc       0xc7 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .debug_abbrev  0x0000000000000193       0xb4 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .debug_abbrev  0x0000000000000247       0x8f /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+ .debug_abbrev  0x00000000000002d6       0x14 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+ .debug_abbrev  0x00000000000002ea       0x14 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+ .debug_abbrev  0x00000000000002fe       0x14 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_abbrev  0x0000000000000312       0x14 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_abbrev  0x0000000000000326       0x14 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+
+.debug_loc      0x0000000000000000      0x822
+ .debug_loc     0x0000000000000000       0x98 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .debug_loc     0x0000000000000098      0x457 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .debug_loc     0x00000000000004ef      0x2a3 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .debug_loc     0x0000000000000792       0x90 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+
+.debug_aranges  0x0000000000000000      0x120
+ .debug_aranges
+                0x0000000000000000       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .debug_aranges
+                0x0000000000000020       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .debug_aranges
+                0x0000000000000040       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .debug_aranges
+                0x0000000000000060       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+ .debug_aranges
+                0x0000000000000080       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+ .debug_aranges
+                0x00000000000000a0       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+ .debug_aranges
+                0x00000000000000c0       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_aranges
+                0x00000000000000e0       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_aranges
+                0x0000000000000100       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+
+.debug_line     0x0000000000000000      0x82c
+ .debug_line    0x0000000000000000      0x127 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .debug_line    0x0000000000000127      0x1b5 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .debug_line    0x00000000000002dc      0x1ce /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .debug_line    0x00000000000004aa      0x172 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+ .debug_line    0x000000000000061c       0x68 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+ .debug_line    0x0000000000000684       0x69 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+ .debug_line    0x00000000000006ed       0x6c /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_line    0x0000000000000759       0x73 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_line    0x00000000000007cc       0x60 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+
+.debug_str      0x0000000000000000      0x438
+ .debug_str     0x0000000000000000      0x1cb /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+                                        0x204 (size before relaxing)
+ .debug_str     0x00000000000001cb       0xd2 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+                                        0x1de (size before relaxing)
+ .debug_str     0x000000000000029d       0xad /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+                                        0x1b9 (size before relaxing)
+ .debug_str     0x000000000000034a       0x48 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+                                        0x1ca (size before relaxing)
+ .debug_str     0x0000000000000392       0xa6 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+ .debug_str     0x0000000000000438       0xa6 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+ .debug_str     0x0000000000000438       0xa6 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_str     0x0000000000000438       0xa6 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_str     0x0000000000000438       0xa6 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+
+.debug_frame    0x0000000000000000       0xf8
+ .debug_frame   0x0000000000000000       0x2c /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+ .debug_frame   0x000000000000002c       0x34 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+ .debug_frame   0x0000000000000060       0x30 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+ .debug_frame   0x0000000000000090       0x28 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+ .debug_frame   0x00000000000000b8       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_frame   0x00000000000000d8       0x20 /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+
+Cross Reference Table
+
+Symbol                                            File
+ADC_COMP_IRQHandler                               build/startup_py32f002xx.o
+ADC_Feedback_GetFiltered                          build/adc_feedback.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+ADC_Feedback_GetRaw                               build/adc_feedback.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+ADC_Feedback_GetVddMv                             build/adc_feedback.o (symbol from plugin)
+ADC_Feedback_GetVrefintRaw                        build/adc_feedback.o (symbol from plugin)
+ADC_Feedback_Init                                 build/adc_feedback.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+ADC_Feedback_ReadFastRaw                          build/adc_feedback.o (symbol from plugin)
+ADC_Feedback_ReadRaw                              build/adc_feedback.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+ADC_Feedback_UpdateFiltered                       build/adc_feedback.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+AHBPrescTable                                     build/system_py32f0xx.o (symbol from plugin)
+                                                  build/py32f0xx_hal_rcc.o (symbol from plugin)
+APBPrescTable                                     build/system_py32f0xx.o (symbol from plugin)
+                                                  build/py32f0xx_hal_rcc.o (symbol from plugin)
+APP_ErrorHandler                                  build/app_entry.o (symbol from plugin)
+                                                  build/app_it.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+Board_Init                                        build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+Board_Micros                                      build/board.o (symbol from plugin)
+Board_MicrosQ4                                    build/board.o (symbol from plugin)
+Board_MotorTimerInit                              build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+Board_PotPowerRefresh                             build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+Board_StatusError                                 build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+Board_StatusHeartbeat                             build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+Default_Handler                                   build/startup_py32f002xx.o
+EXTI0_1_IRQHandler                                build/startup_py32f002xx.o
+EXTI2_3_IRQHandler                                /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+EXTI4_15_IRQHandler                               /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+FLASH_IRQHandler                                  build/startup_py32f002xx.o
+HAL_ADC_AnalogWDGConfig                           build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_Calibration_Start                         build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+HAL_ADC_ConfigChannel                             build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+HAL_ADC_ConvCpltCallback                          build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_ConvHalfCpltCallback                      build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_DeInit                                    build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_ErrorCallback                             build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_GetCalibStatus                            build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_GetError                                  build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_GetState                                  build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_GetValue                                  build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+HAL_ADC_IRQHandler                                build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_Init                                      build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+HAL_ADC_LevelOutOfWindowCallback                  build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_MspDeInit                                 build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_MspInit                                   build/app_hal_msp.o (symbol from plugin)
+HAL_ADC_PollForConversion                         build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+HAL_ADC_PollForEvent                              build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_SetCalibration                            build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_Start                                     build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+HAL_ADC_Start_IT                                  build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_ADC_Stop                                      build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+HAL_ADC_Stop_IT                                   build/py32f0xx_hal_adc.o (symbol from plugin)
+HAL_DBGMCU_DisableDBGMCUStopMode                  build/py32f0xx_hal.o (symbol from plugin)
+HAL_DBGMCU_EnableDBGMCUStopMode                   build/py32f0xx_hal.o (symbol from plugin)
+HAL_DeInit                                        build/py32f0xx_hal.o (symbol from plugin)
+HAL_Delay                                         build/py32f0xx_hal.o (symbol from plugin)
+HAL_FLASH_EndOfOperationCallback                  build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_Erase                                   build/py32f0xx_hal_flash.o (symbol from plugin)
+                                                  build/servo_params.o (symbol from plugin)
+HAL_FLASH_Erase_IT                                build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_GetError                                build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_IRQHandler                              build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_Lock                                    build/py32f0xx_hal_flash.o (symbol from plugin)
+                                                  build/servo_params.o (symbol from plugin)
+HAL_FLASH_OBGetConfig                             build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_OBProgram                               build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_OB_Launch                               build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_OB_Lock                                 build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_OB_RDP_LevelConfig                      build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_OB_Unlock                               build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_OperationErrorCallback                  build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_PageProgram                             build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_PageProgram_IT                          build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_Program                                 build/py32f0xx_hal_flash.o (symbol from plugin)
+                                                  build/servo_params.o (symbol from plugin)
+HAL_FLASH_Program_IT                              build/py32f0xx_hal_flash.o (symbol from plugin)
+HAL_FLASH_Unlock                                  build/py32f0xx_hal_flash.o (symbol from plugin)
+                                                  build/servo_params.o (symbol from plugin)
+HAL_GPIO_DeInit                                   build/py32f0xx_hal_gpio.o (symbol from plugin)
+HAL_GPIO_EXTI_Callback                            build/py32f0xx_hal_gpio.o (symbol from plugin)
+HAL_GPIO_EXTI_IRQHandler                          build/py32f0xx_hal_gpio.o (symbol from plugin)
+HAL_GPIO_Init                                     build/py32f0xx_hal_gpio.o (symbol from plugin)
+                                                  build/py32f0xx_hal_rcc.o (symbol from plugin)
+                                                  build/app_hal_msp.o (symbol from plugin)
+                                                  build/hbridge.o (symbol from plugin)
+                                                  build/pwm_input.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+HAL_GPIO_LockPin                                  build/py32f0xx_hal_gpio.o (symbol from plugin)
+HAL_GPIO_ReadPin                                  build/py32f0xx_hal_gpio.o (symbol from plugin)
+                                                  build/pwm_input.o (symbol from plugin)
+HAL_GPIO_TogglePin                                build/py32f0xx_hal_gpio.o (symbol from plugin)
+HAL_GPIO_WritePin                                 build/py32f0xx_hal_gpio.o (symbol from plugin)
+                                                  build/hbridge.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+HAL_GetDEVID                                      build/py32f0xx_hal.o (symbol from plugin)
+HAL_GetHalVersion                                 build/py32f0xx_hal.o (symbol from plugin)
+HAL_GetREVID                                      build/py32f0xx_hal.o (symbol from plugin)
+HAL_GetTick                                       build/py32f0xx_hal.o (symbol from plugin)
+                                                  build/py32f0xx_hal_uart.o (symbol from plugin)
+                                                  build/py32f0xx_hal_flash.o (symbol from plugin)
+                                                  build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/py32f0xx_hal_rcc.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+                                                  build/pwm_input.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HAL_GetTickFreq                                   build/py32f0xx_hal.o (symbol from plugin)
+HAL_GetTickPrio                                   build/py32f0xx_hal.o (symbol from plugin)
+HAL_GetUIDw0                                      build/py32f0xx_hal.o (symbol from plugin)
+HAL_GetUIDw1                                      build/py32f0xx_hal.o (symbol from plugin)
+HAL_GetUIDw2                                      build/py32f0xx_hal.o (symbol from plugin)
+HAL_HalfDuplex_EnableReceiver                     build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_HalfDuplex_EnableTransmitter                  build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_HalfDuplex_Init                               build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_IncTick                                       build/py32f0xx_hal.o (symbol from plugin)
+                                                  build/app_it.o (symbol from plugin)
+HAL_Init                                          build/py32f0xx_hal.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+HAL_InitTick                                      build/py32f0xx_hal.o (symbol from plugin)
+                                                  build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_MspDeInit                                     build/py32f0xx_hal.o (symbol from plugin)
+HAL_MspInit                                       build/app_hal_msp.o (symbol from plugin)
+HAL_MultiProcessor_EnterMuteMode                  build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_MultiProcessor_ExitMuteMode                   build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_MultiProcessor_Init                           build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_NVIC_ClearPendingIRQ                          build/py32f0xx_hal_cortex.o (symbol from plugin)
+                                                  build/pwm_input.o (symbol from plugin)
+HAL_NVIC_DisableIRQ                               build/py32f0xx_hal_cortex.o (symbol from plugin)
+HAL_NVIC_EnableIRQ                                build/py32f0xx_hal_cortex.o (symbol from plugin)
+                                                  build/pwm_input.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HAL_NVIC_GetPendingIRQ                            build/py32f0xx_hal_cortex.o (symbol from plugin)
+HAL_NVIC_GetPriority                              build/py32f0xx_hal_cortex.o (symbol from plugin)
+HAL_NVIC_SetPendingIRQ                            build/py32f0xx_hal_cortex.o (symbol from plugin)
+HAL_NVIC_SetPriority                              build/py32f0xx_hal_cortex.o (symbol from plugin)
+                                                  build/py32f0xx_hal.o (symbol from plugin)
+                                                  build/pwm_input.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HAL_NVIC_SystemReset                              build/py32f0xx_hal_cortex.o (symbol from plugin)
+HAL_PWR_ConfigBIAS                                build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_ConfigStopMode                            build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_DeInit                                    build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_DisableBkUpAccess                         build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_DisableSEVOnPend                          build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_DisableSleepOnExit                        build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_EnableBkUpAccess                          build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_EnableSEVOnPend                           build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_EnableSleepOnExit                         build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_EnterSLEEPMode                            build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_PWR_EnterSTOPMode                             build/py32f0xx_hal_pwr.o (symbol from plugin)
+HAL_RCC_CSSCallback                               build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_ClockConfig                               build/py32f0xx_hal_rcc.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+HAL_RCC_DeInit                                    build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_EnableCSS                                 build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_GetClockConfig                            build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_GetHCLKFreq                               build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_GetOscConfig                              build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_GetPCLK1Freq                              build/py32f0xx_hal_rcc.o (symbol from plugin)
+                                                  build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_RCC_GetSysClockFreq                           build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_MCOConfig                                 build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_NMI_IRQHandler                            build/py32f0xx_hal_rcc.o (symbol from plugin)
+HAL_RCC_OscConfig                                 build/py32f0xx_hal_rcc.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+HAL_ResumeTick                                    build/py32f0xx_hal.o (symbol from plugin)
+HAL_SYSTICK_CLKSourceConfig                       build/py32f0xx_hal_cortex.o (symbol from plugin)
+HAL_SYSTICK_Callback                              build/py32f0xx_hal_cortex.o (symbol from plugin)
+HAL_SYSTICK_Config                                build/py32f0xx_hal_cortex.o (symbol from plugin)
+                                                  build/py32f0xx_hal.o (symbol from plugin)
+HAL_SYSTICK_IRQHandler                            build/py32f0xx_hal_cortex.o (symbol from plugin)
+HAL_SetTickFreq                                   build/py32f0xx_hal.o (symbol from plugin)
+HAL_SuspendTick                                   build/py32f0xx_hal.o (symbol from plugin)
+HAL_UART_Abort                                    build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_AbortCpltCallback                        build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_AbortReceive                             build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_AbortReceiveCpltCallback                 build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_AbortReceive_IT                          build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_AbortTransmit                            build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_AbortTransmitCpltCallback                build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_AbortTransmit_IT                         build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_Abort_IT                                 build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_DeInit                                   build/py32f0xx_hal_uart.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HAL_UART_ErrorCallback                            build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_GetError                                 build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_GetState                                 build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_IRQHandler                               build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_IdleFrameDetectCpltCallback              build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_Init                                     build/py32f0xx_hal_uart.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HAL_UART_MspDeInit                                build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_MspInit                                  build/app_hal_msp.o (symbol from plugin)
+HAL_UART_Receive                                  build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_Receive_IT                               build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_RxCpltCallback                           build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_RxHalfCpltCallback                       build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_SendBreak                                build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_Transmit                                 build/py32f0xx_hal_uart.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HAL_UART_Transmit_IT                              build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_TxCpltCallback                           build/py32f0xx_hal_uart.o (symbol from plugin)
+HAL_UART_TxHalfCpltCallback                       build/py32f0xx_hal_uart.o (symbol from plugin)
+HBridge_Brake                                     build/hbridge.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HBridge_Coast                                     build/hbridge.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HBridge_GetDuty                                   build/hbridge.o (symbol from plugin)
+HBridge_GetState                                  build/hbridge.o (symbol from plugin)
+HBridge_Init                                      build/hbridge.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HBridge_SetFrequency                              build/hbridge.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HBridge_SetSignedDuty                             build/hbridge.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+HBridge_TickISR                                   build/hbridge.o (symbol from plugin)
+                                                  build/app_it.o (symbol from plugin)
+HSIFreqTable                                      build/system_py32f0xx.o (symbol from plugin)
+HardFault_Handler                                 /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+I2C1_IRQHandler                                   build/startup_py32f002xx.o
+LCDM_Runtime_IRQHandler                           build/app_entry.o (symbol from plugin)
+                                                  build/app_it.o (symbol from plugin)
+LPTIM1_IRQHandler                                 build/startup_py32f002xx.o
+NMI_Handler                                       /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+PWM_Input_EdgeISR                                 build/pwm_input.o (symbol from plugin)
+                                                  build/app_it.o (symbol from plugin)
+PWM_Input_GetCommandUs                            build/pwm_input.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+PWM_Input_GetSample                               build/pwm_input.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+PWM_Input_Init                                    build/pwm_input.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+PWM_Input_IsFresh                                 build/pwm_input.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+PWM_Input_TakeRawWindowUs                         build/pwm_input.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+PendSV_Handler                                    /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+RCC_IRQHandler                                    build/startup_py32f002xx.o
+Reset_Handler                                     build/startup_py32f002xx.o
+SPI1_IRQHandler                                   build/startup_py32f002xx.o
+SVC_Handler                                       /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+Servo_Control_GetStatus                           build/servo_control.o (symbol from plugin)
+Servo_Control_Init                                build/servo_control.o (symbol from plugin)
+Servo_Control_MapPulseToAdc                       build/servo_control.o (symbol from plugin)
+Servo_Control_Update1ms                           build/servo_control.o (symbol from plugin)
+Servo_Params_Crc32                                build/servo_params.o (symbol from plugin)
+Servo_Params_FlagEnabled                          build/servo_params.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+Servo_Params_Get                                  build/servo_params.o (symbol from plugin)
+                                                  build/servo_control.o (symbol from plugin)
+                                                  build/pwm_input.o (symbol from plugin)
+                                                  build/adc_feedback.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+Servo_Params_GetDefaults                          build/servo_params.o (symbol from plugin)
+Servo_Params_Init                                 build/servo_params.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+Servo_Params_Save                                 build/servo_params.o (symbol from plugin)
+Servo_Params_Validate                             build/servo_params.o (symbol from plugin)
+SysTick_Handler                                   /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+SystemCoreClock                                   build/system_py32f0xx.o (symbol from plugin)
+                                                  build/py32f0xx_hal_adc.o (symbol from plugin)
+                                                  build/py32f0xx_hal_rcc.o (symbol from plugin)
+                                                  build/py32f0xx_hal.o (symbol from plugin)
+                                                  build/pwm_input.o (symbol from plugin)
+                                                  build/board.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+SystemCoreClockUpdate                             build/system_py32f0xx.o (symbol from plugin)
+SystemInit                                        /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/system_py32f0xx.o (symbol from plugin)
+                                                  build/startup_py32f002xx.o
+TIM16_IRQHandler                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+TIM1_BRK_UP_TRG_COM_IRQHandler                    build/startup_py32f002xx.o
+TIM1_CC_IRQHandler                                /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+USART1_IRQHandler                                 /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/startup_py32f002xx.o
+                                                  build/app_it.o (symbol from plugin)
+_FlashTimmingParam                                build/py32f0xx_hal_flash.o (symbol from plugin)
+__aeabi_idiv                                      /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+__aeabi_idiv0                                     /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+                                                  /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+                                                  /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+__aeabi_idivmod                                   /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+__aeabi_ldiv0                                     /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+__aeabi_uidiv                                     /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+__aeabi_uidivmod                                  /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+__divsi3                                          /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+__gnu_thumb1_case_shi                             /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_shi.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+__gnu_thumb1_case_sqi                             /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_thumb1_case_sqi.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+__init_array_end                                  /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+__init_array_start                                /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+__libc_init_array                                 /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+                                                  build/startup_py32f002xx.o
+__preinit_array_end                               /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+__preinit_array_start                             /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+__udivsi3                                         /usr/lib/gcc/arm-none-eabi/10.3.1/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+_ebss                                             build/startup_py32f002xx.o
+_edata                                            build/startup_py32f002xx.o
+_estack                                           build/startup_py32f002xx.o
+_fini                                             build/app_entry.o (symbol from plugin)
+_init                                             /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/app_entry.o (symbol from plugin)
+                                                  /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-init.o)
+_sbss                                             build/startup_py32f002xx.o
+_sdata                                            build/startup_py32f002xx.o
+_sidata                                           build/startup_py32f002xx.o
+entry                                             /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+                                                  build/app_entry.o (symbol from plugin)
+                                                  build/startup_py32f002xx.o
+g_pfnVectors                                      build/startup_py32f002xx.o
+g_servo_curve_duty                                build/app_entry.o (symbol from plugin)
+g_servo_curve_error_adc                           build/app_entry.o (symbol from plugin)
+g_servo_curve_event                               build/app_entry.o (symbol from plugin)
+g_servo_curve_feedback_adc                        build/app_entry.o (symbol from plugin)
+g_servo_curve_frame                               build/app_entry.o (symbol from plugin)
+g_servo_curve_log                                 build/app_entry.o (symbol from plugin)
+g_servo_curve_log_count                           build/app_entry.o (symbol from plugin)
+g_servo_curve_log_head                            build/app_entry.o (symbol from plugin)
+g_servo_curve_overshoot_adc                       build/app_entry.o (symbol from plugin)
+g_servo_curve_pwm_candidate_count                 build/app_entry.o (symbol from plugin)
+g_servo_curve_pwm_candidate_us                    build/app_entry.o (symbol from plugin)
+g_servo_curve_pwm_period_us                       build/app_entry.o (symbol from plugin)
+g_servo_curve_pwm_raw_us                          build/app_entry.o (symbol from plugin)
+g_servo_curve_pwm_us                              build/app_entry.o (symbol from plugin)
+g_servo_curve_raw_adc                             build/app_entry.o (symbol from plugin)
+g_servo_curve_ref_velocity                        build/app_entry.o (symbol from plugin)
+g_servo_curve_seq_head                            build/app_entry.o (symbol from plugin)
+g_servo_curve_seq_tail                            build/app_entry.o (symbol from plugin)
+g_servo_curve_state                               build/app_entry.o (symbol from plugin)
+g_servo_curve_target_adc                          build/app_entry.o (symbol from plugin)
+g_servo_curve_time_ms                             build/app_entry.o (symbol from plugin)
+g_servo_curve_traj_adc                            build/app_entry.o (symbol from plugin)
+g_servo_curve_traj_vel_q4                         build/app_entry.o (symbol from plugin)
+g_servo_curve_velocity_q4                         build/app_entry.o (symbol from plugin)
+lcdm_snprintf                                     build/lcdm_format.o (symbol from plugin)
+                                                  build/app_entry.o (symbol from plugin)
+memcpy                                            /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memcpy-stub.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+memset                                            /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-memset.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+pFlash                                            build/py32f0xx_hal_flash.o (symbol from plugin)
+strlen                                            /usr/lib/gcc/arm-none-eabi/10.3.1/../../../arm-none-eabi/lib/thumb/v6-m/nofp/libc_nano.a(lib_a-strlen-stub.o)
+                                                  /tmp/py32f002_servo.elf.Y1BxY1.ltrans0.ltrans.o
+uwTick                                            build/py32f0xx_hal.o (symbol from plugin)
+uwTickFreq                                        build/py32f0xx_hal.o (symbol from plugin)
+uwTickPrio                                        build/py32f0xx_hal.o (symbol from plugin)
+                                                  build/py32f0xx_hal_rcc.o (symbol from plugin)

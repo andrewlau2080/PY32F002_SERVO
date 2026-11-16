@@ -1,0 +1,78 @@
+{
+  "version": "V10.0",
+  "date": "2026-11-05T11:36:33.637094",
+  "target": "py32f002ax5",
+  "flags": [
+    "LTO=1",
+    "BOARD_TSSOP20_DEBUG_PINS=1",
+    "SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1",
+    "SERVO_ENABLE_PA0_POT_POWER=1",
+    "SERVO_TJC_UART_ALT_PINS=1",
+    "TJC_LCDM_BAUD_OVERRIDE=230400",
+    "SERVO_TJC_RX_ENABLE=1",
+    "SERVO_ENABLE_COMM=0"
+  ],
+  "sdk": {
+    "sdk_upstream": "https://github.com/OpenPuya/PY32F0xx_Firmware",
+    "sdk_tag": "1.4.4",
+    "sdk_commit": "cbd42177c484fad16bd9250279cfaf12b9f630d1",
+    "archive": "openpuya_1.4.4_servo_subset.tar.gz",
+    "sha256": "9f0511ea5ef700022c76b4b7da1f3e6d85cfe6669b6608aeb03ca2d7cb90f01a",
+    "startup_upstream_commit": "ae83041d2ed88a0eace4fb4ab522a41c83882a92",
+    "startup_path": "Projects/PY32F002A-STK/Example/GPIO/GPIO_Toggle/EIDE/startup_py32f002xx.s",
+    "startup_sha256": "a6e1000c687cf650c1b720d6aa2249e69a3b358dd2c539bb1630cb1dac3d751a",
+    "scope": "Only HAL/CMSIS headers and sources needed by servo, PY32F002 system initialization, GNU startup, and upstream licenses. No B target libraries."
+  },
+  "source_files": {
+    "Makefile": "9c5848fec6174a5aea0e81b8dab4fde6ab15627404b63828f9c8d9e4566fbe94",
+    "src/adc_feedback.c": "acad7f1d59b478dad7f7332eca416b35c99b7309f0940d4ff56b52537883c864",
+    "src/app_entry.c": "44c52ad2c9836120950a965d5340bee127d03e14e97f85201acd73bf5b44737e",
+    "src/app_hal_msp.c": "4fab8c8ed8eaba2bfb832f82fe9e569fcbdea37301cdd697de0499e5b3ef4173",
+    "src/app_it.c": "961b4c68b8a4af109edb4141318ebcbc3693f533522c13b249581f0b0ab638bd",
+    "src/board.c": "53c920076970179d7693d7f9c37c42b135e81f5fcb01669e05b2dc5e8d526e04",
+    "src/hbridge.c": "11ed97224e99a6f115b2c975bc72130d0ce7dc425572d991032315d4161823d8",
+    "src/pwm_input.c": "8bc4492fa866d32d3faad964dd63e299196e223fffcaf519e4a73cee2deff243",
+    "src/servo_comm.c": "c6aef6f14c8e83e6c23496b17a6959786de0994a51a52322cb7446252505a630",
+    "src/servo_control.c": "c3f4273021dd1035534160c4521bd531124f7d3fbf60fca0a8c7d61ffba34921",
+    "src/servo_params.c": "a102f68953ce2e3983b4480b31f7ce78ef4c8e9011acf3a1bb8311817131de1d",
+    "src/tjc_lcdm.c": "ddea53b6b99be2bc38640d6bd3844510d565fd64a92c50442ca5259186073ff4",
+    "inc/adc_feedback.h": "18e876a477fabd6a8be2cdfbe424cd7f90edf6f3da86206879a0a7bb567d932e",
+    "inc/board.h": "c5da8b5a974a3c421ed63d05ffa976910a5c4254f711aa52a71d03764c72a4d4",
+    "inc/hbridge.h": "ce06387e9d128c906957184870b71aacbc5e4915999ae0cfcee76043e5a1de23",
+    "inc/main.h": "690d54e4154ce4f9498fef96a1af4a1824ca441d45718127618178d7146e9cc2",
+    "inc/pwm_input.h": "c20099cc4cc4eb0e1bf521d2e12ef92164f510752b0d6e3cc8d1de2b3b984adb",
+    "inc/py32f0xx_hal_conf.h": "d093b5154d0aacae76f0ec3b1c452657776a28f32e5da5701a209f49f08c294c",
+    "inc/py32f0xx_it.h": "eb570f32e53f605d9401f4e7782b6d41a2a4545ab74f724ba0b198504e25fa87",
+    "inc/servo_comm.h": "a96a178d8d83ce452b5cccc5441725230ea32537ca395db3126cf9001fef5b71",
+    "inc/servo_config.h": "d2961b7141bed79662d072e4cfafc11c03183eed9d7a301bb1609e3d5ae44239",
+    "inc/servo_control.h": "d0c936f51f05e9c01dc7f0c7dcf893a0dba272d521c5756a3889a23cf670a75f",
+    "inc/servo_params.h": "30f1b54eb04b54d9dde9428afa0c91c9fae78c731c14ccab338b226a395dba3e",
+    "inc/tjc_lcdm.h": "48b7e41011e0c5f1426aeb0a20e15727d008e85e532c0b1779ba7d1812e58688",
+    "ld/py32f002ax5_servo.ld": "96d544b741ca622cc11db30ba385946267165110c4e5e841e9d608abf0f4758b"
+  },
+  "artifacts": {
+    "py32f002_servo.elf": {
+      "bytes": 214860,
+      "sha256": "ea228962b1f19ad58e90857fc55e15dcde1e158a0eb024ff421cb92725970c9f"
+    },
+    "py32f002_servo.bin": {
+      "bytes": 20284,
+      "sha256": "a57f60b3c7f833476b0b62045edb7f92dd817d3005f905802ca8a7c96b849c8a"
+    },
+    "py32f002_servo.hex": {
+      "bytes": 57103,
+      "sha256": "324eca2dd1c59e26b5fe02dc1828fd63e54089feaea7c0ff23c6ad2ddd20cc7f"
+    },
+    "py32f002_servo.map": {
+      "bytes": 108234,
+      "sha256": "432081e68c8d74fa2f938e46cc6a89351d4c9bad127ff2a20f2022f83928ab2b"
+    }
+  },
+  "initial_sp": "0x20000c00",
+  "reset_pc": "0x8004939",
+  "remote_build_dir": "/tmp/servo_v10_build.BCf8Vh",
+  "built": true,
+  "flashed": false,
+  "hardware_stability_verified": false,
+  "provenance": "Reconstructed V9.6 behavior; not a byte-exact recovery of the original C source"
+}

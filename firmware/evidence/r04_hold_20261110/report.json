@@ -1,0 +1,14 @@
+{
+  "capture": "firmware/releases/v10.5/r01_validation_20261110/field03/trace.csv",
+  "capture_sha256": "f5a4a735fcea028c110f0c2b1b2f517bd2c9057ba912ec969fb9f45c407baf2b",
+  "analysis_source_sha256": "5a6fd7b85de9fe7d6992c25498e6ec47b7932e70e87f730de32ad8598b4ec4c6",
+  "consistent_hold_frames": 430,
+  "adjacent_pairs": 429,
+  "frame_time_span_ms": 49904,
+  "publication_intervals": 49904,
+  "mean_publications_per_second": 1000.0,
+  "pair_spacing_ms_min": 82,
+  "pair_spacing_ms_median": 103,
+  "pair_spacing_ms_max": 307,
+  "scope": "HOLD state publication rate averaged over sparse SWD frame pairs; no command step, instantaneous jitter, UI stress test or H-bridge waveform."
+}

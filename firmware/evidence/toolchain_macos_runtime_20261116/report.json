@@ -1,0 +1,13 @@
+{
+  "compiler_requested": "arm-none-eabi-gcc",
+  "compiler_path": "/opt/homebrew/bin/arm-none-eabi-gcc",
+  "version": "arm-none-eabi-gcc (GCC) 15.2.0",
+  "sysroot": "",
+  "libc_path": "libc.a",
+  "libc_exists": false,
+  "stdint_compile_ok": false,
+  "stdint_compile_stdout": "",
+  "stdint_compile_stderr": "In file included from /var/folders/4r/cp90csnn3dn2835v5z91gvfh0000gn/T/arm_none_eabi_check_hwm88ng5/check_stdint.c:1:\n/opt/homebrew/Cellar/arm-none-eabi-gcc/15.2.0/lib/gcc/arm-none-eabi/15.2.0/include/stdint.h:11:16: fatal error: stdint.h: No such file or directory\n   11 | # include_next <stdint.h>\n      |                ^~~~~~~~~~\ncompilation terminated.",
+  "ok": false,
+  "reason": "target C library headers and/or libc.a are missing"
+}

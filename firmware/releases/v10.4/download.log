@@ -1,0 +1,4 @@
+2026-11-05 14:26 Asia/Shanghai
+Target: py32f002ax5; 2 MHz under-reset; Successfully halted, programmed, resumed; core running.
+Readback: full 20480-byte Flash; P50 V10.4; application prefix matches release BIN; final 128-byte parameter page matches pre-flash V10.3.
+SHA256=d1680ce3880d7016408b30f832c68ef96fb8cc69997df54d9091aca75a10218e

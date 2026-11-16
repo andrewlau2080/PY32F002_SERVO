@@ -1,0 +1,10 @@
+{
+  "source": "/Users/andrewlau/qtprj/Steering Engine/MOTOR/PY32F002_SERVO/src/app_entry.c",
+  "source_sha256": "46b09dc4a5f7878074f33b9ebe390e376ce5c46deb202454e51a5709beb378c0",
+  "generated_c_sha256": "f0d8440975e94f3a15bc5ce8ac885efeeccb417f23dd4a409ba40ba94c008f92",
+  "harness_sha256": "277c62cf880223f6fe37f8161b988e0c2b1c8db23d189a5f9ed4b071feafe87c",
+  "pass_count": 29,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Extracted production LCDM source functions and HOLD branch; no real timer, motor or mechanics."
+}

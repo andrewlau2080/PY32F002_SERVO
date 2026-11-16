@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-12",
+  "purpose": "One batch of simulator/host checks for currently automated requirements; no physical requirements are marked passed by these results.",
+  "requirements": {
+    "R01": {
+      "pwm_capture_profiles": "4 x 46 passed",
+      "lcdm_mapping_and_latch": "27 passed, 0 failed",
+      "parameter_defaults_and_crc": "9 passed, 0 failed",
+      "hold_latch_scenario": "32 cycles; 7 HOLD calls then 25 cycles past HOLD; narrow modeled scenario only",
+      "overall_requirement": "not passed; physical direction, angle, endpoint, input loss and micro-movement evidence incomplete"
+    },
+    "R02": {
+      "simulated_adc_profiles": "development 19/19; SOP8 19/19",
+      "overall_requirement": "not passed; no independent PA3 voltage/VDD or final-board mechanical calibration"
+    },
+    "R03": {
+      "generic_velocity": "20 passed, 0 failed",
+      "adaptive_time_normalization": "19 passed, 0 failed",
+      "overall_requirement": "not passed; LCDM observer still needs real-dt validation/fix and physical motion evidence"
+    },
+    "R05": {
+      "adaptive_quality": "15 passed, 0 failed",
+      "synthetic_object_response": "10 passed, 0 failed",
+      "overall_requirement": "not passed; actual H-bridge, voltage/load and mechanism quality gates not measured"
+    },
+    "R07": {
+      "control_adjustment": "15 passed, 0 failed",
+      "overall_requirement": "not passed; profile bypasses and board response/change-rate still unresolved"
+    },
+    "R18": {
+      "generic_host_model": "6 segments completed; terminal errors +4,-1,+1,-4,+5,-5 ADC; peak duty 278",
+      "overall_requirement": "not passed; generic simplified model is not LCDM target-board/repeated physical motion"
+    }
+  },
+  "artifacts": {
+    "host_test_outputs": "firmware/evidence/simulator_host_batch_20261112/",
+    "physical_adc_and_center_sweep": "firmware/evidence/adc_light_probe_20261112/",
+    "board_restored": "P50 V10.5; full 20KB SHA256 2b8eb8be6240a0a246907a35df5cad8f84e64cff6e5c8b9668db64a8f8c79a34"
+  }
+}

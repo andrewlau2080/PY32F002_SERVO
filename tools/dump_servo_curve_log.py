@@ -11,7 +11,6 @@ from pathlib import Path
 
 
 ENTRY_SIZE = 20
-CAPACITY = 35
 FIELDS = [
     "time_ms",
     "pwm_us",
@@ -95,6 +94,12 @@ def main() -> None:
     from pyocd.core.helpers import ConnectHelper
 
     symbols = run_nm(Path(args.elf))
+    nm_sizes = subprocess.check_output(["arm-none-eabi-nm", "-S", str(args.elf)], text=True)
+    log_size = next(int(parts[1], 16) for line in nm_sizes.splitlines()
+                    if len(parts := line.split()) == 4 and parts[3] == "g_servo_curve_log")
+    capacity = log_size // ENTRY_SIZE
+    if log_size % ENTRY_SIZE or capacity < 1:
+        raise SystemExit("Invalid servo log symbol size")
     options = {
         "frequency": args.frequency,
         "connect_mode": "attach",
@@ -130,14 +135,14 @@ def main() -> None:
 
         head = int(target.read16(symbols["g_servo_curve_log_head"]))
         count = int(target.read16(symbols["g_servo_curve_log_count"]))
-        if head > CAPACITY:
+        if head >= capacity:
             head = 0
-        if count > CAPACITY:
-            count = CAPACITY
+        if count > capacity:
+            count = capacity
 
-        raw = list(target.read_memory_block8(symbols["g_servo_curve_log"], CAPACITY * ENTRY_SIZE))
-        rows = [decode_entry(raw, i) for i in range(CAPACITY)]
-        if count < CAPACITY:
+        raw = list(target.read_memory_block8(symbols["g_servo_curve_log"], capacity * ENTRY_SIZE))
+        rows = [decode_entry(raw, i) for i in range(capacity)]
+        if count < capacity:
             ordered = rows[:count]
         else:
             ordered = rows[head:] + rows[:head]

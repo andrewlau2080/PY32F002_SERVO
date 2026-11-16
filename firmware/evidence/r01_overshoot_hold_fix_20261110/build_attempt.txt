@@ -1,0 +1,1 @@
+Initial build command used the obsolete /mnt/hgfs path and failed. VM inspection showed the configured shared folder at /media/psf/MOTOR_PY32F002_SERVO. Rebuilt successfully in Ubuntu at that path with the pinned SDK and LCDM field flags. Build artifacts are archived under firmware/candidates/v10.6_r01_r03_candidate07/. Not flashed.

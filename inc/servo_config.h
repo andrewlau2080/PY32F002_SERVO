@@ -6,6 +6,9 @@
 #define SERVO_INPUT_MIN_US              1000U
 #define SERVO_INPUT_CENTER_US           1500U
 #define SERVO_INPUT_MAX_US              2000U
+/* Full command range; 1000..2000 us above is the nominal operating span. */
+#define SERVO_INPUT_RANGE_MIN_US        500U
+#define SERVO_INPUT_RANGE_MAX_US        2500U
 #define SERVO_INPUT_CAPTURE_MIN_US      300U
 #define SERVO_INPUT_CAPTURE_MAX_US      2700U
 #define SERVO_INPUT_FAILSAFE_US         SERVO_INPUT_CENTER_US

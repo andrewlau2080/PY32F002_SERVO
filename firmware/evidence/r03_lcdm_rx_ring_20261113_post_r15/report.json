@@ -1,0 +1,12 @@
+{
+  "files_sha256": {
+    "inc/lcdm_rx_ring.h": "7b97ba594c51119de8a1b60ef15f3a5091bf53cf857dfc4b178de42bc048718b",
+    "tools/r03_host_sim/test_lcdm_rx_ring.c": "6ac1eda0b4bbf9e83e2fe48ab8b0de3655786b0ce0d5eff2bad8bb215fa5994d",
+    "tools/r03_host_sim/run_lcdm_rx_ring_test.py": "a8e8ab03223a414d70ef0979a214e593efff05e9593aa8cc7fe831ca4e923843",
+    "src/app_entry.c": "c55a0fa8b9ba40ab1bd2645f5d9425ff9637a774828f83c20daf398f0717d218"
+  },
+  "pass_count": 171,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production LCDM RX-ring helper; FIFO, 31-byte capacity, overflow accounting, and wraparound. No UART hardware or touch-panel timing."
+}

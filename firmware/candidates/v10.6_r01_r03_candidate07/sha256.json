@@ -1,0 +1,13 @@
+{
+  "README.md": "7155c221b514a38c0c1804412d160fab6df4ccf6c5cdb61ef857a4e51310c6df",
+  "board_check_20261110/transport_stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "board_check_20261110/ubuntu.log": "76d21dce47bb1eb861448bd2cc6bed0b741f2ddd5107021b3fe29113e7f73d85",
+  "manifest.json": "30fcf6d839618d18f353bf04bb04d76b650bdad39d9351b1a4b0ee431fffc771",
+  "py32f002_servo.bin": "41197e2983576e2f624efe3d5e98278c011bde1930f90234c74483a4c2a0fd0f",
+  "py32f002_servo.elf": "028317e3077b9a5df64dc81ffafca6c5ecce014eedd5477d40805e55dc6907bf",
+  "py32f002_servo.hex": "b5be36be61543c4ae139267f881bb7f1b64048363e6aab6a55aa31c4d59526af",
+  "py32f002_servo.map": "5ff6fbff01efb044437703cdfb810aeed7a38fb1dda10e6a1c18f7f2e7128c94",
+  "src/app_entry.c": "63ea02140b936ae2e030cd9394c3ea66a894031a359018f2c050cbfcc6e77ec7",
+  "ubuntu_build.log": "93e96d485b8698ae9a48c6ff4dfd3cdd0453bebc25609b11bca8905f152a1086",
+  "verify_r01_hold_latch.py": "37eb2924696792e8c9a45c1d41d9f4a6901dd199740904c0a0ecc32a4fde8671"
+}

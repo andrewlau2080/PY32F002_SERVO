@@ -1,0 +1,109 @@
+{
+  "version": "V10.6SIMB2",
+  "candidate": "candidate09_center_step",
+  "target": "py32f002ax5",
+  "profile": "TSSOP20 LCDM center-only diagnostic",
+  "flags": [
+    "LTO=1",
+    "BOARD_TSSOP20_DEBUG_PINS=1",
+    "SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1",
+    "SERVO_ENABLE_PA0_POT_POWER=1",
+    "SERVO_TJC_UART_ALT_PINS=1",
+    "TJC_LCDM_BAUD_OVERRIDE=230400",
+    "SERVO_TJC_RX_ENABLE=1",
+    "SERVO_ENABLE_COMM=0",
+    "SERVO_ALLOW_INTERNAL_STEP_TEST=1",
+    "SERVO_ENABLE_INTERNAL_STEP_TEST=1"
+  ],
+  "sdk": {
+    "sdk_upstream": "https://github.com/OpenPuya/PY32F0xx_Firmware",
+    "sdk_tag": "1.4.4",
+    "sdk_commit": "cbd42177c484fad16bd9250279cfaf12b9f630d1",
+    "archive": "openpuya_1.4.4_servo_subset.tar.gz",
+    "sha256": "9f0511ea5ef700022c76b4b7da1f3e6d85cfe6669b6608aeb03ca2d7cb90f01a",
+    "startup_upstream_commit": "ae83041d2ed88a0eace4fb4ab522a41c83882a92",
+    "startup_path": "Projects/PY32F002A-STK/Example/GPIO/GPIO_Toggle/EIDE/startup_py32f002xx.s",
+    "startup_sha256": "a6e1000c687cf650c1b720d6aa2249e69a3b358dd2c539bb1630cb1dac3d751a",
+    "scope": "Only HAL/CMSIS headers and sources needed by servo, PY32F002 system initialization, GNU startup, and upstream licenses. No B target libraries."
+  },
+  "source_files": {
+    "Makefile": "79ddbd03451b48290a35791b45e41abbe5eda824ad152879a5babb538cdd9fd8",
+    "inc/adc_feedback.h": "18e876a477fabd6a8be2cdfbe424cd7f90edf6f3da86206879a0a7bb567d932e",
+    "inc/board.h": "0082d2f466828fdeb222c75d03035b44e982056ae762343d3d1f7933cd32370c",
+    "inc/hbridge.h": "ce06387e9d128c906957184870b71aacbc5e4915999ae0cfcee76043e5a1de23",
+    "inc/lcdm_format.h": "6f8ab9270e13a76ef94ccf6d837d4cb78dfca351536b36ba9de28133378cb58c",
+    "inc/main.h": "690d54e4154ce4f9498fef96a1af4a1824ca441d45718127618178d7146e9cc2",
+    "inc/pwm_input.h": "c20099cc4cc4eb0e1bf521d2e12ef92164f510752b0d6e3cc8d1de2b3b984adb",
+    "inc/py32f0xx_hal_conf.h": "d093b5154d0aacae76f0ec3b1c452657776a28f32e5da5701a209f49f08c294c",
+    "inc/py32f0xx_it.h": "eb570f32e53f605d9401f4e7782b6d41a2a4545ab74f724ba0b198504e25fa87",
+    "inc/servo_adaptive.h": "7da7366575cef1c913ba0752baea6963f6f7007d1b878cfc2a2caaf5aa0c3bba",
+    "inc/servo_comm.h": "a96a178d8d83ce452b5cccc5441725230ea32537ca395db3126cf9001fef5b71",
+    "inc/servo_config.h": "b54c2fc2d184e51b842bf06acfe920ea88bbbe2dc49054fc23470f4f7fbc997d",
+    "inc/servo_control.h": "d0c936f51f05e9c01dc7f0c7dcf893a0dba272d521c5756a3889a23cf670a75f",
+    "inc/servo_model_store.h": "898f48ba4490c31dc2536a18945452b363ad59f8d58bfddbb6769475c551d94b",
+    "inc/servo_params.h": "30f1b54eb04b54d9dde9428afa0c91c9fae78c731c14ccab338b226a395dba3e",
+    "inc/tjc_lcdm.h": "48b7e41011e0c5f1426aeb0a20e15727d008e85e532c0b1779ba7d1812e58688",
+    "ld/py32f002ax5_servo.ld": "a9ca4abbc2a413a86e6da1cd7ebffa1f7e17ccd08d4381a7e6bee16c4a706bdf",
+    "src/adc_feedback.c": "3505a14ad5bd3f60191995d80badc5675bdcb166ad67d6608d03ff456f2f4db1",
+    "src/app_entry.c": "f5e5910bfabbd869f4ef1fb0e2da2119e386755b50922ef66b3644cc85b14dfd",
+    "src/app_hal_msp.c": "4fab8c8ed8eaba2bfb832f82fe9e569fcbdea37301cdd697de0499e5b3ef4173",
+    "src/app_it.c": "961b4c68b8a4af109edb4141318ebcbc3693f533522c13b249581f0b0ab638bd",
+    "src/board.c": "53c920076970179d7693d7f9c37c42b135e81f5fcb01669e05b2dc5e8d526e04",
+    "src/hbridge.c": "11ed97224e99a6f115b2c975bc72130d0ce7dc425572d991032315d4161823d8",
+    "src/lcdm_format.c": "51f4cca9111b50838d9104df1dacc034d2c2b537c88292484b663c1b7d0c3653",
+    "src/pwm_input.c": "d321ee1d32bfdc1631930246843a15b622da0f29e1e992f4f3cec95967042ee2",
+    "src/servo_adaptive.c": "908fbe0bf6fcb04dfab423e1c1cbceb50f413f7ffd65221fb1a6ca6cf041be03",
+    "src/servo_comm.c": "c6aef6f14c8e83e6c23496b17a6959786de0994a51a52322cb7446252505a630",
+    "src/servo_control.c": "299cdde8897ca1797eec57f1fb4761b574b9234e59bc95c17432f0b6448b1af8",
+    "src/servo_model_store.c": "d98042cd8902e08b8b2eca6aea6a8cfcbf77170c2fdc90491830826f8bce8be5",
+    "src/servo_params.c": "52cc3d731ec0c03b31beb11be110135ce55606033f9d6afd283b25c98c3895fe",
+    "src/tjc_lcdm.c": "ddea53b6b99be2bc38640d6bd3844510d565fd64a92c50442ca5259186073ff4",
+    "tools/monitor_r01_swd.py": "e20f6225884701f4a804f9d8d215dc431fb53f02245de5c26a99ce5cc6be934f"
+  },
+  "artifacts": {
+    "py32f002_servo.bin": {
+      "bytes": 17548,
+      "sha256": "29c2f213499fa4dfe12e39c935f9c4d77b8c15ae32f59f90af7179ac4da5e7cc"
+    },
+    "py32f002_servo.elf": {
+      "bytes": 153572,
+      "sha256": "a59f153db590a5e44199fbbe8f4c898b03d5e05b07cdaed0c2259e558f3029ff"
+    },
+    "py32f002_servo.hex": {
+      "bytes": 49421,
+      "sha256": "f43da60ef84bd6a47dab85f1b2a9a05336cf2aeab52bbb9182c8826749d90e61"
+    },
+    "py32f002_servo.map": {
+      "bytes": 101979,
+      "sha256": "2bb2ee978376ee362d675efbdbdcc368334d975480a450865fedc008bc3892a7"
+    }
+  },
+  "initial_sp": "0x20000c00",
+  "reset_pc": "0x8003f69",
+  "version_strings": [
+    "P50 V10.6SIMB2"
+  ],
+  "profile_limits": {
+    "start_pwm_us": 1503,
+    "end_pwm_us": 1543,
+    "step_us": 1,
+    "step_interval_ms": 250,
+    "max_abs_duty": 160,
+    "max_abs_duty_scale": 1000,
+    "extreme_endpoint_test": false
+  },
+  "duration_ms": 24000,
+  "build_host": "Parallels Ubuntu Linux",
+  "build_log": "ubuntu_build.log",
+  "built": true,
+  "flashed": true,
+  "flashed_and_executed": true,
+  "download_path": "Ubuntu DAPLink/HID, 2MHz under-reset",
+  "readback_version": "P50 V10.6SIMB2",
+  "readback_verified": true,
+  "application_readback_matches_bin": true,
+  "reserved_384_bytes_unchanged": true,
+  "test_evidence": "firmware/evidence/adc_light_probe_20261112/center_sweep_analysis.json",
+  "restored_after_test": "P50 V10.5",
+  "note": "Center-only low-duty diagnostic. Endpoints intentionally excluded. Captured feedback changed relative to the prior baseline; direction and exact motion timing are unresolved, so do not repeat until reviewed."
+}

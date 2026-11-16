@@ -1,0 +1,265 @@
+{
+  "elf_sha256": "dbfc7e5ac7b2038c0f50dea0b7f5cba6c4ae8301e9707d39e673b49b7673d960",
+  "bin_sha256": "4961fd9653d7368df3407b47420a2037cb91bf53b7e95219e4f75a64bafd1b7c",
+  "partial_flash_identity": "first 128 bytes and V10.5 marker match; full application not reread",
+  "probe_uid": "070000011a5a5cc500000000000c00b6a5a5a5a597969908",
+  "core_start": "State.RUNNING",
+  "core_end": "State.RUNNING",
+  "start_time": "2026-11-10T19:16:18.210841+08:00",
+  "elapsed_seconds": 15.119,
+  "start_tick": 372680,
+  "end_tick": 387744,
+  "edges_delta": 1507,
+  "pulses_delta": 754,
+  "input_valid_end": 1,
+  "ring_capacity": 16,
+  "snapshot_count": 30,
+  "stable_snapshot_count": 30,
+  "unique_rows": 16,
+  "fresh_rows": 0,
+  "fresh_nonzero_duty_rows": 0,
+  "snapshots": [
+    {
+      "wall_s": 0.0,
+      "tick": 372855,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 0.5031,
+      "tick": 373354,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 1.0036,
+      "tick": 373864,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 1.5055,
+      "tick": 374357,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 2.0094,
+      "tick": 374866,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 2.5139,
+      "tick": 375369,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 3.016,
+      "tick": 375875,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 3.5175,
+      "tick": 376372,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 4.023,
+      "tick": 376877,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 4.5237,
+      "tick": 377377,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 5.0262,
+      "tick": 377880,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 5.5267,
+      "tick": 378381,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 6.0276,
+      "tick": 378875,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 6.5281,
+      "tick": 379372,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 7.0332,
+      "tick": 379890,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 7.5345,
+      "tick": 380387,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 8.0355,
+      "tick": 380886,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 8.538,
+      "tick": 381390,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 9.0385,
+      "tick": 381889,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 9.5395,
+      "tick": 382389,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 10.0399,
+      "tick": 382892,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 10.5405,
+      "tick": 383387,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 11.041,
+      "tick": 383894,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 11.5418,
+      "tick": 384391,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 12.0423,
+      "tick": 384891,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 12.543,
+      "tick": 385389,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 13.0441,
+      "tick": 385895,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 13.545,
+      "tick": 386396,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 14.0463,
+      "tick": 386895,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    },
+    {
+      "wall_s": 14.5473,
+      "tick": 387397,
+      "head": 14,
+      "count": 16,
+      "generation": 12,
+      "stable_double_read": true
+    }
+  ],
+  "monitor_sha256": "2c040f3c8c5560871fc1e7243ca8c42e4fd3e371608f2ff6a8df9b389962360e",
+  "scope": "Existing event-triggered 16-entry ring only; sparse SWD, double-read is not atomic, no motor/input/target writes or reset."
+}

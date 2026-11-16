@@ -1,0 +1,8 @@
+PASS: 500 us maps to generic minimum (actual=600 expected=600)
+PASS: 1000 us maps to first half of operating span (actual=1324 expected=1324)
+PASS: 1500 us maps to generic center (actual=2048 expected=2048)
+PASS: 2000 us maps to second half of operating span (actual=2771 expected=2771)
+PASS: 2500 us maps to generic maximum (actual=3495 expected=3495)
+PASS: saved 900 us calibration retains its endpoint (actual=600 expected=600)
+PASS: saved 2100 us calibration retains its endpoint (actual=3495 expected=3495)
+Generic mapping only; physical angles and LCDM control are not tested.

@@ -1,0 +1,40 @@
+{
+  "armed": true,
+  "success": true,
+  "pulse_us": 160,
+  "note": "One requested timer pulse; SWD sampling does not independently measure the physical pulse width.",
+  "application_matches": true,
+  "baseline_adc_range": [
+    1937,
+    1938
+  ],
+  "baseline_vdd_mv_range": [
+    3230,
+    3243
+  ],
+  "baseline_vrefint_range": [
+    1513,
+    1521
+  ],
+  "request_time_s": 3.81618,
+  "status": 2,
+  "firmware_adc_at_request": 1938,
+  "post_adc_range": [
+    1935,
+    1941
+  ],
+  "baseline_adc_median": 1937.0,
+  "post_adc_median_last_10": 1937.0,
+  "post_vdd_mv_range": [
+    3237,
+    3245
+  ],
+  "post_vrefint_range": [
+    1513,
+    1520
+  ],
+  "final_gpio_a_idr": 0,
+  "final_gpio_b_idr": 0,
+  "final_tim1_clock_enabled": false,
+  "core_end": "State.RUNNING"
+}

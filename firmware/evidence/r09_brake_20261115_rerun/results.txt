@@ -1,0 +1,8 @@
+PASS: untrained model disabled (actual=0 expected=0)
+PASS: zero deceleration disabled (actual=0 expected=0)
+PASS: distance rounds up and includes latency (actual=2240 expected=2240)
+PASS: lower measured braking predicts longer distance (actual=1 expected=1)
+PASS: zero speed has zero distance (actual=0 expected=0)
+PASS: latency pad grows with speed (actual=640 expected=640)
+PASS: caps corrupted velocity input (actual=262144 expected=262144)
+PASS: test harness clean (actual=0 expected=0)

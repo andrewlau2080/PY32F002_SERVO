@@ -1,0 +1,19 @@
+{
+  "rows": 49,
+  "frame_seq_and_error_consistent": 46,
+  "pulse_delta": 490,
+  "sample_span_ms": 9808,
+  "pulse_rate_hz": 49.95921696574225,
+  "raw_input_range_us": [
+    1502,
+    1504
+  ],
+  "error_adc_range": [
+    -9,
+    -3
+  ],
+  "overshoot_values": [
+    0
+  ],
+  "scope": "SWD frame and HOLD values read separately; sparse snapshots, not per-cycle waveforms."
+}

@@ -1,0 +1,14 @@
+{
+  "host": "andrew@10.211.55.4",
+  "target": "py32f002ax5",
+  "uid": "070000011a5a5cc500000000000c00b6a5a5a5a597969908",
+  "action": "read",
+  "before": {
+    "bytes": 20480,
+    "sha256": "cd15bc240a7f526bb3be203ca98473d33202f60366da4b940cbf6cdc6198869d",
+    "sp": "0x20000c00",
+    "pc": "0x08004425",
+    "versions": []
+  },
+  "verified": true
+}

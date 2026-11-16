@@ -1,0 +1,13 @@
+{
+  "recovery_report.html": "3365b1239afef96fd55a5475f01e70d8f7a4796438e75acae9ef473650110214",
+  "py32f002_servo.map": "432081e68c8d74fa2f938e46cc6a89351d4c9bad127ff2a20f2022f83928ab2b",
+  "source.tar.gz": "11d226d1200b38d54ca13eb12f8317d5142ee76048632a6f4a893f3e36b5ffe0",
+  "py32f002_servo.elf": "ea228962b1f19ad58e90857fc55e15dcde1e158a0eb024ff421cb92725970c9f",
+  "verification_evidence.tar.gz": "e1e59e7e07f339a0c10ab786b59bd9d201e89a74fa18b69b53aac255f101f22f",
+  "control_code_verification.json": "a3a0c5991eeb54a6a30da5e3a18b887e605a3e9d372831b02c709a4849f05057",
+  "py32f002_servo.hex": "324eca2dd1c59e26b5fe02dc1828fd63e54089feaea7c0ff23c6ad2ddd20cc7f",
+  "manifest.json": "05015ce8e28928c6000ff678aa1048b00fd6ec11f3477caba6178b2bcf822eaf",
+  "py32f002_servo.bin": "a57f60b3c7f833476b0b62045edb7f92dd817d3005f905802ca8a7c96b849c8a",
+  "recovery_report.json": "3c2e7e07ceaac188b428d1f3f835072524624825023d9573d0ab8536afc59337",
+  "build.log": "d67315a3bbbb6ba1751b36eafe3f2d55059550d21481ed7b91b60cdfbbc9aebe"
+}

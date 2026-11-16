@@ -1,0 +1,12 @@
+{
+  "checks": {
+    "invalid ADC coasts H-bridge": true,
+    "invalid ADC invalidates learner sample seed": true,
+    "invalid ADC resets LCDM observer seed": true,
+    "invalid ADC returns before closed-loop continuation": true
+  },
+  "pass_count": 4,
+  "fail_count": 0,
+  "source_sha256": "46b09dc4a5f7878074f33b9ebe390e376ce5c46deb202454e51a5709beb378c0",
+  "scope": "LCDM source-path guard only; no ADC hardware fault injection or output waveform measurement."
+}

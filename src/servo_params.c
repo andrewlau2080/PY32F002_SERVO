@@ -55,9 +55,9 @@ void Servo_Params_GetDefaults(ServoParams *params)
   params->magic = SERVO_PARAMS_MAGIC;
   params->version = SERVO_PARAMS_VERSION;
   params->size = sizeof(*params);
-  params->pulse_lower_us = 900U;
+  params->pulse_lower_us = SERVO_INPUT_RANGE_MIN_US;
   params->pulse_center_us = 1500U;
-  params->pulse_high_us = 2100U;
+  params->pulse_high_us = SERVO_INPUT_RANGE_MAX_US;
   params->adc_min_count = SERVO_ADC_MIN_COUNT;
   params->adc_center_count = SERVO_ADC_CENTER_COUNT;
   params->adc_max_count = SERVO_ADC_MAX_COUNT;
@@ -129,8 +129,8 @@ bool Servo_Params_Validate(const ServoParams *params)
     return false;
   }
 
-  if ((params->pulse_lower_us < 500U) ||
-      (params->pulse_high_us > 2500U) ||
+  if ((params->pulse_lower_us < SERVO_INPUT_RANGE_MIN_US) ||
+      (params->pulse_high_us > SERVO_INPUT_RANGE_MAX_US) ||
       (params->pulse_lower_us >= params->pulse_center_us) ||
       (params->pulse_center_us >= params->pulse_high_us))
   {

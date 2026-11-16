@@ -1,0 +1,126 @@
+{
+  "capture": "firmware/releases/v10.5/r01_validation_20261110/field03/trace.csv",
+  "capture_sha256": "f5a4a735fcea028c110f0c2b1b2f517bd2c9057ba912ec969fb9f45c407baf2b",
+  "analysis_source_sha256": "ddbc8c16de34d8f3de1f733c18366e2930aa72ba7303f4f18d7406e4e7dc10c2",
+  "samples": 489,
+  "median_spacing_ms": 101.384,
+  "width_min_us": 1501,
+  "width_max_us": 1504,
+  "width_mean_us": 1502.6503,
+  "results": [
+    {
+      "window_samples": 5,
+      "typical_window_seconds": 0.507,
+      "threshold_us": 0.5,
+      "overlapping_window_pairs": 480,
+      "apparent_change_fraction": 0.15625,
+      "synthetic_plus_1us_fraction": 0.9208333333333333,
+      "synthetic_minus_1us_fraction": 0.9229166666666667
+    },
+    {
+      "window_samples": 5,
+      "typical_window_seconds": 0.507,
+      "threshold_us": 0.75,
+      "overlapping_window_pairs": 480,
+      "apparent_change_fraction": 0.041666666666666664,
+      "synthetic_plus_1us_fraction": 0.8145833333333333,
+      "synthetic_minus_1us_fraction": 0.79375
+    },
+    {
+      "window_samples": 5,
+      "typical_window_seconds": 0.507,
+      "threshold_us": 1.0,
+      "overlapping_window_pairs": 480,
+      "apparent_change_fraction": 0.0020833333333333333,
+      "synthetic_plus_1us_fraction": 0.5895833333333333,
+      "synthetic_minus_1us_fraction": 0.6229166666666667
+    },
+    {
+      "window_samples": 10,
+      "typical_window_seconds": 1.014,
+      "threshold_us": 0.5,
+      "overlapping_window_pairs": 470,
+      "apparent_change_fraction": 0.10851063829787234,
+      "synthetic_plus_1us_fraction": 0.9744680851063829,
+      "synthetic_minus_1us_fraction": 0.9744680851063829
+    },
+    {
+      "window_samples": 10,
+      "typical_window_seconds": 1.014,
+      "threshold_us": 0.75,
+      "overlapping_window_pairs": 470,
+      "apparent_change_fraction": 0.002127659574468085,
+      "synthetic_plus_1us_fraction": 0.7829787234042553,
+      "synthetic_minus_1us_fraction": 0.8106382978723404
+    },
+    {
+      "window_samples": 10,
+      "typical_window_seconds": 1.014,
+      "threshold_us": 1.0,
+      "overlapping_window_pairs": 470,
+      "apparent_change_fraction": 0.0,
+      "synthetic_plus_1us_fraction": 0.5829787234042553,
+      "synthetic_minus_1us_fraction": 0.5553191489361702
+    },
+    {
+      "window_samples": 20,
+      "typical_window_seconds": 2.028,
+      "threshold_us": 0.5,
+      "overlapping_window_pairs": 450,
+      "apparent_change_fraction": 0.06888888888888889,
+      "synthetic_plus_1us_fraction": 0.9933333333333333,
+      "synthetic_minus_1us_fraction": 0.98
+    },
+    {
+      "window_samples": 20,
+      "typical_window_seconds": 2.028,
+      "threshold_us": 0.75,
+      "overlapping_window_pairs": 450,
+      "apparent_change_fraction": 0.0,
+      "synthetic_plus_1us_fraction": 0.8222222222222222,
+      "synthetic_minus_1us_fraction": 0.8244444444444444
+    },
+    {
+      "window_samples": 20,
+      "typical_window_seconds": 2.028,
+      "threshold_us": 1.0,
+      "overlapping_window_pairs": 450,
+      "apparent_change_fraction": 0.0,
+      "synthetic_plus_1us_fraction": 0.5111111111111111,
+      "synthetic_minus_1us_fraction": 0.5511111111111111
+    },
+    {
+      "window_samples": 30,
+      "typical_window_seconds": 3.042,
+      "threshold_us": 0.5,
+      "overlapping_window_pairs": 430,
+      "apparent_change_fraction": 0.009302325581395349,
+      "synthetic_plus_1us_fraction": 1.0,
+      "synthetic_minus_1us_fraction": 0.9953488372093023
+    },
+    {
+      "window_samples": 30,
+      "typical_window_seconds": 3.042,
+      "threshold_us": 0.75,
+      "overlapping_window_pairs": 430,
+      "apparent_change_fraction": 0.0,
+      "synthetic_plus_1us_fraction": 0.8558139534883721,
+      "synthetic_minus_1us_fraction": 0.8255813953488372
+    },
+    {
+      "window_samples": 30,
+      "typical_window_seconds": 3.042,
+      "threshold_us": 1.0,
+      "overlapping_window_pairs": 430,
+      "apparent_change_fraction": 0.0,
+      "synthetic_plus_1us_fraction": 0.49767441860465117,
+      "synthetic_minus_1us_fraction": 0.5465116279069767
+    }
+  ],
+  "limitations": [
+    "No independent generator reference; apparent changes are not proven false alarms.",
+    "Adjacent window pairs overlap, so the fractions are not independent probabilities.",
+    "SWD samples omit most PWM frames; these are not per-pulse timing measurements.",
+    "Offsets are artificially added to the later window; no physical command step or motor is tested."
+  ]
+}

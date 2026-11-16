@@ -1,0 +1,11 @@
+{
+  "files_sha256": {
+    "src/servo_control.c": "42ac46ff5eb06673ef9ce96953ff3569d9395286678d8eb59ee7bfd598f09d67",
+    "tools/r03_host_sim/test_velocity.c": "12f8a320cae46f86f9012f8c49467cdc79cbc19f06d0b2ab1c59688055a5b86a",
+    "tools/r03_host_sim/run_velocity_tests.py": "149e26972efcf82a45ac9952fa9fcbb3b6e298832e9bd15d62204511a6bc9ada"
+  },
+  "pass_count": 10,
+  "fail_count": 8,
+  "exit_code": 1,
+  "scope": "Generic production control, injected position/time, captured learning input; no motor or LCDM."
+}

@@ -12,3 +12,13 @@ build/
 __pycache__/
 *.pyc
 ~$*
+
+# Explicitly retained recovery/release images must survive normal git add.
+!firmware/baselines/**/*.bin
+!firmware/baselines/**/*.elf
+!firmware/baselines/**/*.log
+!firmware/releases/**/*.bin
+!firmware/releases/**/*.elf
+!firmware/releases/**/*.hex
+!firmware/releases/**/*.map
+!firmware/releases/**/*.log

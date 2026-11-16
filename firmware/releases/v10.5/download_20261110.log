@@ -1,0 +1,20 @@
+PY32F系列下载方式
+[2/3] 传输固件到 Ubuntu
+[3/3] 自动识别 DAPLink、下载并运行
+  #   Probe/Board             Unique ID                                          Target         
+------------------------------------------------------------------------------------------------
+  0   Arm DAPLink CMSIS-DAP   070000011a5a5cc500000000000c00b6a5a5a5a597969908   ✖︎ stm32f103rb  
+      STMicroelectronics      NUCLEO-F103RB                                                     
+使用 DAPLink UID: 070000011a5a5cc500000000000c00b6a5a5a5a597969908
+尝试 frequency=2M connect=under-reset
+Setting SWD clock to 2000 kHz
+[---|---|---|---|---|---|---|---|---|----]
+[========================================]
+[---|---|---|---|---|---|---|---|---|----]
+[========================================]
+Resetting target with halt
+Successfully halted device on reset
+Successfully resumed device
+Core 0 (Cortex-M0+):  Running
+下载完成，目标板已复位并进入运行状态。
+下载完成，目标板已进入运行状态。

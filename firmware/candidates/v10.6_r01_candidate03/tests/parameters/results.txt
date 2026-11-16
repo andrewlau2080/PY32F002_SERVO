@@ -1,0 +1,10 @@
+PASS: blank flash defaults lower endpoint to 500 us (actual=500 expected=500)
+PASS: blank flash defaults center to 1500 us (actual=1500 expected=1500)
+PASS: blank flash defaults upper endpoint to 2500 us (actual=2500 expected=2500)
+PASS: new default block validates (actual=1 expected=1)
+PASS: existing 900/2100 calibration remains valid (actual=1 expected=1)
+PASS: existing lower calibration is retained (actual=900 expected=900)
+PASS: existing upper calibration is retained (actual=2100 expected=2100)
+PASS: existing calibration CRC is retained (actual=1 expected=1)
+PASS: modified calibration fails CRC (actual=0 expected=0)
+Flash is a simulated RAM object; no physical Flash write was performed.

@@ -1,0 +1,2 @@
+overshoot=100, abs_error=100, cycles=32, HOLD calls=7, cycles past HOLD=25, deviation_count=8
+OBSERVED: static correction can proceed under these modeled conditions.

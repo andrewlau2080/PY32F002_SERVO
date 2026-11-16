@@ -3,15 +3,53 @@
 #include "board.h"
 #include "hbridge.h"
 #include "pwm_input.h"
+#include "servo_adaptive.h"
 #include "servo_config.h"
 #include "servo_control.h"
+#include "servo_model_store.h"
 #include "servo_params.h"
 #include "tjc_lcdm.h"
 #if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
 #include "py32f0xx_hal_uart.h"
 #endif
-#include <stdio.h>
+#include "lcdm_format.h"
+#include "lcdm_brake_predictor.h"
+#include "lcdm_rx_ring.h"
+#include "servo_stability_timer.h"
+#include "lcdm_trajectory.h"
+#include "lcdm_velocity_observer.h"
 #include <string.h>
+
+#ifndef SERVO_ENABLE_INTERNAL_STEP_TEST
+#define SERVO_ENABLE_INTERNAL_STEP_TEST 0
+#endif
+#ifndef SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+#define SERVO_ADC_SUBSAMPLE_DIAGNOSTIC 0
+#endif
+
+volatile uint8_t g_servo_model_record_valid;
+#if defined(SERVO_PRODUCTION_LCDM) && (SERVO_PRODUCTION_LCDM != 0)
+__attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6";
+#endif
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+volatile uint32_t g_r01_diag_nonzero_request_count;
+volatile uint16_t g_r01_diag_max_abs_request_duty;
+volatile int16_t g_r01_diag_last_request_duty;
+volatile uint16_t g_r01_diag_min_feedback_when_request = 0xFFFFU;
+volatile uint16_t g_r01_diag_max_feedback_when_request;
+volatile uint16_t g_r01_diag_min_vdd_when_request = 0xFFFFU;
+volatile uint16_t g_r01_diag_max_vdd_when_request;
+/* Latched guard reason: 1=position excursion, 2=opposite feedback trend. */
+volatile uint8_t g_r01_diag_lock_reason;
+volatile uint16_t g_r01_diag_lock_feedback;
+volatile int16_t g_r01_diag_lock_error;
+volatile int16_t g_r01_diag_lock_displacement;
+#endif
+#if SERVO_ENABLE_INTERNAL_STEP_TEST && SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+/* The SWD monitor arms the one-shot center sweep after capture has started. */
+volatile uint32_t g_adc_diag_start_request;
+static uint8_t s_adc_diag_sweep_started;
+#endif
 
 #ifndef SERVO_ENABLE_HBRIDGE_IO_TEST
 #define SERVO_ENABLE_HBRIDGE_IO_TEST 0
@@ -32,18 +70,21 @@
 #ifndef SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
 #define SERVO_ENABLE_LCDM_RUNTIME_UI_TEST 0
 #endif
-
-#ifndef SERVO_ENABLE_INTERNAL_STEP_TEST
-#define SERVO_ENABLE_INTERNAL_STEP_TEST 0
+#ifndef SERVO_R04_UI_REDRAW_STRESS
+#define SERVO_R04_UI_REDRAW_STRESS 0
+#endif
+#ifndef SERVO_R04_TIMING_TRACE
+#define SERVO_R04_TIMING_TRACE 0
 #endif
 
 #ifndef SERVO_TJC_SOFT_TX
 #define SERVO_TJC_SOFT_TX 0
 #endif
 
+static void app_model_store_init_context(void);
 #if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
 static int16_t lcdm_servo_loop_update_fast(void);
-static void lcdm_runtime_service_motor_control(void);
+static void lcdm_runtime_service_motor_control(uint8_t context);
 #endif
 
 static void app_use_flash_vector_table(void)
@@ -132,17 +173,112 @@ static void run_pa7_square_test(void)
 }
 #endif
 
+static void app_model_store_init_context(void)
+{
+  const ServoParams *params = Servo_Params_Get();
+  uint32_t fingerprint = Servo_Params_Crc32(params);
+
+  /* VREFINT reports MCU VDD, not a verified motor-rail voltage. Fail closed
+   * until the board wiring identifies a trustworthy motor-supply measurement. */
+  Servo_ModelStore_InitFor(params->model_id, params->profile_id, fingerprint, 0U, 100U);
+}
+
 #if SERVO_ENABLE_PA7_TJC_TEST || SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
 static volatile uint32_t s_pa7_tjc_rx_byte_count;
 static volatile uint32_t s_pa7_tjc_rx_frame_error_count;
 static volatile uint8_t s_pa7_tjc_last_rx_byte;
 static uint32_t s_pa7_tjc_baud = 9600U;
 #if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
+enum
+{
+  R04_SERVICE_CONTEXT_WAIT = 0U,
+  R04_SERVICE_CONTEXT_UART = 1U,
+  R04_SERVICE_CONTEXT_TOUCH = 2U,
+  R04_SERVICE_CONTEXT_MAIN = 3U
+};
 static UART_HandleTypeDef s_lcdm_runtime_uart;
 static bool s_lcdm_runtime_uart_ready;
 static bool s_lcdm_runtime_control_ready;
 static uint32_t s_lcdm_runtime_last_motor_ms;
-static volatile uint8_t s_lcdm_rx_ring[64];
+volatile uint16_t g_r04_scheduler_overrun_context_nibbles;
+volatile uint32_t g_r04_scheduler_dropped_tick_count;
+volatile uint16_t g_r04_scheduler_max_dropped_ticks;
+#if SERVO_R04_TIMING_TRACE
+volatile uint32_t g_r04_timing_samples;
+volatile uint16_t g_r04_timing_bin_0_lt500;
+volatile uint16_t g_r04_timing_bin_1_500_899;
+volatile uint16_t g_r04_timing_bin_2_900_1100;
+volatile uint16_t g_r04_timing_bin_3_1101_1500;
+volatile uint16_t g_r04_timing_bin_4_1501_2000;
+volatile uint16_t g_r04_timing_bin_5_2001_4000;
+volatile uint16_t g_r04_timing_bin_6_4001_10000;
+volatile uint16_t g_r04_timing_bin_7_gt10000;
+volatile uint32_t g_r04_timing_max_interval_us;
+volatile uint32_t g_r04_timing_max_exec_us;
+volatile uint32_t g_r04_timing_exec_over_1000us;
+static uint32_t s_r04_timing_last_start_us;
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+volatile uint32_t g_r04_sweep_start_request;
+static uint8_t s_r04_sweep_started;
+#endif
+
+static uint32_t lcdm_r04_time_us(void)
+{
+  uint32_t ms0 = HAL_GetTick();
+  uint32_t val = SysTick->VAL;
+  uint32_t ms1 = HAL_GetTick();
+  uint32_t reload = SysTick->LOAD + 1U;
+  if (ms0 != ms1)
+  {
+    val = SysTick->VAL;
+    ms0 = ms1;
+  }
+  uint32_t phase_us = (reload != 0U) ? (((reload - val) * 1000U) / reload) : 0U;
+  return ms0 * 1000U + phase_us;
+}
+
+static void lcdm_r04_record_interval(uint32_t interval_us)
+{
+  uint8_t bin = (interval_us < 500U) ? 0U :
+                (interval_us < 900U) ? 1U :
+                (interval_us <= 1100U) ? 2U :
+                (interval_us <= 1500U) ? 3U :
+                (interval_us <= 2000U) ? 4U :
+                (interval_us <= 4000U) ? 5U :
+                (interval_us <= 10000U) ? 6U : 7U;
+  volatile uint16_t *bins[8] = { &g_r04_timing_bin_0_lt500, &g_r04_timing_bin_1_500_899,
+    &g_r04_timing_bin_2_900_1100, &g_r04_timing_bin_3_1101_1500,
+    &g_r04_timing_bin_4_1501_2000, &g_r04_timing_bin_5_2001_4000,
+    &g_r04_timing_bin_6_4001_10000, &g_r04_timing_bin_7_gt10000 };
+  if (*bins[bin] != 0xFFFFU) (*bins[bin])++;
+  if (interval_us > g_r04_timing_max_interval_us)
+  {
+    g_r04_timing_max_interval_us = interval_us;
+  }
+  g_r04_timing_samples++;
+}
+
+static void lcdm_r04_reset_window(void)
+{
+  g_r04_timing_samples = 0U;
+  g_r04_timing_bin_0_lt500 = 0U;
+  g_r04_timing_bin_1_500_899 = 0U;
+  g_r04_timing_bin_2_900_1100 = 0U;
+  g_r04_timing_bin_3_1101_1500 = 0U;
+  g_r04_timing_bin_4_1501_2000 = 0U;
+  g_r04_timing_bin_5_2001_4000 = 0U;
+  g_r04_timing_bin_6_4001_10000 = 0U;
+  g_r04_timing_bin_7_gt10000 = 0U;
+  g_r04_timing_max_interval_us = 0U;
+  g_r04_timing_max_exec_us = 0U;
+  g_r04_timing_exec_over_1000us = 0U;
+  g_r04_scheduler_overrun_context_nibbles = 0U;
+  g_r04_scheduler_dropped_tick_count = 0U;
+  g_r04_scheduler_max_dropped_ticks = 0U;
+  s_r04_timing_last_start_us = 0U;
+}
+#endif
+static volatile uint8_t s_lcdm_rx_ring[LCDM_RX_RING_SIZE];
 static volatile uint8_t s_lcdm_rx_head;
 static volatile uint8_t s_lcdm_rx_tail;
 static volatile uint16_t s_lcdm_rx_overflow_count;
@@ -185,7 +321,7 @@ static void app_irq_restore(uint32_t primask)
 }
 
 #if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
-static void lcdm_runtime_service_motor_control(void)
+static void lcdm_runtime_service_motor_control(uint8_t context)
 {
   uint32_t now_ms;
   uint8_t loops = 0U;
@@ -198,12 +334,49 @@ static void lcdm_runtime_service_motor_control(void)
   now_ms = HAL_GetTick();
   while ((uint32_t)(now_ms - s_lcdm_runtime_last_motor_ms) >= 1U)
   {
+#if SERVO_R04_TIMING_TRACE
+    uint32_t loop_start_us = lcdm_r04_time_us();
+    if (s_r04_timing_last_start_us != 0U)
+    {
+      lcdm_r04_record_interval(loop_start_us - s_r04_timing_last_start_us);
+    }
+    s_r04_timing_last_start_us = loop_start_us;
+#endif
     (void)lcdm_servo_loop_update_fast();
+#if SERVO_R04_TIMING_TRACE
+    uint32_t loop_exec_us = lcdm_r04_time_us() - loop_start_us;
+    if (loop_exec_us > g_r04_timing_max_exec_us)
+    {
+      g_r04_timing_max_exec_us = loop_exec_us;
+    }
+    if (loop_exec_us > 1000U)
+    {
+      g_r04_timing_exec_over_1000us++;
+    }
+#endif
     s_lcdm_runtime_last_motor_ms++;
     loops++;
     if (loops >= 4U)
     {
-      s_lcdm_runtime_last_motor_ms = HAL_GetTick();
+      uint32_t resume_ms = HAL_GetTick();
+      uint32_t dropped_ticks = (uint32_t)(resume_ms - s_lcdm_runtime_last_motor_ms);
+      if (dropped_ticks != 0U)
+      {
+        uint32_t shift = (uint32_t)(context & 0x03U) * 4U;
+        uint16_t count = (uint16_t)((g_r04_scheduler_overrun_context_nibbles >> shift) & 0x0FU);
+        if (count < 0x0FU)
+        {
+          g_r04_scheduler_overrun_context_nibbles =
+              (uint16_t)(g_r04_scheduler_overrun_context_nibbles + (1U << shift));
+        }
+        g_r04_scheduler_dropped_tick_count += dropped_ticks;
+        if (dropped_ticks > g_r04_scheduler_max_dropped_ticks)
+        {
+          g_r04_scheduler_max_dropped_ticks = (dropped_ticks > 0xFFFFU) ?
+                                                0xFFFFU : (uint16_t)dropped_ticks;
+        }
+      }
+      s_lcdm_runtime_last_motor_ms = resume_ms;
       break;
     }
     now_ms = HAL_GetTick();
@@ -214,10 +387,10 @@ static void lcdm_runtime_wait_ms_with_control(uint32_t ms)
 {
   for (uint32_t i = 0U; i < ms; i++)
   {
-    lcdm_runtime_service_motor_control();
+    lcdm_runtime_service_motor_control(R04_SERVICE_CONTEXT_WAIT);
     wait_systick_ticks(SystemCoreClock / 1000U);
   }
-  lcdm_runtime_service_motor_control();
+  lcdm_runtime_service_motor_control(R04_SERVICE_CONTEXT_WAIT);
 }
 
 static void lcdm_rx_ring_reset(void)
@@ -231,35 +404,18 @@ static void lcdm_rx_ring_reset(void)
 
 static void lcdm_rx_ring_push(uint8_t byte)
 {
-  uint8_t next = (uint8_t)((s_lcdm_rx_head + 1U) & 0x3FU);
-  if (next == s_lcdm_rx_tail)
-  {
-    s_lcdm_rx_overflow_count++;
-    return;
-  }
-  s_lcdm_rx_ring[s_lcdm_rx_head] = byte;
-  s_lcdm_rx_head = next;
+  (void)LcdmRxRing_Push(s_lcdm_rx_ring, &s_lcdm_rx_head, &s_lcdm_rx_tail,
+                        &s_lcdm_rx_overflow_count, byte);
 }
 
 static bool lcdm_rx_ring_pop(uint8_t *byte)
 {
   uint32_t primask;
 
-  if (s_lcdm_rx_tail == s_lcdm_rx_head)
-  {
-    return false;
-  }
-
   primask = app_irq_save();
-  if (s_lcdm_rx_tail == s_lcdm_rx_head)
-  {
-    app_irq_restore(primask);
-    return false;
-  }
-  *byte = s_lcdm_rx_ring[s_lcdm_rx_tail];
-  s_lcdm_rx_tail = (uint8_t)((s_lcdm_rx_tail + 1U) & 0x3FU);
+  bool popped = LcdmRxRing_Pop(s_lcdm_rx_ring, &s_lcdm_rx_head, &s_lcdm_rx_tail, byte);
   app_irq_restore(primask);
-  return true;
+  return popped;
 }
 
 static void lcdm_runtime_uart_set_baud(uint32_t baud)
@@ -354,12 +510,12 @@ static void pa7_tjc_delay_ms_with_led(uint32_t ms)
       GPIOA->BSRR = GPIO_PIN_5;
     }
 #if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
-    lcdm_runtime_service_motor_control();
+    lcdm_runtime_service_motor_control(R04_SERVICE_CONTEXT_WAIT);
 #endif
     wait_systick_ticks(SystemCoreClock / 1000U);
   }
 #if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
-  lcdm_runtime_service_motor_control();
+  lcdm_runtime_service_motor_control(R04_SERVICE_CONTEXT_WAIT);
 #endif
 }
 
@@ -536,7 +692,7 @@ static void pa7_tjc_write_cmd(const char *cmd)
     (void)HAL_UART_Transmit(&s_lcdm_runtime_uart, (uint8_t *)cursor, chunk, LCDM_TJC_TX_TIMEOUT_MS);
     cursor += chunk;
     remaining -= chunk;
-    lcdm_runtime_service_motor_control();
+    lcdm_runtime_service_motor_control(R04_SERVICE_CONTEXT_UART);
   }
   (void)HAL_UART_Transmit(&s_lcdm_runtime_uart, (uint8_t *)end_bytes, sizeof(end_bytes), 20U);
   lcdm_runtime_wait_ms_with_control(LCDM_TJC_CMD_GAP_MS);
@@ -563,9 +719,9 @@ static void pa7_tjc_send_baud_cmds(uint32_t source_baud, uint32_t target_baud)
   lcdm_runtime_uart_set_baud(source_baud);
 #endif
   pa7_tjc_write_cmd("bkcmd=0");
-  (void)snprintf(cmd, sizeof(cmd), "bauds=%lu", (unsigned long)target_baud);
+  (void)lcdm_snprintf(cmd, sizeof(cmd), "bauds=%lu", (unsigned long)target_baud);
   pa7_tjc_write_cmd(cmd);
-  (void)snprintf(cmd, sizeof(cmd), "baud=%lu", (unsigned long)target_baud);
+  (void)lcdm_snprintf(cmd, sizeof(cmd), "baud=%lu", (unsigned long)target_baud);
   pa7_tjc_write_cmd(cmd);
   pa7_tjc_delay_ms_with_led(50U);
 }
@@ -607,7 +763,7 @@ static void pa7_tjc_disable_hmi_touch_objects(void)
 
   for (uint8_t id = 0U; id < 64U; id++)
   {
-    (void)snprintf(cmd, sizeof(cmd), "tsw %u,0", (unsigned)id);
+    (void)lcdm_snprintf(cmd, sizeof(cmd), "tsw %u,0", (unsigned)id);
     pa7_tjc_write_cmd(cmd);
   }
 }
@@ -626,14 +782,14 @@ static void pa7_tjc_runtime_init_display(void)
 static void pa7_tjc_set_num(const char *obj, int32_t value)
 {
   char cmd[32];
-  (void)snprintf(cmd, sizeof(cmd), "%s.val=%ld", obj, (long)value);
+  (void)lcdm_snprintf(cmd, sizeof(cmd), "%s.val=%ld", obj, (long)value);
   pa7_tjc_write_cmd(cmd);
 }
 
 static void pa7_tjc_set_text(const char *obj, const char *value)
 {
   char cmd[48];
-  (void)snprintf(cmd, sizeof(cmd), "%s.txt=\"%s\"", obj, value);
+  (void)lcdm_snprintf(cmd, sizeof(cmd), "%s.txt=\"%s\"", obj, value);
   pa7_tjc_write_cmd(cmd);
 }
 
@@ -787,6 +943,7 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_STATE_RANGE_OFF 7U
 #define LCDM_SERVO_STATE_ADC_LOST 8U
 #define LCDM_SERVO_STATE_BRAKE  9U
+#define LCDM_SERVO_STATE_STARTUP_LOCK 10U
 #define LCDM_SERVO_RANGE_RELEASE   0U
 #define LCDM_SERVO_RANGE_LOCK      1U
 #define LCDM_STARTUP_PARAM_RANGE_MODE 0U
@@ -794,11 +951,17 @@ static void run_pa7_tjc_test(void)
 #define LCDM_STARTUP_PARAM_CMD_DEADBAND 4U
 #define LCDM_PWM_SOURCE_EXTERNAL 0U
 #define LCDM_PWM_SOURCE_INTERNAL 1U
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+#define LCDM_SERVO_DIR_CHECK_MIN_DUTY 16
+#define LCDM_SERVO_DIR_CHECK_MIN_ERROR 2U
+#define LCDM_SERVO_DIR_CHECK_TRIP_COUNT 3U
+#else
 #define LCDM_SERVO_DIR_CHECK_MIN_DUTY 180
 #define LCDM_SERVO_DIR_CHECK_MIN_ERROR 60U
+#define LCDM_SERVO_DIR_CHECK_TRIP_COUNT 80U
+#endif
 #define LCDM_SERVO_DIR_CHECK_MIN_STEP 1U
 #define LCDM_SERVO_DIR_CHECK_MAX_STEP 8U
-#define LCDM_SERVO_DIR_CHECK_TRIP_COUNT 80U
 #define LCDM_SERVO_ADC_NOISE_BAND 3U
 #define LCDM_SERVO_ADC_DISPLAY_QUIET_BAND 12U
 #define LCDM_SERVO_ADC_JUMP_BAND 36U
@@ -913,6 +1076,10 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_V3_EVENT_LOCK 16U
 #define LCDM_SERVO_V3_EVENT_RETURN_DAMP 17U
 #define LCDM_SERVO_V3_EVENT_CROSS_BRAKE 18U
+#define LCDM_SERVO_EVENT_ADC_INVALID 19U
+#define LCDM_SERVO_EVENT_INPUT_LOST 20U
+#define LCDM_SERVO_EVENT_INPUT_RANGE 21U
+#define LCDM_SERVO_EVENT_STARTUP_LOCK 22U
 #define LCDM_SERVO_V3_MIN_BRAKE_BAND 160U
 #define LCDM_SERVO_V3_BRAKE_VEL_GAIN 3U
 #define LCDM_SERVO_V3_BRAKE_MAX_BAND 620U
@@ -932,6 +1099,9 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_V3_CROSS_BRAKE_MAX_BAND 220U
 #define LCDM_SERVO_V3_CROSS_BRAKE_MIN_VEL_Q4 48
 #define LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND 240U
+#define LCDM_SERVO_APPROACH_DUTY_MIN 240U
+#define LCDM_SERVO_APPROACH_DUTY_MAX 640U
+#define LCDM_SERVO_APPROACH_DUTY_BAND 620U
 #define LCDM_SERVO_V3_LOCK_MAX_DUTY 930U
 #define LCDM_SERVO_V6_SETTLE_COUNT 2U
 #define LCDM_SERVO_V6_BRAKE_CONFIRM_COUNT 2U
@@ -940,10 +1110,10 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_V6_BRAKE_VEL_DUTY_DIV 3U
 #define LCDM_SERVO_V6_DRIVE_ERR_GAIN 2U
 #define LCDM_SERVO_V7_DRIVE_ERR_DIV 4U
-#define LCDM_SERVO_V7_LOAD_CONFIRM_COUNT 30U
-#define LCDM_SERVO_CUSTOMER_STEP_US 700U
-#define LCDM_SERVO_CUSTOMER_DRIVE_MS 12U
-#define LCDM_SERVO_CUSTOMER_BRAKE_MS 4U
+#define LCDM_SERVO_V7_LOAD_CONFIRM_MS 30U
+#define LCDM_SERVO_CUSTOMER_STEP_US 400U
+#define LCDM_SERVO_CUSTOMER_DRIVE_MS 7U
+#define LCDM_SERVO_CUSTOMER_BRAKE_MS 2U
 #define LCDM_SERVO_CUSTOMER_TAIL_MS 3U
 #define LCDM_SERVO_CUSTOMER_COAST_MS 24U
 #define LCDM_SERVO_CUSTOMER_DRIVE_DUTY 930U
@@ -956,9 +1126,28 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_ADC_LOST_HIGH_COUNT 4065U
 #define LCDM_SERVO_ADC_LOST_TRIP_COUNT 6U
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
-#define LCDM_SERVO_FW_TAG " V7.10R4"
+#if SERVO_DIRECTION_PROBE
+#if SERVO_DIRECTION_PULSE_US == 120
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2P120F"
+#elif SERVO_DIRECTION_PULSE_US == 160
+#if defined(SERVO_ADC_PAIR_TIME_TAG) && (SERVO_ADC_PAIR_TIME_TAG != 0)
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2P160H"
+#elif defined(SERVO_VREFINT_SETTLE_FIX) && (SERVO_VREFINT_SETTLE_FIX != 0)
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2P160G"
 #else
-#define LCDM_SERVO_FW_TAG " V9.5"
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2P160F"
+#endif
+#else
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2P80F"
+#endif
+#elif SERVO_HBRIDGE_FORCE_COAST
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2C"
+#else
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2"
+#endif
+#define LCDM_SERVO_INTERNAL_TEST_MAX_DUTY 40
+#else
+#define LCDM_SERVO_FW_TAG " V10.6"
 #endif
 #define LCDM_REG_PARAM_VMAX 0U
 #define LCDM_REG_PARAM_ACCEL 1U
@@ -1046,8 +1235,8 @@ static LcdmRuntimeParam s_lcdm_cal_params[] = {
   {"Lo", "mV", LCDM_SERVO_WORK_LOW_MV, 150, 1650, 1},
   {"Md", "mV", LCDM_SERVO_WORK_MID_MV, 150, 3200, 1},
   {"Hi", "mV", LCDM_SERVO_WORK_HIGH_MV, 1650, 3200, 1},
-  {"InL", "us", 500, 300, 1499, 1},
-  {"InH", "us", 2500, 1501, 2699, 1},
+  {"InL", "us", 600, 600, 1499, 1},
+  {"InH", "us", 2400, 1501, 2400, 1},
 };
 
 static LcdmRuntimeParam s_lcdm_reg_params[] = {
@@ -1108,6 +1297,7 @@ static int8_t s_lcdm_last_pwm_direction = 127;
 static uint8_t s_lcdm_last_pwm_state = 0xFFU;
 static uint16_t s_lcdm_last_hbridge_frequency_hz;
 static int16_t s_lcdm_servo_current_duty;
+static uint32_t s_lcdm_servo_slew_tick_ms;
 static int8_t s_lcdm_servo_output_dir;
 static uint32_t s_lcdm_servo_reverse_dead_until_ms;
 static uint8_t s_lcdm_servo_reverse_dead_active;
@@ -1144,11 +1334,12 @@ static uint8_t s_lcdm_last_servo_event = 0xFFU;
 static int8_t s_lcdm_servo_move_dir;
 static int8_t s_lcdm_servo_motion_dir;
 static uint8_t s_lcdm_servo_adc_lost_count;
-static uint8_t s_lcdm_servo_hold_deviation_count;
+static ServoStabilityTimer s_lcdm_servo_hold_deviation_timer;
+static ServoStabilityTimer s_lcdm_servo_hold_entry_timer;
 static uint8_t s_lcdm_servo_adc_jump_count;
 static uint16_t s_lcdm_servo_last_motion_error = 0xFFFFU;
 static uint16_t s_lcdm_servo_motion_start_error;
-static uint8_t s_lcdm_servo_motion_settle_count;
+static ServoStabilityTimer s_lcdm_servo_motion_settle_timer;
 static uint8_t s_lcdm_servo_v3_phase;
 static uint16_t s_lcdm_servo_hold_anchor_adc;
 static uint32_t s_lcdm_servo_customer_start_ms;
@@ -1157,10 +1348,24 @@ static uint8_t s_lcdm_servo_customer_active;
 static uint8_t s_lcdm_pwm_source = LCDM_PWM_SOURCE_EXTERNAL;
 static uint32_t s_lcdm_runtime_pwm_start_ms;
 static uint8_t s_lcdm_runtime_pwm_seeded;
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+static int16_t s_lcdm_internal_target_offset_adc = 32767;
+static uint16_t s_lcdm_internal_motion_anchor_adc;
+static uint16_t s_lcdm_internal_last_guard_adc;
+static uint32_t s_lcdm_internal_last_guard_ms;
+static uint8_t s_lcdm_internal_guard_bad_count;
+static uint8_t s_lcdm_internal_position_bad_count;
+static uint8_t s_lcdm_internal_guard_seeded;
+static uint8_t s_lcdm_internal_drive_started;
+static uint8_t s_lcdm_internal_motion_locked;
+static uint8_t s_lcdm_internal_active_started;
+#endif
 static int32_t s_lcdm_servo_pos_q4;
 static int32_t s_lcdm_servo_vel_q4;
+static LcdmVelocityObserver s_lcdm_velocity_observer;
 static int32_t s_lcdm_servo_traj_pos_q4;
 static int32_t s_lcdm_servo_traj_vel_q4;
+static uint32_t s_lcdm_servo_traj_last_update_ms;
 static uint16_t s_lcdm_servo_cmd_target_adc = LCDM_ADC_TEST_CENTER_RAW;
 static uint8_t s_lcdm_servo_ab_seeded;
 
@@ -1219,7 +1424,23 @@ typedef struct __attribute__((packed, aligned(4)))
   uint32_t seq_tail;
 } ServoCurveFrame;
 
-#define SERVO_CURVE_LOG_CAPACITY 35U
+/* 给 LCDM/控制嵌套调用保留栈；采集工具从 ELF 自动读取实际容量。 */
+#if SERVO_DIRECTION_PROBE
+/* Retain the 1536-byte minimum stack margin in the SWD-only diagnostic image. */
+#define SERVO_CURVE_LOG_CAPACITY 15U
+#elif SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+/* Reserve RAM for raw ADC telemetry while preserving the 1536-byte stack. */
+#define SERVO_CURVE_LOG_CAPACITY 7U
+#elif SERVO_R04_TIMING_TRACE
+/* Timing histograms need RAM; preserve the stack reserve in this diagnostic image. */
+#define SERVO_CURVE_LOG_CAPACITY 6U
+#elif SERVO_ENABLE_INTERNAL_STEP_TEST
+/* Keep the guarded stack reserve with the R11 elapsed-time stability state. */
+#define SERVO_CURVE_LOG_CAPACITY 8U
+#else
+/* Keep the full LCDM build within the guarded 1536-byte stack reserve. */
+#define SERVO_CURVE_LOG_CAPACITY 8U
+#endif
 #define SERVO_CURVE_LOG_CAPTURE_MS 900U
 
 typedef struct __attribute__((packed, aligned(4)))
@@ -1399,7 +1620,7 @@ static void lcdm_servo_curve_publish(uint16_t pwm_us,
 static void lcdm_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
 {
   char cmd[48];
-  (void)snprintf(cmd, sizeof(cmd), "fill %u,%u,%u,%u,%u", x, y, w, h, color);
+  (void)lcdm_snprintf(cmd, sizeof(cmd), "fill %u,%u,%u,%u,%u", x, y, w, h, color);
   pa7_tjc_write_cmd(cmd);
 }
 
@@ -1412,8 +1633,9 @@ static void lcdm_text(uint16_t x,
                       uint8_t align,
                       const char *text)
 {
-  char cmd[320];
-  (void)snprintf(cmd,
+  /* 本页文本最长 32 字节；避免大命令缓冲叠加控制循环压穿参数 RAM。 */
+  char cmd[160];
+  (void)lcdm_snprintf(cmd,
                  sizeof(cmd),
                  "xstr %u,%u,%u,%u,%u,%u,%u,%u,1,1,\"%s\"",
                  x,
@@ -1541,11 +1763,11 @@ static void lcdm_param_row(uint8_t row, const LcdmRuntimeParam *param, bool sele
 
   if ((param->unit != NULL) && (param->unit[0] != '\0'))
   {
-    (void)snprintf(text, sizeof(text), "%ld %s", (long)param->value, param->unit);
+    (void)lcdm_snprintf(text, sizeof(text), "%ld %s", (long)param->value, param->unit);
   }
   else
   {
-    (void)snprintf(text, sizeof(text), "%ld", (long)param->value);
+    (void)lcdm_snprintf(text, sizeof(text), "%ld", (long)param->value);
   }
 
   lcdm_row_ex(row, param->name, text, selected ? LCDM_COLOR_RED : LCDM_COLOR_BLUE, selected);
@@ -1622,6 +1844,7 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   uint16_t pulse;
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
   static uint16_t s_runtime_last_pulse = 0xFFFFU;
+  static uint8_t s_runtime_last_valid = 0xFFU;
   static uint32_t s_runtime_pulse_count;
 #endif
 
@@ -1632,9 +1855,76 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   }
 
   elapsed = now - s_lcdm_runtime_pwm_start_ms;
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+#if SERVO_R04_TIMING_TRACE
+  if (s_r04_sweep_started == 0U)
+  {
+    if (g_r04_sweep_start_request == 0U)
+    {
+      pulse = 1503U;
+      goto publish_internal_test_sample;
+    }
+    s_lcdm_runtime_pwm_start_ms = now;
+    s_lcdm_runtime_pwm_seeded = 1U;
+    g_r04_sweep_start_request = 0U;
+    s_r04_sweep_started = 1U;
+#if SERVO_R04_TIMING_TRACE
+    lcdm_r04_reset_window();
+#endif
+    elapsed = 0U;
+  }
+#endif
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+  if (s_adc_diag_sweep_started == 0U)
+  {
+    if (g_adc_diag_start_request != 0U)
+    {
+      s_lcdm_runtime_pwm_start_ms = now;
+      s_lcdm_runtime_pwm_seeded = 1U;
+      s_adc_diag_sweep_started = 1U;
+      g_adc_diag_start_request = 0U;
+      elapsed = 0U;
+    }
+    else
+    {
+      pulse = 1503U;
+      goto publish_internal_test_sample;
+    }
+  }
+#endif
+  /* Center-only microstep diagnostic: 1503 to 1506 us in 1 us / 250 ms increments. */
+  /* Give the SWD observer time to attach after the under-reset download. */
+  const uint32_t baseline_ms = 30000U;
+  const uint32_t ramp_ms = 750U;
+  const uint32_t top_hold_ms = 1000U;
+  const uint32_t down_start_ms = baseline_ms + ramp_ms + top_hold_ms;
+  const uint32_t down_ms = 750U;
+  if (elapsed < baseline_ms)
+  {
+    pulse = 1503U;
+  }
+  else if (elapsed < (baseline_ms + ramp_ms))
+  {
+    pulse = (uint16_t)(1503U + ((elapsed - baseline_ms) / 250U));
+  }
+  else if (elapsed < down_start_ms)
+  {
+    pulse = 1506U;
+  }
+  else if (elapsed < (down_start_ms + down_ms))
+  {
+    pulse = (uint16_t)(1506U - ((elapsed - down_start_ms) / 250U));
+  }
+  else
+  {
+    pulse = 1503U;
+  }
+#else
   phase = (elapsed / 4000UL) % 2UL;
   pulse = (phase == 0UL) ? 1000U : 2000U;
+#endif
 
+publish_internal_test_sample:
   sample->pulse_us = pulse;
   sample->raw_pulse_us = pulse;
   sample->candidate_pulse_us = pulse;
@@ -1643,17 +1933,21 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   sample->last_edge_ms = now;
   sample->edge_count = now;
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
-  if (pulse != s_runtime_last_pulse)
+  sample->raw_high = false;
+  sample->valid = true;
+  if ((pulse != s_runtime_last_pulse) ||
+      (sample->valid != (s_runtime_last_valid != 0U)))
   {
     s_runtime_last_pulse = pulse;
+    s_runtime_last_valid = sample->valid ? 1U : 0U;
     s_runtime_pulse_count++;
   }
   sample->pulse_count = s_runtime_pulse_count;
 #else
   sample->pulse_count = now / 20UL;
-#endif
   sample->raw_high = false;
   sample->valid = true;
+#endif
 }
 
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
@@ -1676,6 +1970,7 @@ static void lcdm_reset_pwm_live_cache(void)
   s_lcdm_last_pwm_direction = 127;
   s_lcdm_last_pwm_state = 0xFFU;
   s_lcdm_servo_current_duty = 0;
+  s_lcdm_servo_slew_tick_ms = HAL_GetTick();
   s_lcdm_servo_output_dir = 0;
   s_lcdm_servo_reverse_dead_until_ms = 0U;
   s_lcdm_servo_reverse_dead_active = 0U;
@@ -1712,20 +2007,43 @@ static void lcdm_reset_pwm_live_cache(void)
   s_lcdm_servo_move_dir = 0;
   s_lcdm_servo_motion_dir = 0;
   s_lcdm_servo_adc_lost_count = 0U;
-  s_lcdm_servo_hold_deviation_count = 0U;
+  ServoStabilityTimer_Reset(&s_lcdm_servo_hold_deviation_timer);
+  ServoStabilityTimer_Reset(&s_lcdm_servo_hold_entry_timer);
   s_lcdm_servo_adc_jump_count = 0U;
   s_lcdm_servo_last_motion_error = 0xFFFFU;
   s_lcdm_servo_motion_start_error = 0U;
-  s_lcdm_servo_motion_settle_count = 0U;
+  ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
   s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
   lcdm_servo_customer_profile_clear();
   s_lcdm_servo_hold_anchor_adc = LCDM_ADC_TEST_CENTER_RAW;
   s_lcdm_servo_pos_q4 = 0;
   s_lcdm_servo_vel_q4 = 0;
+  memset(&s_lcdm_velocity_observer, 0, sizeof(s_lcdm_velocity_observer));
   s_lcdm_servo_traj_pos_q4 = 0;
   s_lcdm_servo_traj_vel_q4 = 0;
+  s_lcdm_servo_traj_last_update_ms = HAL_GetTick();
   s_lcdm_servo_cmd_target_adc = LCDM_ADC_TEST_CENTER_RAW;
   s_lcdm_servo_ab_seeded = 0U;
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+  s_lcdm_internal_target_offset_adc = 32767;
+  s_lcdm_internal_motion_anchor_adc = 0U;
+  s_lcdm_internal_last_guard_adc = 0U;
+  s_lcdm_internal_last_guard_ms = 0U;
+  s_lcdm_internal_guard_bad_count = 0U;
+  s_lcdm_internal_position_bad_count = 0U;
+  s_lcdm_internal_guard_seeded = 0U;
+  s_lcdm_internal_drive_started = 0U;
+  s_lcdm_internal_motion_locked = 0U;
+  g_r01_diag_lock_reason = 0U;
+  g_r01_diag_lock_feedback = 0U;
+  g_r01_diag_lock_error = 0;
+  g_r01_diag_lock_displacement = 0;
+  s_lcdm_internal_active_started = 0U;
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+  g_adc_diag_start_request = 0U;
+  s_adc_diag_sweep_started = 0U;
+#endif
+#endif
   s_lcdm_runtime_pwm_start_ms = HAL_GetTick();
   s_lcdm_runtime_pwm_seeded = 0U;
 }
@@ -1759,11 +2077,11 @@ static LcdmPwmRangeState lcdm_pwm_range_state(uint16_t pulse_us)
 
   if (low_us >= LCDM_SERVO_INPUT_MID_US)
   {
-    low_us = 500U;
+    low_us = 600U;
   }
   if (high_us <= LCDM_SERVO_INPUT_MID_US)
   {
-    high_us = 2500U;
+    high_us = 2400U;
   }
 
   if (pulse_us < low_us)
@@ -1842,11 +2160,11 @@ static uint16_t lcdm_pwm_to_target_mv(uint16_t pulse_us)
 
   if (low_us >= mid_us)
   {
-    low_us = 500U;
+    low_us = 600U;
   }
   if (high_us <= mid_us)
   {
-    high_us = 2500U;
+    high_us = 2400U;
   }
   if (mid_mv < low_mv)
   {
@@ -2050,11 +2368,11 @@ static bool lcdm_servo_reverse_dead_active(uint32_t now_ms)
   return false;
 }
 
-static int16_t lcdm_servo_apply_slew(int16_t duty)
+static int16_t lcdm_servo_apply_slew(int16_t duty, uint32_t elapsed_ms)
 {
-  int16_t slew = (int16_t)lcdm_param_u16(s_lcdm_reg_params,
-                                         LCDM_REG_PARAM_SLEW,
-                                         LCDM_SERVO_OUT_SLEW);
+  int16_t slew = (int16_t)(lcdm_param_u16(s_lcdm_reg_params,
+                                          LCDM_REG_PARAM_SLEW,
+                                          LCDM_SERVO_OUT_SLEW) * elapsed_ms);
 
   if ((s_lcdm_servo_current_duty > 0) && (duty < 0))
   {
@@ -2087,10 +2405,9 @@ static void lcdm_servo_enter_hold(uint16_t control_pulse_us,
                                   uint8_t event)
 {
   HBridge_Brake();
-  s_lcdm_servo_vel_q4 = 0;
-  s_lcdm_servo_current_velocity = 0;
   s_lcdm_servo_traj_pos_q4 = (int32_t)target_adc << 4;
   s_lcdm_servo_traj_vel_q4 = 0;
+  s_lcdm_servo_traj_last_update_ms = HAL_GetTick();
   s_lcdm_servo_ref_velocity = 0;
   s_lcdm_servo_current_duty = 0;
   lcdm_servo_clear_output_guard();
@@ -2098,11 +2415,11 @@ static void lcdm_servo_enter_hold(uint16_t control_pulse_us,
   s_lcdm_servo_hold_active = 1U;
   s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_HOLD;
   s_lcdm_servo_hold_anchor_adc = target_adc;
-  s_lcdm_servo_hold_deviation_count = 0U;
+  ServoStabilityTimer_Reset(&s_lcdm_servo_hold_deviation_timer);
   s_lcdm_servo_move_dir = 0;
   s_lcdm_servo_motion_dir = 0;
   s_lcdm_servo_last_motion_error = 0xFFFFU;
-  s_lcdm_servo_motion_settle_count = 0U;
+  ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
   lcdm_servo_customer_profile_clear();
   s_lcdm_servo_last_control_feedback_adc = feedback_adc;
   lcdm_servo_curve_publish(control_pulse_us, raw_adc, target_adc, feedback_adc, error_adc, 0, event);
@@ -2152,15 +2469,16 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #endif
   fresh = lcdm_pwm_sample_is_fresh(&sample);
   uint16_t raw_adc;
+  uint16_t control_adc;
   uint16_t feedback;
   uint16_t target_adc;
   uint16_t max_duty;
   int16_t duty = 0;
   int16_t error;
+  int16_t trajectory_error;
   int16_t velocity;
   LcdmPwmRangeState range_state = LCDM_PWM_RANGE_IN;
   uint16_t control_pulse_us;
-  uint16_t target_delta = 0U;
   uint16_t pulse_delta = 0U;
   uint16_t frequency_hz = (uint16_t)s_lcdm_driver_params[2].value;
   int32_t raw_q4;
@@ -2170,6 +2488,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
   int32_t max_vel_q4 = lcdm_param_i32(s_lcdm_reg_params,
                                       LCDM_REG_PARAM_VMAX,
                                       LCDM_SERVO_TRAJ_MAX_VEL_Q4);
+  uint16_t trajectory_accel_q4 = lcdm_param_u16(s_lcdm_reg_params,
+                                                LCDM_REG_PARAM_ACCEL,
+                                                LCDM_SERVO_TRAJ_ACCEL_Q4);
   int32_t vel_k_num = lcdm_param_i32(s_lcdm_reg_params,
                                      LCDM_REG_PARAM_KV,
                                      LCDM_SERVO_VEL_K_NUM);
@@ -2191,6 +2512,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
   uint16_t brake_high_vel_q4 = lcdm_param_u16(s_lcdm_step_params,
                                               LCDM_BRAKE_PARAM_HOLD_VEL,
                                               LCDM_SERVO_V3_BRAKE_HOLD_VEL_Q4);
+  uint16_t learned_brake_accel_q8;
+  uint16_t learned_brake_samples;
+  uint32_t predicted_stop_distance_q4;
   uint16_t motion_hold_band = lcdm_param_u16(s_lcdm_template_params,
                                              LCDM_HOLD_PARAM_BAND,
                                              LCDM_SERVO_V3_MOTION_HOLD_BAND);
@@ -2219,15 +2543,33 @@ static int16_t lcdm_servo_loop_update_fast(void)
   bool crossed_target;
   bool command_step;
   bool static_lock_candidate;
+  bool hold_entry_candidate;
+  bool hold_entry_confirmed;
   uint16_t v7_settle_band;
   uint16_t v7_static_lock_band;
   uint16_t v7_stop_vel_limit_q4;
+  uint16_t approach_duty_limit;
   bool cross_moving_away;
   bool v7_need_prebrake;
   uint32_t now_ms = HAL_GetTick();
+  uint32_t loop_elapsed_ms = now_ms - s_lcdm_servo_slew_tick_ms;
+  uint32_t stable_elapsed_ms = (loop_elapsed_ms <= 4U) ? loop_elapsed_ms : 5U;
+  uint32_t slew_elapsed_ms = loop_elapsed_ms;
   bool customer_profile_direct = false;
 
+  s_lcdm_servo_slew_tick_ms = now_ms;
+  if (slew_elapsed_ms > 4U)
+  {
+    slew_elapsed_ms = 4U;
+  }
+
   raw_adc = ADC_Feedback_ReadRaw();
+#if BOARD_TSSOP20_DEBUG_PINS
+  control_adc = ADC_Feedback_ApplyVddCompensation(
+      raw_adc, Servo_Params_Get()->vdd_nominal_mv, 100U);
+#else
+  control_adc = raw_adc;
+#endif
 
   if (frequency_hz != s_lcdm_last_hbridge_frequency_hz)
   {
@@ -2238,9 +2580,11 @@ static int16_t lcdm_servo_loop_update_fast(void)
   if (!lcdm_servo_adc_is_valid(raw_adc))
   {
     HBridge_Coast();
+    Servo_Adaptive_Update(now_ms, 0, 0, false);
     s_lcdm_servo_current_duty = 0;
     lcdm_servo_clear_output_guard();
     s_lcdm_servo_current_velocity = 0;
+    s_lcdm_servo_vel_q4 = 0;
     s_lcdm_servo_ref_velocity = 0;
     s_lcdm_servo_hold_active = 0U;
     s_lcdm_servo_dir_bad_count = 0U;
@@ -2249,11 +2593,14 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_adc_jump_count = 0U;
     s_lcdm_servo_prev_feedback_adc = 0xFFFFU;
     s_lcdm_servo_velocity_feedback_adc = 0xFFFFU;
+    s_lcdm_velocity_observer.tick_ms = 0U;
+    s_lcdm_servo_ab_seeded = 0U;
     s_lcdm_servo_prev_target_adc = 0xFFFFU;
-    s_lcdm_servo_hold_deviation_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_hold_deviation_timer);
+    ServoStabilityTimer_Reset(&s_lcdm_servo_hold_entry_timer);
     s_lcdm_servo_last_motion_error = 0xFFFFU;
     s_lcdm_servo_motion_start_error = 0U;
-    s_lcdm_servo_motion_settle_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_ab_seeded = 0U;
     lcdm_servo_customer_profile_clear();
@@ -2264,6 +2611,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_current_state = (s_lcdm_servo_adc_lost_count >= LCDM_SERVO_ADC_LOST_TRIP_COUNT) ?
                                  LCDM_SERVO_STATE_ADC_LOST :
                                  LCDM_SERVO_STATE_HOLD;
+    lcdm_servo_curve_publish(sample.pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
+                             raw_adc, (int16_t)((int32_t)s_lcdm_servo_cmd_target_adc - raw_adc),
+                             0, LCDM_SERVO_EVENT_ADC_INVALID);
     return 0;
   }
   s_lcdm_servo_adc_lost_count = 0U;
@@ -2277,36 +2627,24 @@ static int16_t lcdm_servo_loop_update_fast(void)
     vel_k_num = 1;
   }
 
-  raw_q4 = (int32_t)raw_adc << 4;
-  if (s_lcdm_servo_ab_seeded == 0U)
+  raw_q4 = (int32_t)control_adc << 4;
   {
-    s_lcdm_servo_pos_q4 = raw_q4;
-    s_lcdm_servo_vel_q4 = 0;
-    s_lcdm_servo_traj_pos_q4 = raw_q4;
-    s_lcdm_servo_traj_vel_q4 = 0;
-    s_lcdm_servo_cmd_target_adc = raw_adc;
-    s_lcdm_servo_ab_seeded = 1U;
-  }
-  else
-  {
-    int32_t predicted_q4 = s_lcdm_servo_pos_q4 + s_lcdm_servo_vel_q4;
-    int32_t residual_q4 = raw_q4 - predicted_q4;
     bool fast_observer = (s_lcdm_servo_current_duty != 0) ||
                          (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_ACCEL) ||
                          (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_TRACK) ||
                          (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_BRAKE) ||
                          (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_RETURN);
-    int32_t pos_div = fast_observer ? LCDM_SERVO_OBS_POS_DIV_FAST : LCDM_SERVO_OBS_POS_DIV_SLOW;
-    int32_t vel_div = fast_observer ? LCDM_SERVO_OBS_VEL_DIV_FAST : LCDM_SERVO_OBS_VEL_DIV_SLOW;
-    s_lcdm_servo_pos_q4 = predicted_q4 + (residual_q4 / pos_div);
-    s_lcdm_servo_vel_q4 += (residual_q4 / vel_div);
-    if (s_lcdm_servo_vel_q4 > 512)
+    (void)LcdmVelocityObserver_Update(&s_lcdm_velocity_observer, control_adc, now_ms,
+                                      fast_observer, &s_lcdm_servo_velocity_feedback_adc,
+                                      &s_lcdm_servo_ab_seeded, &s_lcdm_servo_pos_q4,
+                                      &s_lcdm_servo_vel_q4, 0, 0);
+    if (s_lcdm_servo_ab_seeded == 0U)
     {
-      s_lcdm_servo_vel_q4 = 512;
-    }
-    else if (s_lcdm_servo_vel_q4 < -512)
-    {
-      s_lcdm_servo_vel_q4 = -512;
+      s_lcdm_servo_traj_pos_q4 = raw_q4;
+      s_lcdm_servo_traj_vel_q4 = 0;
+      s_lcdm_servo_traj_last_update_ms = now_ms;
+      s_lcdm_servo_cmd_target_adc = control_adc;
+      s_lcdm_servo_ab_seeded = 1U;
     }
   }
   feedback = (uint16_t)(s_lcdm_servo_pos_q4 >> 4);
@@ -2315,6 +2653,11 @@ static int16_t lcdm_servo_loop_update_fast(void)
   s_lcdm_servo_filtered_feedback_adc = feedback;
   s_lcdm_servo_filter_seeded = 1U;
   lcdm_servo_adc_window_add(feedback);
+
+  Servo_Adaptive_Update(now_ms,
+                       (int16_t)s_lcdm_servo_vel_q4,
+                       HBridge_GetDuty(),
+                       fresh && lcdm_servo_adc_is_valid(raw_adc));
 
   if (!fresh)
   {
@@ -2325,16 +2668,35 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_ref_velocity = 0;
     s_lcdm_servo_current_state = (sample.edge_count == 0UL) ? LCDM_SERVO_STATE_NO_PWM : LCDM_SERVO_STATE_BAD;
     s_lcdm_servo_current_range = LCDM_PWM_RANGE_IN;
-    s_lcdm_servo_hold_deviation_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_hold_deviation_timer);
+    ServoStabilityTimer_Reset(&s_lcdm_servo_hold_entry_timer);
     s_lcdm_servo_last_motion_error = 0xFFFFU;
     s_lcdm_servo_motion_start_error = 0U;
-    s_lcdm_servo_motion_settle_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
+    s_lcdm_servo_traj_last_update_ms = now_ms;
     lcdm_servo_customer_profile_clear();
+    lcdm_servo_curve_publish(sample.pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
+                             feedback, (int16_t)((int32_t)s_lcdm_servo_cmd_target_adc - feedback),
+                             0, LCDM_SERVO_EVENT_INPUT_LOST);
     return 0;
   }
+
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+  /* Hard stop the motion diagnostic after its short center-only command cycle. */
+  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 34000U)
+  {
+    return lcdm_servo_stop_publish(sample.pulse_us, raw_adc,
+                                   s_lcdm_servo_cmd_target_adc, feedback, 0,
+                                   LCDM_SERVO_STATE_HOLD, 3U, false);
+  }
+#endif
+
+#if SERVO_DIRECTION_PROBE
+  HBridge_DirectionProbeService(raw_adc, now_ms);
+#endif
 
   range_state = lcdm_pwm_range_state(sample.pulse_us);
   s_lcdm_servo_current_range = range_state;
@@ -2349,19 +2711,87 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_current_state = LCDM_SERVO_STATE_RANGE_OFF;
     s_lcdm_servo_hold_active = 0U;
     s_lcdm_servo_dir_bad_count = 0U;
-    s_lcdm_servo_hold_deviation_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_hold_deviation_timer);
+    ServoStabilityTimer_Reset(&s_lcdm_servo_hold_entry_timer);
     s_lcdm_servo_last_motion_error = 0xFFFFU;
     s_lcdm_servo_motion_start_error = 0U;
-    s_lcdm_servo_motion_settle_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
+    ServoStabilityTimer_Reset(&s_lcdm_servo_hold_entry_timer);
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_IDLE;
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
+    s_lcdm_servo_traj_last_update_ms = now_ms;
     lcdm_servo_customer_profile_clear();
+    lcdm_servo_curve_publish(sample.pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
+                             feedback, (int16_t)((int32_t)s_lcdm_servo_cmd_target_adc - feedback),
+                             0, LCDM_SERVO_EVENT_INPUT_RANGE);
     return 0;
   }
 
   control_pulse_us = lcdm_servo_update_latched_pulse(sample.pulse_us, sample.pulse_count);
   target_adc = lcdm_pwm_to_target_adc(control_pulse_us);
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+  if (s_lcdm_internal_target_offset_adc == 32767)
+  {
+    uint16_t center_delta = (control_pulse_us > LCDM_SERVO_INPUT_MID_US) ?
+                            (uint16_t)(control_pulse_us - LCDM_SERVO_INPUT_MID_US) :
+                            (uint16_t)(LCDM_SERVO_INPUT_MID_US - control_pulse_us);
+    if (center_delta > 50U)
+    {
+      s_lcdm_servo_cmd_target_adc = feedback;
+      return lcdm_servo_stop_publish(control_pulse_us, raw_adc, feedback,
+                                     feedback, 0, LCDM_SERVO_STATE_STARTUP_LOCK,
+                                     LCDM_SERVO_EVENT_STARTUP_LOCK, false);
+    }
+    s_lcdm_internal_target_offset_adc = (int16_t)((int32_t)feedback - (int32_t)target_adc);
+    s_lcdm_internal_motion_anchor_adc = feedback;
+    s_lcdm_internal_last_guard_adc = feedback;
+    s_lcdm_internal_last_guard_ms = now_ms;
+    s_lcdm_internal_guard_bad_count = 0U;
+    s_lcdm_internal_position_bad_count = 0U;
+    s_lcdm_internal_guard_seeded = 1U;
+    s_lcdm_internal_motion_locked = 0U;
+  }
+  {
+    int32_t anchored_target = (int32_t)target_adc + s_lcdm_internal_target_offset_adc;
+    if (anchored_target < 0)
+    {
+      anchored_target = 0;
+    }
+    else if (anchored_target > 4095)
+    {
+      anchored_target = 4095;
+    }
+    target_adc = (uint16_t)anchored_target;
+  }
+  if ((s_lcdm_internal_active_started == 0U) &&
+      ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 30000U))
+  {
+    uint16_t center_target_adc = lcdm_pwm_to_target_adc(1503U);
+    s_lcdm_internal_target_offset_adc = (int16_t)((int32_t)feedback - (int32_t)center_target_adc);
+    s_lcdm_internal_motion_anchor_adc = feedback;
+    s_lcdm_internal_last_guard_adc = feedback;
+    s_lcdm_internal_last_guard_ms = now_ms;
+    s_lcdm_internal_guard_bad_count = 0U;
+    s_lcdm_internal_position_bad_count = 0U;
+    s_lcdm_internal_guard_seeded = 1U;
+    s_lcdm_internal_motion_locked = 0U;
+    s_lcdm_internal_active_started = 1U;
+    target_adc = lcdm_pwm_to_target_adc(control_pulse_us);
+    {
+      int32_t anchored_target = (int32_t)target_adc + s_lcdm_internal_target_offset_adc;
+      if (anchored_target < 0)
+      {
+        anchored_target = 0;
+      }
+      else if (anchored_target > 4095)
+      {
+        anchored_target = 4095;
+      }
+      target_adc = (uint16_t)anchored_target;
+    }
+  }
+#endif
   if (s_lcdm_servo_last_control_pulse_us != 0xFFFFU)
   {
     pulse_delta = (control_pulse_us > s_lcdm_servo_last_control_pulse_us) ?
@@ -2370,11 +2800,12 @@ static int16_t lcdm_servo_loop_update_fast(void)
   }
   if (s_lcdm_servo_last_target_adc != 0xFFFFU)
   {
-    target_delta = (target_adc > s_lcdm_servo_last_target_adc) ?
-                   (uint16_t)(target_adc - s_lcdm_servo_last_target_adc) :
-                   (uint16_t)(s_lcdm_servo_last_target_adc - target_adc);
-    target_changed = (pulse_delta != 0U) || (target_delta > LCDM_SERVO_CMD_HOLD_EXIT_EXTRA);
-    target_motion_changed = (pulse_delta != 0U) || (target_delta > LCDM_SERVO_CMD_MOTION_EXIT_EXTRA);
+    target_changed = (pulse_delta != 0U);
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+    target_motion_changed = (pulse_delta != 0U);
+#else
+    target_motion_changed = (pulse_delta >= 3U);
+#endif
   }
   else
   {
@@ -2382,20 +2813,22 @@ static int16_t lcdm_servo_loop_update_fast(void)
     target_motion_changed = true;
   }
 
-  if (target_motion_changed)
+  /* V10.2：目标更新与运动相位重启仍分开处理。
+   * 1-2us 更新目标，但不屏蔽 HOLD/静态纠偏；>=3us 才重启运动相位。
+   * 来源为反汇编重建，并非找回了原始逐字节对应的 C 文件。 */
+  command_step = target_motion_changed;
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+  /* Keep a 1-3 us diagnostic command active for its full generated plateau. */
+  if (control_pulse_us != 1503U)
   {
-    s_lcdm_servo_cmd_sensitive = 80U;
+    command_step = true;
   }
-  else if (s_lcdm_servo_cmd_sensitive > 0U)
-  {
-    s_lcdm_servo_cmd_sensitive--;
-  }
-  command_step = target_changed;
+#endif
   if (target_changed)
   {
     s_lcdm_servo_cmd_target_adc = target_adc;
   }
-  if (command_step)
+  if (target_motion_changed)
   {
     if (s_lcdm_servo_last_target_adc != 0xFFFFU)
     {
@@ -2409,12 +2842,13 @@ static int16_t lcdm_servo_loop_update_fast(void)
     s_lcdm_servo_move_dir = (target_adc > feedback) ? 1 : ((target_adc < feedback) ? -1 : 0);
     s_lcdm_servo_motion_dir = s_lcdm_servo_move_dir;
     s_lcdm_servo_overshoot_adc = 0U;
-    s_lcdm_servo_hold_deviation_count = 0U;
     s_lcdm_servo_last_motion_error = motion_error;
     s_lcdm_servo_motion_start_error = motion_error;
-    s_lcdm_servo_motion_settle_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
+    ServoStabilityTimer_Reset(&s_lcdm_servo_hold_entry_timer);
     s_lcdm_servo_traj_pos_q4 = s_lcdm_servo_pos_q4;
     s_lcdm_servo_traj_vel_q4 = 0;
+    s_lcdm_servo_traj_last_update_ms = now_ms;
     s_servo_curve_static_lock_logged = 0U;
     if ((pulse_delta >= LCDM_SERVO_CUSTOMER_STEP_US) &&
         (s_lcdm_servo_move_dir != 0))
@@ -2425,7 +2859,11 @@ static int16_t lcdm_servo_loop_update_fast(void)
     }
     else
     {
-      lcdm_servo_customer_profile_clear();
+      if ((pulse_delta >= LCDM_SERVO_CUSTOMER_STEP_US) ||
+          (s_lcdm_servo_customer_active == 0U))
+      {
+        lcdm_servo_customer_profile_clear();
+      }
     }
   }
   s_lcdm_servo_last_target_adc = target_adc;
@@ -2433,6 +2871,75 @@ static int16_t lcdm_servo_loop_update_fast(void)
 
   error = (int16_t)((int32_t)s_lcdm_servo_cmd_target_adc - (int32_t)feedback);
   abs_error = (error < 0) ? (uint16_t)(-error) : (uint16_t)error;
+#if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
+  {
+    uint32_t test_elapsed = (uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms);
+    if (s_lcdm_internal_active_started != 0U && test_elapsed < 34000U)
+    {
+      int16_t displacement = (int16_t)((int32_t)feedback - (int32_t)s_lcdm_internal_motion_anchor_adc);
+      uint16_t abs_displacement = (displacement < 0) ? (uint16_t)(-displacement) : (uint16_t)displacement;
+      if ((s_lcdm_internal_drive_started != 0U) &&
+          ((uint32_t)(now_ms - s_lcdm_internal_last_guard_ms) >= 50U))
+      {
+        int16_t feedback_delta = (int16_t)((int32_t)feedback - (int32_t)s_lcdm_internal_last_guard_adc);
+        bool moving_away = ((error > 0) && (feedback_delta <= -2)) ||
+                          ((error < 0) && (feedback_delta >= 2));
+        if (abs_displacement >= 8U)
+        {
+          if (s_lcdm_internal_position_bad_count < 2U)
+          {
+            s_lcdm_internal_position_bad_count++;
+          }
+          if (s_lcdm_internal_position_bad_count >= 2U)
+          {
+            if (s_lcdm_internal_motion_locked == 0U)
+            {
+              g_r01_diag_lock_reason = 1U;
+              g_r01_diag_lock_feedback = feedback;
+              g_r01_diag_lock_error = error;
+              g_r01_diag_lock_displacement = displacement;
+            }
+            s_lcdm_internal_motion_locked = 1U;
+          }
+        }
+        else
+        {
+          s_lcdm_internal_position_bad_count = 0U;
+        }
+        if ((abs_error >= 3U) && moving_away)
+        {
+          if (s_lcdm_internal_guard_bad_count < 3U)
+          {
+            s_lcdm_internal_guard_bad_count++;
+          }
+          if (s_lcdm_internal_guard_bad_count >= 3U)
+          {
+            if (s_lcdm_internal_motion_locked == 0U)
+            {
+              g_r01_diag_lock_reason = 2U;
+              g_r01_diag_lock_feedback = feedback;
+              g_r01_diag_lock_error = error;
+              g_r01_diag_lock_displacement = displacement;
+            }
+            s_lcdm_internal_motion_locked = 1U;
+          }
+        }
+        else
+        {
+          s_lcdm_internal_guard_bad_count = 0U;
+        }
+        s_lcdm_internal_last_guard_adc = feedback;
+        s_lcdm_internal_last_guard_ms = now_ms;
+      }
+      if (s_lcdm_internal_motion_locked != 0U)
+      {
+        return lcdm_servo_stop_publish(control_pulse_us, raw_adc,
+                                       s_lcdm_servo_cmd_target_adc, feedback, error,
+                                       LCDM_SERVO_STATE_DIR_ALARM, 8U, false);
+      }
+    }
+  }
+#endif
   abs_velocity_q4 = (s_lcdm_servo_vel_q4 < 0) ?
                     (uint16_t)(-s_lcdm_servo_vel_q4) :
                     (uint16_t)s_lcdm_servo_vel_q4;
@@ -2461,8 +2968,15 @@ static int16_t lcdm_servo_loop_update_fast(void)
   loop_max_duty = max_duty;
 
   cmd_q4 = (int32_t)s_lcdm_servo_cmd_target_adc << 4;
-  s_lcdm_servo_traj_pos_q4 = cmd_q4;
-  s_lcdm_servo_traj_vel_q4 = 0;
+  LcdmTrajectory_Update(now_ms, cmd_q4, s_lcdm_servo_pos_q4,
+                        (uint16_t)max_vel_q4, trajectory_accel_q4,
+                        &s_lcdm_servo_traj_last_update_ms,
+                        &s_lcdm_servo_traj_pos_q4,
+                        &s_lcdm_servo_traj_vel_q4);
+  {
+    int32_t trajectory_error_q4 = s_lcdm_servo_traj_pos_q4 - ((int32_t)feedback << 4);
+    trajectory_error = (int16_t)(trajectory_error_q4 / 16);
+  }
 
   if (s_lcdm_servo_motion_dir == 0)
   {
@@ -2472,13 +2986,27 @@ static int16_t lcdm_servo_loop_update_fast(void)
                    ((s_lcdm_servo_motion_dir < 0) && (error > 0));
   moving_toward_target = ((error > 0) && (s_lcdm_servo_vel_q4 > (int32_t)brake_min_vel_q4)) ||
                           ((error < 0) && (s_lcdm_servo_vel_q4 < -(int32_t)brake_min_vel_q4));
+  if (s_lcdm_servo_vel_q4 >= 0)
+  {
+    learned_brake_accel_q8 = g_servo_adaptive_brake_accel_q8_forward;
+    learned_brake_samples = g_servo_adaptive_brake_samples_forward;
+  }
+  else
+  {
+    learned_brake_accel_q8 = g_servo_adaptive_brake_accel_q8_reverse;
+    learned_brake_samples = g_servo_adaptive_brake_samples_reverse;
+  }
+  predicted_stop_distance_q4 = LcdmBrakePredictor_StoppingDistanceQ4(
+      abs_velocity_q4, learned_brake_accel_q8, learned_brake_samples, 8U, 4U);
   approach_band = (uint16_t)(brake_min_band + (abs_velocity_q4 * brake_vel_gain) / 3U);
   if (approach_band > brake_max_band)
   {
     approach_band = brake_max_band;
   }
   v7_settle_band = (uint16_t)(hold_release_band + motion_hold_band);
-  v7_static_lock_band = (uint16_t)(hold_release_band + (motion_hold_band * 14U));
+  /* V10.1 现场读数显示 142 ADC 偏差仍被宽静态锁定带接受为零输出。
+   * 用正常退出带加运动保持带，限制无纠偏静止区；锁定输出仍受低占空限制。 */
+  v7_static_lock_band = v7_settle_band;
   cross_moving_away = ((error > 0) && (s_lcdm_servo_vel_q4 < -(int32_t)motion_hold_vel_q4)) ||
                       ((error < 0) && (s_lcdm_servo_vel_q4 > (int32_t)motion_hold_vel_q4));
   if (abs_error >= approach_band)
@@ -2495,7 +3023,8 @@ static int16_t lcdm_servo_loop_update_fast(void)
     }
   }
   v7_need_prebrake = moving_toward_target &&
-                     (abs_velocity_q4 > (uint16_t)(v7_stop_vel_limit_q4 + brake_high_vel_q4));
+                     ((abs_velocity_q4 > (uint16_t)(v7_stop_vel_limit_q4 + brake_high_vel_q4)) ||
+                      (predicted_stop_distance_q4 >= ((uint32_t)abs_error << 4)));
   static_lock_candidate = (!command_step) &&
                           ((s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_HOLD) ||
                            (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_LOCK)) &&
@@ -2503,16 +3032,35 @@ static int16_t lcdm_servo_loop_update_fast(void)
   static_lock_mode = static_lock_candidate;
   if (static_lock_candidate && (s_lcdm_servo_v3_phase != LCDM_SERVO_V3_PHASE_LOCK))
   {
-    if (s_lcdm_servo_hold_deviation_count < 8U)
-    {
-      s_lcdm_servo_hold_deviation_count++;
-    }
-    static_lock_mode = (s_lcdm_servo_hold_deviation_count >= 8U);
+    static_lock_mode = ServoStabilityTimer_Update(&s_lcdm_servo_hold_deviation_timer,
+                                                  true, stable_elapsed_ms, 8U, 4U);
   }
   else if (!static_lock_candidate)
   {
-    s_lcdm_servo_hold_deviation_count = 0U;
+    (void)ServoStabilityTimer_Update(&s_lcdm_servo_hold_deviation_timer,
+                                    false, 0U, 8U, 4U);
   }
+  else
+  {
+    static_lock_mode = true;
+  }
+
+  hold_entry_candidate = (!command_step) &&
+    (((abs_error <= hold_release_band) &&
+      (abs_velocity_q4 <= motion_hold_vel_q4)) ||
+     (((s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_HOLD) ||
+       (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_LOCK)) &&
+      (!static_lock_mode) && (abs_error <= v7_static_lock_band) &&
+      (abs_velocity_q4 <= (uint16_t)(brake_high_vel_q4 + 32U))) ||
+     ((crossed_target || static_lock_candidate) && (!static_lock_mode) &&
+      (abs_error <= v7_settle_band) &&
+      (abs_velocity_q4 <= (uint16_t)(motion_hold_vel_q4 + 16U))) ||
+     ((!static_lock_mode) && (s_lcdm_servo_overshoot_adc != 0U) &&
+      (abs_error <= LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND) &&
+      (abs_velocity_q4 <= (uint16_t)(brake_high_vel_q4 + 32U))));
+  hold_entry_confirmed = ServoStabilityTimer_Update(&s_lcdm_servo_hold_entry_timer,
+                                                   hold_entry_candidate,
+                                                   stable_elapsed_ms, 8U, 4U);
 
   duty_calc = 0;
   v_ref_q4 = 0;
@@ -2536,6 +3084,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   }
 
   if ((!command_step) &&
+      hold_entry_confirmed &&
       (abs_error <= hold_release_band) &&
       (abs_velocity_q4 <= motion_hold_vel_q4))
   {
@@ -2544,6 +3093,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   }
 
   if ((!command_step) &&
+      hold_entry_confirmed &&
       ((s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_HOLD) ||
        (s_lcdm_servo_v3_phase == LCDM_SERVO_V3_PHASE_LOCK)) &&
       (!static_lock_mode) &&
@@ -2555,6 +3105,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   }
 
   if ((!command_step) &&
+      hold_entry_confirmed &&
       (crossed_target || static_lock_candidate) &&
       (!static_lock_mode) &&
       (abs_error <= v7_settle_band) &&
@@ -2565,11 +3116,15 @@ static int16_t lcdm_servo_loop_update_fast(void)
   }
 
   if ((!command_step) &&
+      hold_entry_confirmed &&
+      (!static_lock_mode) &&
       (s_lcdm_servo_overshoot_adc != 0U) &&
       (abs_error <= LCDM_SERVO_V3_OVERSHOOT_HOLD_BAND) &&
       (abs_velocity_q4 <= (uint16_t)(brake_high_vel_q4 + 32U)))
   {
+    ServoStabilityTimer hold_deviation_timer = s_lcdm_servo_hold_deviation_timer;
     lcdm_servo_enter_hold(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc, feedback, error, 2U);
+    s_lcdm_servo_hold_deviation_timer = hold_deviation_timer;
     return 0;
   }
 
@@ -2583,7 +3138,6 @@ static int16_t lcdm_servo_loop_update_fast(void)
     int8_t profile_dir = s_lcdm_servo_customer_dir;
 
     if ((elapsed_ms >= (done_ms + LCDM_SERVO_CUSTOMER_COAST_MS)) ||
-        (abs_error <= motion_hold_band) ||
         (s_lcdm_servo_customer_dir == 0))
     {
       lcdm_servo_customer_profile_clear();
@@ -2592,7 +3146,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     {
       customer_profile_direct = true;
       s_lcdm_servo_hold_active = 0U;
-      s_lcdm_servo_motion_settle_count = 0U;
+      ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
       if (elapsed_ms < brake_start_ms)
       {
         profile_abs = LCDM_SERVO_CUSTOMER_DRIVE_DUTY;
@@ -2661,7 +3215,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     duty_calc = (error >= 0) ? (int32_t)reverse_abs : -(int32_t)reverse_abs;
     drive_event = LCDM_SERVO_V3_EVENT_CROSS_BRAKE;
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_BRAKE;
-    s_lcdm_servo_motion_settle_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
   }
   else if ((!customer_profile_direct) && v7_need_prebrake)
   {
@@ -2682,14 +3236,29 @@ static int16_t lcdm_servo_loop_update_fast(void)
     duty_calc = (s_lcdm_servo_vel_q4 > 0) ? -(int32_t)reverse_abs : (int32_t)reverse_abs;
     drive_event = LCDM_SERVO_V3_EVENT_BRAKE;
     s_lcdm_servo_v3_phase = LCDM_SERVO_V3_PHASE_BRAKE;
-    s_lcdm_servo_motion_settle_count = 0U;
+    ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
   }
   else if (!customer_profile_direct)
   {
-    v_ref_q4 = (error >= 0) ? (int32_t)v7_stop_vel_limit_q4 : -(int32_t)v7_stop_vel_limit_q4;
+    v_ref_q4 = s_lcdm_servo_traj_vel_q4;
+    if (v_ref_q4 > (int32_t)max_vel_q4)
+    {
+      v_ref_q4 = max_vel_q4;
+    }
+    else if (v_ref_q4 < -(int32_t)max_vel_q4)
+    {
+      v_ref_q4 = -(int32_t)max_vel_q4;
+    }
+    if ((v_ref_q4 > 24) || (v_ref_q4 < -24))
+    {
+      vel_k_num = Servo_Adaptive_GetVelocityGain((uint16_t)vel_k_num, v_ref_q4 > 0);
+      moving_ff_duty = Servo_Adaptive_GetFeedForwardDuty((int16_t)v_ref_q4,
+                                                          moving_ff_duty,
+                                                          loop_max_duty);
+    }
     vel_error_q4 = v_ref_q4 - s_lcdm_servo_vel_q4;
     duty_calc = vel_error_q4 * vel_k_num;
-    duty_calc += (int32_t)error / (int32_t)LCDM_SERVO_V7_DRIVE_ERR_DIV;
+    duty_calc += (int32_t)trajectory_error / (int32_t)LCDM_SERVO_V7_DRIVE_ERR_DIV;
     duty_calc -= ((int32_t)s_lcdm_servo_vel_q4 * (int32_t)brake_vel_gain);
     if (v_ref_q4 > 24)
     {
@@ -2720,11 +3289,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
         (abs_error > motion_hold_band) &&
         (abs_velocity_q4 <= brake_min_vel_q4))
     {
-      if (s_lcdm_servo_motion_settle_count < LCDM_SERVO_V7_LOAD_CONFIRM_COUNT)
-      {
-        s_lcdm_servo_motion_settle_count++;
-      }
-      if (s_lcdm_servo_motion_settle_count >= LCDM_SERVO_V7_LOAD_CONFIRM_COUNT)
+      if (ServoStabilityTimer_Update(&s_lcdm_servo_motion_settle_timer,
+                                    true, stable_elapsed_ms,
+                                    LCDM_SERVO_V7_LOAD_CONFIRM_MS, 4U))
       {
         uint16_t push_abs = (uint16_t)(lock_min_duty + (abs_error * LCDM_SERVO_V6_DRIVE_ERR_GAIN));
         if (push_abs > loop_max_duty)
@@ -2743,7 +3310,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     }
     else
     {
-      s_lcdm_servo_motion_settle_count = 0U;
+      ServoStabilityTimer_Reset(&s_lcdm_servo_motion_settle_timer);
       drive_event = (abs_error <= approach_band) ?
                     LCDM_SERVO_V3_EVENT_DECEL :
                     LCDM_SERVO_V3_EVENT_DRIVE;
@@ -2772,6 +3339,30 @@ static int16_t lcdm_servo_loop_update_fast(void)
     duty_calc = -(int32_t)loop_max_duty;
   }
 
+  /* V10.3: 实测中误差约 257-512 ADC 时仍频繁输出 +/-1000，反复穿越目标。
+   * 在目标附近按误差给输出设软上限：0误差附近240，620误差时640；
+   * 大误差行程和客户直驱波形保持原输出能力。 */
+  if ((!customer_profile_direct) &&
+      (abs_error < LCDM_SERVO_APPROACH_DUTY_BAND))
+  {
+    approach_duty_limit = (uint16_t)(LCDM_SERVO_APPROACH_DUTY_MIN +
+        (((uint32_t)abs_error *
+          (LCDM_SERVO_APPROACH_DUTY_MAX - LCDM_SERVO_APPROACH_DUTY_MIN)) /
+         LCDM_SERVO_APPROACH_DUTY_BAND));
+    if (approach_duty_limit > loop_max_duty)
+    {
+      approach_duty_limit = loop_max_duty;
+    }
+    if (duty_calc > (int32_t)approach_duty_limit)
+    {
+      duty_calc = (int32_t)approach_duty_limit;
+    }
+    else if (duty_calc < -(int32_t)approach_duty_limit)
+    {
+      duty_calc = -(int32_t)approach_duty_limit;
+    }
+  }
+
   duty = (int16_t)duty_calc;
 
   s_lcdm_servo_move_dir = (error > 0) ? 1 : ((error < 0) ? -1 : 0);
@@ -2781,6 +3372,37 @@ static int16_t lcdm_servo_loop_update_fast(void)
   {
     duty = (int16_t)-duty;
   }
+
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+  {
+    uint32_t test_elapsed = (uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms);
+    if ((test_elapsed >= 30000U) && (test_elapsed < 34000U) &&
+        ((control_pulse_us != 1503U) || (test_elapsed >= 31750U)))
+    {
+      uint16_t test_abs_duty = (uint16_t)(16U + (abs_error * 8U));
+      if (test_abs_duty > LCDM_SERVO_INTERNAL_TEST_MAX_DUTY)
+      {
+        test_abs_duty = LCDM_SERVO_INTERNAL_TEST_MAX_DUTY;
+      }
+      if (abs_error <= 2U)
+      {
+        duty = 0;
+      }
+      else
+      {
+        duty = (error > 0) ? (int16_t)test_abs_duty : (int16_t)-(int16_t)test_abs_duty;
+        if (s_lcdm_driver_params[0].value != 0)
+        {
+          duty = (int16_t)-duty;
+        }
+      }
+    }
+    else
+    {
+      duty = 0;
+    }
+  }
+#endif
 
   if (!customer_profile_direct)
   {
@@ -2827,8 +3449,18 @@ static int16_t lcdm_servo_loop_update_fast(void)
 
   if (!customer_profile_direct)
   {
-    duty = lcdm_servo_apply_slew(duty);
+    duty = lcdm_servo_apply_slew(duty, slew_elapsed_ms);
   }
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+  if (duty > LCDM_SERVO_INTERNAL_TEST_MAX_DUTY)
+  {
+    duty = LCDM_SERVO_INTERNAL_TEST_MAX_DUTY;
+  }
+  else if (duty < -LCDM_SERVO_INTERNAL_TEST_MAX_DUTY)
+  {
+    duty = -LCDM_SERVO_INTERNAL_TEST_MAX_DUTY;
+  }
+#endif
   if (duty == 0)
   {
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
@@ -2837,14 +3469,51 @@ static int16_t lcdm_servo_loop_update_fast(void)
                                    true);
   }
 
+#if !SERVO_HBRIDGE_FORCE_COAST && !SERVO_ENABLE_INTERNAL_STEP_TEST
   if ((!customer_profile_direct) &&
       lcdm_servo_reverse_alarm_update(s_lcdm_servo_cmd_target_adc, feedback, error, duty))
   {
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
                                    feedback, error, LCDM_SERVO_STATE_DIR_ALARM, 8U, false);
   }
+#endif
 
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+  if (duty != 0)
+  {
+    uint16_t abs_request = (duty < 0) ? (uint16_t)(-duty) : (uint16_t)duty;
+    uint16_t vdd = ADC_Feedback_GetVddMv();
+    g_r01_diag_nonzero_request_count++;
+    g_r01_diag_last_request_duty = duty;
+    if (abs_request > g_r01_diag_max_abs_request_duty)
+    {
+      g_r01_diag_max_abs_request_duty = abs_request;
+    }
+    if (feedback < g_r01_diag_min_feedback_when_request)
+    {
+      g_r01_diag_min_feedback_when_request = feedback;
+    }
+    if (feedback > g_r01_diag_max_feedback_when_request)
+    {
+      g_r01_diag_max_feedback_when_request = feedback;
+    }
+    if ((vdd > 0U) && (vdd < g_r01_diag_min_vdd_when_request))
+    {
+      g_r01_diag_min_vdd_when_request = vdd;
+    }
+    if (vdd > g_r01_diag_max_vdd_when_request)
+    {
+      g_r01_diag_max_vdd_when_request = vdd;
+    }
+  }
+#endif
   HBridge_SetSignedDuty(duty);
+#if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
+  if (duty != 0)
+  {
+    s_lcdm_internal_drive_started = 1U;
+  }
+#endif
   s_lcdm_servo_current_duty = duty;
   s_lcdm_servo_output_dir = lcdm_servo_duty_dir(duty);
   s_lcdm_servo_reverse_dead_active = 0U;
@@ -2864,7 +3533,6 @@ static void lcdm_draw_p50(uint16_t step)
   lcdm_row(3U, "E", "--", LCDM_COLOR_RED);
   lcdm_row(4U, "H", "W", LCDM_COLOR_RED);
   lcdm_footer("M", "IN", "4");
-  lcdm_reset_pwm_live_cache();
 }
 
 static void lcdm_wait_1ms_with_heartbeat(void)
@@ -3033,7 +3701,7 @@ static void lcdm_update_pwm_live_values(void)
        (sample.period_us != s_lcdm_last_pwm_period_us) ||
        (pwm_window != s_lcdm_last_servo_pwm_window)))
   {
-    (void)snprintf(text, sizeof(text), "%u %u %u",
+    (void)lcdm_snprintf(text, sizeof(text), "%u %u %u",
                    target_pulse_us,
                    sample.raw_pulse_us,
                    pwm_window);
@@ -3047,7 +3715,7 @@ static void lcdm_update_pwm_live_values(void)
   if (show_target &&
       ((target_mv != s_lcdm_last_servo_target_mv) || (target_adc != s_lcdm_last_servo_target_adc)))
   {
-    (void)snprintf(text, sizeof(text), "%u %u", target_adc, target_mv);
+    (void)lcdm_snprintf(text, sizeof(text), "%u %u", target_adc, target_mv);
     lcdm_value_cell(1U, text, LCDM_COLOR_BLUE);
     s_lcdm_last_servo_target_mv = target_mv;
     s_lcdm_last_servo_target_adc = target_adc;
@@ -3062,7 +3730,7 @@ static void lcdm_update_pwm_live_values(void)
   if ((feedback_adc != s_lcdm_last_servo_feedback_adc) ||
       (adc_window != s_lcdm_last_servo_adc_window))
   {
-    (void)snprintf(text, sizeof(text), "%u %u %u", raw_adc, feedback_adc, adc_window);
+    (void)lcdm_snprintf(text, sizeof(text), "%u %u %u", raw_adc, feedback_adc, adc_window);
     lcdm_value_cell(2U, text, LCDM_COLOR_BLUE);
     s_lcdm_last_servo_feedback_adc = feedback_adc;
     s_lcdm_last_servo_adc_window = adc_window;
@@ -3072,7 +3740,7 @@ static void lcdm_update_pwm_live_values(void)
       ((error_adc != s_lcdm_last_servo_error_adc) ||
        (s_lcdm_servo_overshoot_adc != s_lcdm_last_servo_overshoot_adc)))
   {
-    (void)snprintf(text, sizeof(text), "%d %u", error_adc, s_lcdm_servo_overshoot_adc);
+    (void)lcdm_snprintf(text, sizeof(text), "%d %u", error_adc, s_lcdm_servo_overshoot_adc);
     lcdm_value_cell(3U, text, (error_adc < 0) ? LCDM_COLOR_RED : LCDM_COLOR_BLUE);
     s_lcdm_last_servo_error_adc = error_adc;
     s_lcdm_last_servo_overshoot_adc = s_lcdm_servo_overshoot_adc;
@@ -3146,6 +3814,9 @@ static void lcdm_update_pwm_live_values(void)
       case LCDM_SERVO_STATE_ADC_LOST:
         state_text = "AD";
         break;
+      case LCDM_SERVO_STATE_STARTUP_LOCK:
+        state_text = "CAL";
+        break;
       default:
         state_text = has_edge ? "ST" : "N";
         break;
@@ -3154,11 +3825,11 @@ static void lcdm_update_pwm_live_values(void)
         (state_code == LCDM_SERVO_STATE_LOW_LIMIT) ||
         (state_code == LCDM_SERVO_STATE_HIGH_LIMIT))
     {
-      (void)snprintf(text, sizeof(text), "%s%u %d", state_text, abs_duty, adc_velocity);
+      (void)lcdm_snprintf(text, sizeof(text), "%s%u %d", state_text, abs_duty, adc_velocity);
     }
     else
     {
-      (void)snprintf(text, sizeof(text), "%s %d", state_text, adc_velocity);
+      (void)lcdm_snprintf(text, sizeof(text), "%s %d", state_text, adc_velocity);
     }
     lcdm_value_cell(4U, text, (state_code == LCDM_SERVO_STATE_DRIVE) ? LCDM_COLOR_BLUE : LCDM_COLOR_RED);
     s_lcdm_last_pwm_state = state_code;
@@ -3172,6 +3843,11 @@ static bool lcdm_runtime_param_table(LcdmRuntimePage page, LcdmRuntimeParam **pa
 {
   switch (page)
   {
+    case LCDM_PAGE_CAL:
+      *params = s_lcdm_cal_params;
+      *count = (uint8_t)LCDM_ARRAY_COUNT(s_lcdm_cal_params);
+      return true;
+
     case LCDM_PAGE_STEP:
       *params = s_lcdm_step_params;
       *count = (uint8_t)LCDM_ARRAY_COUNT(s_lcdm_step_params);
@@ -3221,6 +3897,14 @@ static void lcdm_runtime_draw_page(const LcdmRuntimeState *state)
   {
     case LCDM_PAGE_MENU:
       lcdm_draw_p01();
+      break;
+
+    case LCDM_PAGE_CAL:
+      lcdm_draw_param_page("P20",
+                           "CAL",
+                           s_lcdm_cal_params,
+                           (uint8_t)LCDM_ARRAY_COUNT(s_lcdm_cal_params),
+                           state->selected);
       break;
 
     case LCDM_PAGE_STEP:
@@ -3335,6 +4019,9 @@ static bool lcdm_runtime_handle_touch(LcdmRuntimeState *state, const LcdmRuntime
       case 5U:
         state->page = LCDM_PAGE_DIAG;
         break;
+      case 2U:
+        state->page = LCDM_PAGE_CAL;
+        break;
       case 7U:
         state->page = LCDM_PAGE_TEMPLATE;
         break;
@@ -3394,10 +4081,16 @@ static bool lcdm_runtime_handle_touch(LcdmRuntimeState *state, const LcdmRuntime
 static void run_lcdm_runtime_ui_test(void)
 {
   uint32_t last_pwm_update_ms = 0U;
+#if SERVO_R04_UI_REDRAW_STRESS
+  uint32_t last_r04_redraw_ms = 0U;
+#endif
   LcdmRuntimeState state = {0};
 
   Board_Init();
   Servo_Params_Init();
+  app_model_store_init_context();
+  Servo_Adaptive_Init();
+  g_servo_model_record_valid = Servo_ModelStore_IsValid() ? 1U : 0U;
   ADC_Feedback_Init();
 #if !SERVO_ENABLE_INTERNAL_STEP_TEST
   PWM_Input_Init();
@@ -3408,6 +4101,7 @@ static void run_lcdm_runtime_ui_test(void)
 #if SERVO_TJC_SOFT_TX
   pa7_tjc_soft_tx_init();
 #endif
+  lcdm_reset_pwm_live_cache();
   s_lcdm_runtime_last_motor_ms = HAL_GetTick();
   s_lcdm_runtime_control_ready = true;
   pa7_tjc_delay_ms_with_led(500U);
@@ -3416,8 +4110,11 @@ static void run_lcdm_runtime_ui_test(void)
   state.page = LCDM_PAGE_DIAG;
   state.selected = 0U;
   state.menu_pressed_row = LCDM_MENU_ROW_NONE;
-  (void)snprintf(state.status, sizeof(state.status), "%s", lcdm_input_mode_text());
+  (void)lcdm_snprintf(state.status, sizeof(state.status), "%s", lcdm_input_mode_text());
   lcdm_runtime_draw_page(&state);
+#if SERVO_R04_UI_REDRAW_STRESS
+  last_r04_redraw_ms = HAL_GetTick();
+#endif
 
 	  while (1)
 	  {
@@ -3428,13 +4125,20 @@ static void run_lcdm_runtime_ui_test(void)
         {
           lcdm_runtime_draw_page(&state);
         }
-        lcdm_runtime_service_motor_control();
+        lcdm_runtime_service_motor_control(R04_SERVICE_CONTEXT_TOUCH);
         Board_StatusHeartbeat();
 	      continue;
 	    }
 
       uint32_t now_ms = HAL_GetTick();
-      lcdm_runtime_service_motor_control();
+      lcdm_runtime_service_motor_control(R04_SERVICE_CONTEXT_MAIN);
+#if SERVO_R04_UI_REDRAW_STRESS
+      if ((uint32_t)(now_ms - last_r04_redraw_ms) >= 250U)
+      {
+        last_r04_redraw_ms = now_ms;
+        lcdm_runtime_draw_page(&state);
+      }
+#endif
       if ((state.page == LCDM_PAGE_DIAG) &&
           ((uint32_t)(now_ms - last_pwm_update_ms) >= 150U))
       {
@@ -3670,6 +4374,9 @@ int entry(void)
   Board_Init();
   HBridge_Init();
   Servo_Params_Init();
+  app_model_store_init_context();
+  Servo_Adaptive_Init();
+  g_servo_model_record_valid = Servo_ModelStore_IsValid() ? 1U : 0U;
   ADC_Feedback_Init();
 #if !SERVO_ENABLE_INTERNAL_STEP_TEST
   PWM_Input_Init();

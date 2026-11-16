@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-12",
+  "board_version": "P50 V10.5",
+  "board_flash_sha256": "2b8eb8be6240a0a246907a35df5cad8f84e64cff6e5c8b9668db64a8f8c79a34",
+  "capture": "baseline.csv",
+  "samples": 42,
+  "elapsed_seconds": 5.134,
+  "core_start": "RUNNING",
+  "core_end": "RUNNING",
+  "input_pwm_us_min_max": [1502, 1504],
+  "adc_raw_min_max": [2102, 2106],
+  "target_adc_min_max": [2051, 2055],
+  "feedback_adc_min_max": [2103, 2104],
+  "error_adc_min_max": [-53, -48],
+  "control_state_counts": {"HOLD": 42},
+  "signed_duty_min_max": [0, 0],
+  "velocity_q4_min_max": [0, 0],
+  "frame_sequence_consistent": "42/42",
+  "error_field_consistent": "42/42",
+  "motion_test_performed": false,
+  "conclusion": "ADC and position telemetry are live and self-consistent at rest. No motion or angle change was commanded in this capture."
+}

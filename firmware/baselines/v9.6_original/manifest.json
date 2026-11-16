@@ -1,0 +1,37 @@
+{
+  "baseline": "P50 V9.6",
+  "origin": "original board Flash readback; restored and verified 2026-11-05",
+  "target": "py32f002ax5",
+  "flash_bytes": 20480,
+  "reserved_tail_bytes": 128,
+  "source_correspondence": "not yet recovered; current src/app_entry.c is L1 and is not byte-exact V9.6 source",
+  "development_series": [
+    "V10.0",
+    "V10.1",
+    "V10.2"
+  ],
+  "next_development_version": "V10.0",
+  "v10_0_status": "planned; no built or downloaded V10.0 firmware",
+  "files": {
+    "original_v96_full_flash.bin": {
+      "bytes": 20480,
+      "sha256": "303995fd4a331f0911b1705b45a1e42abf56d72b5231d239126f97d7505de9ce"
+    },
+    "original_v96_app.bin": {
+      "bytes": 20352,
+      "sha256": "4bef174833b8796189d3866ecec18504958e891e9730e1beb1d08efea77a93da"
+    },
+    "original_v96_app.elf": {
+      "bytes": 86708,
+      "sha256": "03e412f2c300e2a16a877dcf900f1919b18dd81d0added78e10605a840a8f5ab"
+    },
+    "download.log": {
+      "bytes": 1030,
+      "sha256": "1a5091f868c07bca91b6057281a5dfe75ec261516d7ad3fc117e0d10371543b7"
+    },
+    "verification.json": {
+      "bytes": 540,
+      "sha256": "0958232bb521ee129c8b10382143b1d6c197914b5de1857a4a49e044765e11bb"
+    }
+  }
+}
