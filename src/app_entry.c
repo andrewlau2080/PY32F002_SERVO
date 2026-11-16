@@ -14,6 +14,7 @@
 #endif
 #include "lcdm_format.h"
 #include "lcdm_brake_predictor.h"
+#include "lcdm_customer_brake.h"
 #include "lcdm_rx_ring.h"
 #include "servo_stability_timer.h"
 #include "lcdm_trajectory.h"
@@ -3160,6 +3161,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
         profile_abs = (elapsed_ms < tail_start_ms) ?
                       LCDM_SERVO_CUSTOMER_BRAKE_DUTY :
                       LCDM_SERVO_CUSTOMER_TAIL_DUTY;
+        profile_abs = LcdmCustomerBrake_ScaleDuty(
+            profile_abs, s_lcdm_servo_vel_q4, s_lcdm_servo_customer_dir,
+            (uint32_t)max_vel_q4, motion_hold_vel_q4);
         drive_event = (elapsed_ms < tail_start_ms) ?
                       LCDM_SERVO_V3_EVENT_BRAKE :
                       LCDM_SERVO_V3_EVENT_RETURN_DAMP;
