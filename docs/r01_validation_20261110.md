@@ -238,3 +238,10 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 内部step-test加force-coast组合构建失败：RAM链接区超出8B，并触发保留1536B栈空间的链接断言；该失败镜像未生成、未下载。
 - 为避免诊断序列额外占用RAM，构建工具现支持“production LCDM + force-coast”组合。当前候选`build/releases/V10.6_TSSOP20_PROD_FORCE_COAST_R15_20261116_R2/`使用生产LCDM/正式控制路径，H桥驱动层强制四输出coast，无内部扫动测试。Ubuntu构建通过；BIN 16,172B，SHA256=`02b492cbcb561704be1ab0674b725bcd076d5568efc0dca18c601d0c282abc2e`；manifest标记`force_coast=true`、`flashed=false`。
 - Ubuntu探针检查返回“Expected exactly one DAPLink probe; found 0”。因此本轮没有读板、备份或下载；仿真板的当前Flash状态沿用最近归档，不视为本轮确认。接板后先只读整片备份并确认目标，再决定是否下载此force-coast候选。
+
+## 2026-11-16 force-coast生产LCDM下载与读回
+
+- DAPLink重新可见后，下载前只读整片20,480B，板上为`P50 V10.6SIMB2C`，SHA256=`89600fe63b3212efd5eaaf69503f06b06012296aae36e3cceef357b343098826`；备份`build/board_readback/20261116_222414_282959/before.bin`。
+- 使用`tools/download_py32_ubuntu.sh -t py32f002ax5`的2MHz under-reset流程，下载候选`build/releases/V10.6_TSSOP20_PROD_FORCE_COAST_R15_20261116_R2/`。BIN 16,172B，SHA256=`02b492cbcb561704be1ab0674b725bcd076d5568efc0dca18c601d0c282abc2e`；manifest标记`production_lcdm=true`、`force_coast=true`、`flashed=false`（构建时状态字段）；下载后已单独核实实际已刷写。
+- 下载后整片读回20,480B，SHA256=`4cd012670496b4e42b8edeec30be5afa32ae87aaf2e442f2a1f4641219662394`；BIN范围逐字节匹配，末尾384B参数/模型区未变（SHA256=`a292bc4a1d8d3caa7dd32d1858f7d642a27373526b84cde7df8634faad708d2a`），PC=`0x08003c1d`，核心Running。详细校验`build/board_readback/20261116_222544_313132/verification.json`。
+- 读回还在新BIN末尾之外、offset 17,908发现旧`P50 V10.6SIMB2C`字符串；启动区版本为`P50 V10.6`，PC在新BIN范围内。该字符串是未用Flash尾部的旧残留，不是运行版本。本固件在H桥驱动层强制四路coast，不可能驱动马达；本次只完成启动/下载读回核验，不构成R01运动验收。
