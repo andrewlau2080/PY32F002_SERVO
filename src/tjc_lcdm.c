@@ -220,6 +220,8 @@ static const char *state_text(uint8_t state)
       return "DRIVE";
     case 3U:
       return "STALL";
+    case 4U:
+      return "VDD LOW";
     default:
       return "UNKNOWN";
   }

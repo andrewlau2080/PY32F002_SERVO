@@ -1,0 +1,23 @@
+{
+  "checks": {
+    "invalid ADC coasts H-bridge": true,
+    "invalid ADC invalidates learner sample seed": true,
+    "invalid ADC resets LCDM observer seed": true,
+    "invalid ADC returns before closed-loop continuation": true,
+    "undervoltage coast guard is TSSOP20-only": true,
+    "low VDD resets learner sample seed": true,
+    "low VDD publishes dedicated fault state and event": true,
+    "low VDD fault coasts H-bridge": true,
+    "production generic VDD guard is TSSOP20-only": true,
+    "generic low VDD resets learner and coasts": true,
+    "generic controller reports VDD_LOW with zero duty": true,
+    "generic low VDD exits before drive continuation": true,
+    "TJC LCDM displays the VDD-low state": true
+  },
+  "pass_count": 13,
+  "fail_count": 0,
+  "source_sha256": "1b510935087d1914954adff2b95b83dd97f22e2d46d2ff24fbdc7149fbd76ee5",
+  "generic_control_source_sha256": "a75a55db5b530cc0d08b68616429f19190ce2b0d39009ce491103bdc2c0cf1a7",
+  "display_source_sha256": "483d137361c0caef97c7e4c2ba385bedb6dc09ff6afb47b1080659b0534ea76a",
+  "scope": "TSSOP20 LCDM and production generic source paths; no ADC hardware fault injection or output waveform measurement."
+}

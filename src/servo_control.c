@@ -270,6 +270,23 @@ void Servo_Control_Update1ms(void)
   s_status.input_us = input_us;
   s_status.feedback_adc = feedback;
 
+#if BOARD_TSSOP20_DEBUG_PINS
+  if (ADC_Feedback_IsVddBelow(params->vdd_nominal_mv,
+                              params->vdd_warn_drop_mv, 100U))
+  {
+    /* Do not learn or keep holding a learned output while the supply is low. */
+    Servo_Adaptive_Update(now_ms, 0, 0, false);
+    HBridge_Coast();
+    s_status.state = SERVO_STATE_VDD_LOW;
+    s_status.target_adc = feedback;
+    s_status.error_adc = 0;
+    s_status.motor_duty = 0;
+    s_hold_active = 0U;
+    ServoStabilityTimer_Reset(&s_hold_settle_timer);
+    return;
+  }
+#endif
+
   if (s_startup_done == 0U)
   {
     if (!startup_ready(params, input_valid, input_us, feedback, now_ms))

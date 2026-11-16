@@ -37,7 +37,7 @@ V10.6 candidate04 先采用 Q8 小数精度，使原有测试在两种配置下�
 ## 2026-11-16 离板回归与生产构建
 
 - 当前TSSOP20 ADC/VDD逻辑主机模拟 **42/42**；新增低VDD门控边界：正常电压不触发、有效新鲜低压触发、恢复后解除、无效VREFINT不误报。统一回归记录在`firmware/evidence/tssop20_host_regression_20261116/R02/adc_tssop20/`。
-- TSSOP20正式LCDM Ubuntu构建通过，BIN 16,108B，SHA256 `780120546cdb8de708d03260d7da7bb06dcc6734fc605dcf0687ad621f85c953`，清单`build/releases/V10.6_R15_VDD_GUARD_20261116/manifest.json`。构建内的TSSOP20 LCDM闭环**已应用**raw×实测VDD/标称VDD校正；VDD样本无效或超过100ms时回退raw。该构建未下载，当前板不受此代码变更影响。
+- 最新TSSOP20正式LCDM Ubuntu构建通过，BIN 16,104B，SHA256 `8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`，清单`build/releases/V10.6_R15_GENERIC_VDD_GUARD_20261116/manifest.json`。构建内的TSSOP20 LCDM闭环**已应用**raw×实测VDD/标称VDD校正；VDD样本无效或超过100ms时回退raw。该构建未下载，当前板不受此代码变更影响。
 - 构建与42/42模拟不能证明补偿系数适用于板上电位器供电拓扑。上板前需先通过可信PA4/VDD/电位器供电测量确认比例关系，并在受控条件下观察校正前后反馈；R02仍未通过。
 
 ## 2026-11-15 ADC离板回归复跑
