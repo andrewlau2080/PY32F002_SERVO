@@ -1,0 +1,11 @@
+PASS: baseline equivalent speed gain (actual=12800 expected=12790..12810)
+PASS: baseline confidence becomes nonzero (actual=826 expected=1..1000)
+PASS: baseline response remains bounded around reference (actual=200 expected=190..210)
+PASS: slower object response lowers learned gain (actual=6407 expected=6300..6500)
+PASS: slower object response raises bounded loop gain (actual=385 expected=350..400)
+PASS: slower object response raises feedforward duty (actual=378 expected=350..410)
+PASS: faster object response raises learned gain (actual=25593 expected=25400..25800)
+PASS: faster object response lowers loop gain within floor (actual=125 expected=100..130)
+PASS: faster object response lowers feedforward duty (actual=100 expected=90..120)
+PASS: model confidence remains bounded (actual=957 expected=0..1000)
+R06 equivalent-object response checks: 10 passed, 0 failed

@@ -1,0 +1,11 @@
+{
+  "tests_passed": 12,
+  "tests_failed": 0,
+  "exit_code": 0,
+  "scope": "Host arithmetic tests only; no target build or motor output.",
+  "files_sha256": {
+    "inc/lcdm_customer_brake.h": "5b5084b00fe66dead109259a7c7559bab78195f51edb4a7a92f1629245add403",
+    "src/app_entry.c": "1b510935087d1914954adff2b95b83dd97f22e2d46d2ff24fbdc7149fbd76ee5",
+    "tools/r10_host_sim/test_customer_brake.c": "563c06a40ae944268585ce85ceaec96d5f543b701a31606ada15315ad81f7450"
+  }
+}

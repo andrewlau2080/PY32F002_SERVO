@@ -1,0 +1,49 @@
+PASS: first qualifying sample only arms timer
+PASS: 8 ms hold remains unconfirmed before threshold
+PASS: 8 ms hold remains unconfirmed before threshold
+PASS: 8 ms hold remains unconfirmed before threshold
+PASS: 8 ms hold remains unconfirmed before threshold
+PASS: 8 ms hold remains unconfirmed before threshold
+PASS: 8 ms hold remains unconfirmed before threshold
+PASS: 8 ms hold remains unconfirmed before threshold
+PASS: 8 ms hold confirms at elapsed duration
+PASS: same-tick calls do not advance stability time
+PASS: real 2 ms tick advances by two milliseconds
+PASS: jittered 2 ms intervals confirm at 8 ms
+PASS: long observation gap restarts elapsed stability time
+PASS: timer resumes from fresh 1 ms observation
+PASS: timer reconfirms only after 8 fresh milliseconds
+PASS: 30 ms load confirmation starts unarmed
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: 30 ms load duration threshold
+PASS: condition loss clears timer
+PASS: condition must re-arm after loss
+R11 stability timer checks: 48 passed, 0 failed

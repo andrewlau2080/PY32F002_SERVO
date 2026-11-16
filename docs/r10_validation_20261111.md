@@ -28,4 +28,4 @@ R01–R09 未通过项留待后续统一复核，本轮未重跑。
 - 新增`inc/lcdm_customer_brake.h`，客户profile的2ms reverse-brake和3ms reverse-tail均按沿原运动方向的实测速度缩放。反馈速度进入`motion_hold_vel_q4`低速带后输出归零；若反馈速度已经变成反方向，也立即归零，避免固定尾段继续反向驱动。最大反向占空仍受既有profile duty和`loop_max_duty`双重限制。
 - `src/app_entry.c`仅在customer reverse阶段调用缩放函数；前段drive时序、H桥映射及`HBridge_Brake()==coast`行为未改。TSSOP20方向符号沿用已有结论。
 - 新增主机边界测试：低速归零、比例缩放、最大占空封顶、正反方向符号、已反转归零、无效输入及完整32位速度极值共 **12/12** 通过。报告与结果见`firmware/evidence/r10_customer_brake_20261116/`；报告SHA256=`1b5c00cefa50ac06e1184d081ce91ec9e91a3bfad3d37490586c6b6779e6198b`。
-- **R10仍未通过**：主机测试只验证算术边界，不代表LCDM整机候选已构建，也不代表真实速度符号或两路H桥引脚波形。尚未做整机构建、下载或板上运动；需同版TSSOP20构建后同步采集速度、signed duty、事件和双路H桥实际波形，重点确认零速切断时机及没有反向再加速。
+- **R10仍未通过**：主机测试只验证算术边界，不代表真实速度符号或两路H桥引脚波形。2026-11-16同一源码已纳入TSSOP20正式LCDM构建`build/releases/V10.6_R15_VDD_GUARD_20261116/`（BIN 16,108B，未下载）；需上板同步采集速度、signed duty、事件和双路H桥实际波形，确认零速切断时机及没有反向再加速。

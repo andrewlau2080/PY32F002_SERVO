@@ -945,6 +945,7 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_STATE_ADC_LOST 8U
 #define LCDM_SERVO_STATE_BRAKE  9U
 #define LCDM_SERVO_STATE_STARTUP_LOCK 10U
+#define LCDM_SERVO_STATE_VDD_LOW 11U
 #define LCDM_SERVO_RANGE_RELEASE   0U
 #define LCDM_SERVO_RANGE_LOCK      1U
 #define LCDM_STARTUP_PARAM_RANGE_MODE 0U
@@ -1081,6 +1082,7 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_EVENT_INPUT_LOST 20U
 #define LCDM_SERVO_EVENT_INPUT_RANGE 21U
 #define LCDM_SERVO_EVENT_STARTUP_LOCK 22U
+#define LCDM_SERVO_EVENT_VDD_LOW 23U
 #define LCDM_SERVO_V3_MIN_BRAKE_BAND 160U
 #define LCDM_SERVO_V3_BRAKE_VEL_GAIN 3U
 #define LCDM_SERVO_V3_BRAKE_MAX_BAND 620U
@@ -2619,6 +2621,26 @@ static int16_t lcdm_servo_loop_update_fast(void)
   }
   s_lcdm_servo_adc_lost_count = 0U;
 
+#if BOARD_TSSOP20_DEBUG_PINS
+  {
+    const ServoParams *adc_params = Servo_Params_Get();
+    if (ADC_Feedback_IsVddBelow(adc_params->vdd_nominal_mv,
+                                adc_params->vdd_warn_drop_mv, 100U))
+    {
+      uint16_t fault_feedback = (s_lcdm_servo_filter_seeded != 0U) ?
+                                s_lcdm_servo_filtered_feedback_adc : raw_adc;
+      int16_t fault_error = (int16_t)((int32_t)s_lcdm_servo_cmd_target_adc -
+                                      (int32_t)fault_feedback);
+      Servo_Adaptive_Update(now_ms, 0, 0, false);
+      return lcdm_servo_stop_publish(control_pulse_us, raw_adc,
+                                     s_lcdm_servo_cmd_target_adc,
+                                     fault_feedback, fault_error,
+                                     LCDM_SERVO_STATE_VDD_LOW,
+                                     LCDM_SERVO_EVENT_VDD_LOW, false);
+    }
+  }
+#endif
+
   if (max_vel_q4 < 16)
   {
     max_vel_q4 = 16;
@@ -3767,13 +3789,15 @@ static void lcdm_update_pwm_live_values(void)
     state_code = s_lcdm_servo_current_state;
     if ((range_state == LCDM_PWM_RANGE_LOW) && range_lock &&
         (state_code != LCDM_SERVO_STATE_DIR_ALARM) &&
-        (state_code != LCDM_SERVO_STATE_ADC_LOST))
+        (state_code != LCDM_SERVO_STATE_ADC_LOST) &&
+        (state_code != LCDM_SERVO_STATE_VDD_LOW))
     {
       state_code = LCDM_SERVO_STATE_LOW_LIMIT;
     }
     else if ((range_state == LCDM_PWM_RANGE_HIGH) && range_lock &&
              (state_code != LCDM_SERVO_STATE_DIR_ALARM) &&
-             (state_code != LCDM_SERVO_STATE_ADC_LOST))
+             (state_code != LCDM_SERVO_STATE_ADC_LOST) &&
+             (state_code != LCDM_SERVO_STATE_VDD_LOW))
     {
       state_code = LCDM_SERVO_STATE_HIGH_LIMIT;
     }
@@ -3820,6 +3844,9 @@ static void lcdm_update_pwm_live_values(void)
         break;
       case LCDM_SERVO_STATE_STARTUP_LOCK:
         state_text = "CAL";
+        break;
+      case LCDM_SERVO_STATE_VDD_LOW:
+        state_text = "VD";
         break;
       default:
         state_text = has_edge ? "ST" : "N";

@@ -1,0 +1,14 @@
+{
+  "files_sha256": {
+    "inc/lcdm_brake_predictor.h": "ca097b0342400cca3eea8b6a7cbe83d9e54ec8548ffc83b6bcb96186bfadabf5",
+    "tools/r09_host_sim/test_lcdm_brake_predictor.c": "d2b33a87d0de9963b6f7112ece210f4a1208ae581257c92fbf36ef738d58f746",
+    "tools/r09_host_sim/run_lcdm_brake_predictor_test.py": "0d4855b0ce240d9e932e8a8b14589451d6115d1de14c9ec58c597691cda2b982",
+    "inc/servo_adaptive.h": "fd7c0c15fa84fd41ef108d0e5c1c778da7fb697c242db8ad1360768030927e16",
+    "src/servo_adaptive.c": "0b0cf5d2de9d2e1e28f3d5f51bad9603de8102c6a465abc4f3498d38a7f64a06",
+    "src/app_entry.c": "1b510935087d1914954adff2b95b83dd97f22e2d46d2ff24fbdc7149fbd76ee5"
+  },
+  "pass_count": 8,
+  "fail_count": 0,
+  "exit_code": 0,
+  "scope": "Production LCDM braking-distance arithmetic; sample qualification, Q4/Q8 conversion, rounding, latency margin, and monotonic response. No motor, ADC, or physical braking evidence."
+}

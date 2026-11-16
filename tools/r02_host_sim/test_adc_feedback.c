@@ -136,14 +136,28 @@ int main(void)
         g_adc_vdd_compensated_last, 1940, 1940);
   check("VDD compensation saturates at ADC full scale",
         ADC_Feedback_ApplyVddCompensation(4095U, 3000U, 100U), 4095, 4095);
+  check("nominal rail does not trip undervoltage guard",
+        ADC_Feedback_IsVddBelow(3300U, 250U, 100U), 0, 0);
   tick += 101U;
   check("stale VDD falls back to raw ADC",
         ADC_Feedback_ApplyVddCompensation(2000U, 3300U, 100U), 2000, 2000);
   tick -= 101U;
+  vrefint = 1700U;
+  tick += 20U;
+  (void)ADC_Feedback_ReadRaw();
+  check("fresh VDD below configured threshold is detected",
+        ADC_Feedback_IsVddBelow(3300U, 250U, 100U), 1, 1);
+  vrefint = 1535U;
+  tick += 20U;
+  (void)ADC_Feedback_ReadRaw();
+  check("recovered VDD clears undervoltage guard",
+        ADC_Feedback_IsVddBelow(3300U, 250U, 100U), 0, 0);
   vrefint = 0U;
   tick += 20U;
   (void)ADC_Feedback_ReadRaw();
   check("invalid VREF keeps previous VDD estimate", ADC_Feedback_GetVddMv(), 3201, 3201);
+  check("invalid VREF does not assert measured undervoltage",
+        ADC_Feedback_IsVddBelow(3300U, 250U, 100U), 0, 0);
   check("invalid VREF disables VDD compensation",
         ADC_Feedback_ApplyVddCompensation(2000U, 3300U, 100U), 2000, 2000);
   check("invalid VREF marks sample unusable", s_vdd_sample_valid, 0, 0);

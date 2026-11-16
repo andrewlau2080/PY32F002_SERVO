@@ -1,0 +1,11 @@
+{
+  "scope": "TSSOP20-only ADC module simulation; no SOP8, motor, build or flash",
+  "pass_count": 42,
+  "fail_count": 0,
+  "source_sha256": {
+    "src/adc_feedback.c": "90ef099d37484e886f5de8dd18884caea318db9135d4a75fd1595e454f8d9ed1",
+    "inc/adc_feedback.h": "52dd0c053cbd1294df781b861cef78bc24162080f8df5c872da795a4b6cf9682",
+    "src/app_entry.c": "1b510935087d1914954adff2b95b83dd97f22e2d46d2ff24fbdc7149fbd76ee5",
+    "tools/r02_host_sim/test_adc_feedback.c": "ec00b20602b5a6b9b2037a0575c174057c337b68ecfafdda47ee8586af5df7ae"
+  }
+}

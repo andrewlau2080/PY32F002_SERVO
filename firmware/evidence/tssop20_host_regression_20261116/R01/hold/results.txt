@@ -1,0 +1,5 @@
+PASS: static-lock offset needs HOLD/LOCK phase and error above band
+PASS: offset confirmation uses 8 ms timer with 4 ms maximum sample gap
+PASS: HOLD entry confirmation uses elapsed time
+PASS: overshoot HOLD branch requires confirmed stability
+PASS: overshoot HOLD preserves offset-confirmation timer

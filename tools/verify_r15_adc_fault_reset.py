@@ -32,6 +32,33 @@ checks = {
     "invalid ADC resets LCDM observer seed": "s_lcdm_servo_ab_seeded = 0U;" in block,
     "invalid ADC returns before closed-loop continuation": "return 0;" in block,
 }
+vdd_marker = "if (ADC_Feedback_IsVddBelow("
+vdd_start = source.find(vdd_marker)
+if vdd_start < 0:
+    raise SystemExit("TSSOP20 VDD-low guard not found")
+vdd_open = source.find("{", vdd_start)
+vdd_depth = 0
+vdd_end = None
+for index in range(vdd_open, len(source)):
+    if source[index] == "{":
+        vdd_depth += 1
+    elif source[index] == "}":
+        vdd_depth -= 1
+        if vdd_depth == 0:
+            vdd_end = index + 1
+            break
+if vdd_end is None:
+    raise SystemExit("TSSOP20 VDD-low guard block is not balanced")
+vdd_block = source[vdd_open:vdd_end]
+vdd_if = source.rfind("#if BOARD_TSSOP20_DEBUG_PINS", 0, vdd_start)
+checks.update({
+    "undervoltage coast guard is TSSOP20-only": vdd_if >= 0 and "#endif" in source[vdd_end:vdd_end + 32],
+    "low VDD resets learner sample seed": "Servo_Adaptive_Update(now_ms, 0, 0, false);" in vdd_block,
+    "low VDD publishes dedicated fault state and event":
+        "LCDM_SERVO_STATE_VDD_LOW" in vdd_block and "LCDM_SERVO_EVENT_VDD_LOW" in vdd_block,
+    "low VDD fault coasts H-bridge":
+        "LCDM_SERVO_EVENT_VDD_LOW, false" in vdd_block,
+})
 for name, passed in checks.items():
     print(("PASS" if passed else "FAIL") + ": " + name)
 report = {"checks": checks, "pass_count": sum(checks.values()),

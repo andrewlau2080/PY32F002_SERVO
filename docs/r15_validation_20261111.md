@@ -39,3 +39,10 @@ R01–R14 未通过项留待后续统一复核，本轮未重跑。
 
 - 当前生产LCDM ADC无效早退块再次通过 **4/4**：coast、learner seed失效、LCDM observer seed重置、闭环立即早退。报告/源码哈希见`firmware/evidence/r15_adc_fault_20261115_rerun/report.json`。
 - 这是离板源码检查，不增加实体ADC注入或双路H桥波形证据。堵转、异常速度、VDD异常、快环超时的统一冻结降级仍未完成；需要限流电源和双路示波器/逻辑分析仪做板上验证，当前没有用户需执行的按键操作。
+
+## 2026-11-16 TSSOP20 低 VDD 降级补充
+
+- `ADC_Feedback_IsVddBelow()` 仅在VDD样本有效且不超过100ms时判断欠压；无效或过期样本不会误报为测得欠压。TSSOP20 LCDM 快环新增低VDD分支：清除learner样本种子、发布专用`VD`状态/事件并coast；SOP8路径不包含本改动。
+- R02 ADC+VDD主机模拟42/42；R15故障源码路径检查8/8。统一TSSOP20离板回归共526/526，归档于`firmware/evidence/tssop20_host_regression_20261116/summary.json`。
+- Ubuntu TSSOP20正式LCDM全量构建已通过：`build/releases/V10.6_R15_VDD_GUARD_20261116/`，BIN 16,108B，SHA256 `780120546cdb8de708d03260d7da7bb06dcc6734fc605dcf0687ad621f85c953`；ELF 213,384B，构建产物未下载。
+- 欠压阈值目前沿用参数`vdd_warn_drop_mv`，须在实际供电与负载条件下确认不会误停；R15仍未通过。后续实体验证需要仿真板、限流供电，并观察两路H桥输出。

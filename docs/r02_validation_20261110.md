@@ -34,6 +34,12 @@ V10.6 candidate04 先采用 Q8 小数精度，使原有测试在两种配置下�
 - 此数据验证了VDD与ADC时间戳可同步读取，不能说明电机动作时的VDD波动或其对反馈偏差的贡献；不据此配置补偿系数。R02仍未通过。
 - 证据：`firmware/evidence/r01_center_anchor_m3_coast_r5_20261115/capture_after_reset`及同名`.json`；R01详细统计见`r01_validation_20261110.md`。
 
+## 2026-11-16 离板回归与生产构建
+
+- 当前TSSOP20 ADC/VDD逻辑主机模拟 **42/42**；新增低VDD门控边界：正常电压不触发、有效新鲜低压触发、恢复后解除、无效VREFINT不误报。统一回归记录在`firmware/evidence/tssop20_host_regression_20261116/R02/adc_tssop20/`。
+- TSSOP20正式LCDM Ubuntu构建通过，BIN 16,108B，SHA256 `780120546cdb8de708d03260d7da7bb06dcc6734fc605dcf0687ad621f85c953`，清单`build/releases/V10.6_R15_VDD_GUARD_20261116/manifest.json`。仅构建，未下载。
+- 这不能证明补偿系数适用于板上电位器供电拓扑；代码仍需基于可信PA4/VDD/电位器供电测量决定是否启用。R02仍未通过，实板和负载瞬态验证需要仿真板及电压测量设备。
+
 ## 2026-11-15 ADC离板回归复跑
 
 - 当前生产 ADC 源码配置回归：development 30/30、SOP8 30/30通过，报告和参与文件哈希见`firmware/evidence/r02_adc_20261115_rerun/report.json`。
@@ -103,8 +109,8 @@ R02 仍未通过：需要先确认方向并改善起始阶段同步采集，再�
 - 现有VDD和聚合位置ADC样本时间戳只有HAL毫秒tick，而ADC四个子样本已记录Q4微秒时刻；毫秒时间戳无法严谨描述两个样本的先后间隔。
 - `src/adc_feedback.c`新增VDD采样完成与位置ADC采样完成的`Board_MicrosQ4()`时间戳，保留原毫秒字段；`tools/monitor_r01_swd.py`新增两者的Q4时刻、有符号时间差，以及原始/校正ADC并列记录。Q4表示1/16微秒计数，记录转换完成时刻，不代表硬件同时采样或模拟带宽。
 - TSSOP20 LCDM控制路径已接入归一校正：`control_adc = round(raw_adc × measured_VDD / nominal_VDD)`，标称值取`ServoParams.vdd_nominal_mv`；VREFINT无效或样本年龄超过100ms时使用原始ADC。原始ADC仍单独保留供诊断。SOP8不属于本次范围。
-- 仅针对TSSOP20配置的ADC模块主机模拟 **38/38** 通过，覆盖标称归一、饱和保护、VDD样本过期/无效回退和采样时序；SWD采集脚本AST语法检查通过。报告见`firmware/evidence/r02_vdd_pair_q4_20261116/report.json`，SHA256=`fc9973725b93b3cc080e9f3bca197a6af0b23aee78abaa3d7ce4f3e2245a7291`。本轮未完成整机固件构建，新增两个32位时间戳、一个16位校正值和一个8位有效标志遥测共占11B静态RAM，闭环接线处仍需同版构建检查。
-- **尚未通过实板验收**：当前固件未构建/下载，未实测该归一校正对位置误差和稳定性的影响。若电位器由PA0与MCU ADC共用VDDA供电，raw ADC可能已自然抵消VDD变化；全比例校正可能引入反向偏差。现有数据不能排除该情况，也不能给出实板系数效果；因此先完成TSSOP20同版构建和日志核对，板上确认前不把软件模拟结果称作已解决。
+- 当时仅针对TSSOP20配置的ADC模块主机模拟 **38/38** 通过，覆盖标称归一、饱和保护、VDD样本过期/无效回退和采样时序；SWD采集脚本AST语法检查通过。该阶段未完成整机固件构建，闭环接线处仍需同版构建检查。最新42/42及构建结果见下方2026-11-16记录。
+- **尚未通过实板验收**：该阶段源码未构建/下载，未实测归一校正对位置误差和稳定性的影响。若电位器由PA0与MCU ADC共用VDDA供电，raw ADC可能已自然抵消VDD变化；全比例校正可能引入反向偏差。现有数据不能排除该情况，也不能给出实板系数效果；后续构建与测试状态见下方2026-11-16记录。
 
 ## 2026-11-15 TSSOP20 force-coast配对采集更新
 

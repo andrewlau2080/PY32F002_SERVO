@@ -1,0 +1,14 @@
+{
+  "requirement": "R15",
+  "checks": {
+    "invalid_ADC_coasts": true,
+    "invalid_ADC_resets_learner_and_observer": true,
+    "TSSOP20_low_VDD_coasts": true,
+    "low_VDD_resets_learner": true,
+    "dedicated_VDD_fault_state_event": true
+  },
+  "pass_count": 8,
+  "fail_count": 0,
+  "source_sha256": "1b510935087d1914954adff2b95b83dd97f22e2d46d2ff24fbdc7149fbd76ee5",
+  "scope": "Source-path assertions and ADC arithmetic simulation; no target build or electrical fault injection."
+}

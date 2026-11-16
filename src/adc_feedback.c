@@ -366,3 +366,21 @@ uint16_t ADC_Feedback_ApplyVddCompensation(uint16_t raw_adc,
   g_adc_vdd_compensated_last = (uint16_t)corrected;
   return (uint16_t)corrected;
 }
+
+bool ADC_Feedback_IsVddBelow(uint16_t nominal_vdd_mv,
+                             uint16_t warn_drop_mv,
+                             uint16_t max_sample_age_ms)
+{
+  uint32_t age_ms = HAL_GetTick() - s_vdd_sample_ms;
+  uint16_t minimum_vdd_mv;
+
+  if ((s_vdd_sample_valid == 0U) || (s_vdd_mv == 0U) ||
+      (nominal_vdd_mv == 0U) || (age_ms > max_sample_age_ms))
+  {
+    return false;
+  }
+
+  minimum_vdd_mv = (nominal_vdd_mv > warn_drop_mv) ?
+                   (uint16_t)(nominal_vdd_mv - warn_drop_mv) : 0U;
+  return s_vdd_mv < minimum_vdd_mv;
+}
