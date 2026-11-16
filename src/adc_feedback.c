@@ -42,6 +42,8 @@ volatile uint32_t g_adc_diag_time1_q4;
 volatile uint32_t g_adc_diag_time2_q4;
 volatile uint32_t g_adc_diag_time3_q4;
 volatile uint32_t g_adc_diag_batch_count;
+/* Odd while a diagnostic batch is being updated; even when it is coherent. */
+volatile uint32_t g_adc_diag_seq;
 #endif
 
 static void select_channel(uint32_t adc_channel)
@@ -210,6 +212,12 @@ uint16_t ADC_Feedback_ReadRaw(void)
    * 多次采样去掉最大/最小值后平均，降低 H 桥开关尖峰和马达刷火噪声
    * 对电位器反馈的影响。采样次数仍由参数区决定，便于现场继续调试。
    */
+  if (sample_count == 4U)
+  {
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+    g_adc_diag_seq++;
+#endif
+  }
   for (uint32_t i = 0; i < sample_count; i++)
   {
     uint16_t sample = read_selected_channel_once();
@@ -242,6 +250,12 @@ uint16_t ADC_Feedback_ReadRaw(void)
     sum += sample;
   }
 
+  if (sample_count == 4U)
+  {
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+    g_adc_diag_seq++;
+#endif
+  }
   if (sample_count >= 4U)
   {
     sum -= min_sample;

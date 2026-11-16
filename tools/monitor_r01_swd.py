@@ -77,6 +77,7 @@ SYMBOLS = {
     "adc_diag_time2_q4": ("g_adc_diag_time2_q4", 4, False),
     "adc_diag_time3_q4": ("g_adc_diag_time3_q4", 4, False),
     "adc_diag_batch_count": ("g_adc_diag_batch_count", 4, False),
+    "adc_diag_seq": ("g_adc_diag_seq", 4, False),
     "adc_diag_start_request": ("g_adc_diag_start_request", 4, False),
     "r04_scheduler_overrun_contexts": ("g_r04_scheduler_overrun_context_nibbles", 2, False),
     "r04_scheduler_dropped_ticks": ("g_r04_scheduler_dropped_tick_count", 4, False),
@@ -231,7 +232,7 @@ def main():
         "frame_seq_consistent", "error_consistent",
         "vdd_compensation_input_adc", "feedback_mv_est", "feedback_norm_adc_3300",
         "adc_diag_interval_01_q4", "adc_diag_interval_12_q4", "adc_diag_interval_23_q4",
-        "adc_diag_batch_fresh"]
+        "adc_diag_batch_fresh", "adc_diag_seq_after", "adc_diag_batch_consistent"]
     count = 0
     last_stage_stats = 0
     core_end = "unknown"
@@ -241,6 +242,8 @@ def main():
     saw_center_return = False
     adc_diag_batch_min = None
     adc_diag_batch_max = None
+    adc_diag_consistent_rows = 0
+    adc_diag_torn_rows = 0
     wall_start = datetime.datetime.now().astimezone().isoformat()
     started = time.monotonic()
     try:
@@ -272,7 +275,7 @@ def main():
                     ("adc_diag_sample0", "adc_diag_sample1", "adc_diag_sample2", "adc_diag_sample3",
                      "adc_diag_vdd0", "adc_diag_vdd1", "adc_diag_vdd2", "adc_diag_vdd3",
                      "adc_diag_time0_q4", "adc_diag_time1_q4", "adc_diag_time2_q4", "adc_diag_time3_q4",
-                     "adc_diag_batch_count"),
+                     "adc_diag_batch_count", "adc_diag_seq"),
                     ("r04_scheduler_overrun_contexts", "r04_scheduler_dropped_ticks",
                      "r04_scheduler_max_dropped_ticks"),
                     ("r04_timing_samples", "r04_timing_bin_0_lt500", "r04_timing_bin_1_500_899",
@@ -335,6 +338,10 @@ def main():
                 row["feedback_norm_adc_3300"] = round(vdd_adc * row.get("vdd_mv", 0) / 3300.0, 3)
                 if "adc_diag_batch_count" in row:
                     count_value = row["adc_diag_batch_count"]
+                    seq_before = row["adc_diag_seq"]
+                    seq_after = int(target.read32(addresses["g_adc_diag_seq"]))
+                    row["adc_diag_seq_after"] = seq_after
+                    row["adc_diag_batch_consistent"] = int(seq_before == seq_after and not (seq_after & 1))
                     adc_diag_batch_min = count_value if adc_diag_batch_min is None else min(adc_diag_batch_min, count_value)
                     adc_diag_batch_max = count_value if adc_diag_batch_max is None else max(adc_diag_batch_max, count_value)
                     for i in range(3):
@@ -344,7 +351,9 @@ def main():
                     for i in range(4):
                         age = (row[f"adc_diag_time{i}_q4"] - row["vdd_sample_us_q4"]) & 0xFFFFFFFF
                         row[f"adc_diag_vdd_age_{i}_q4"] = age if age < 0x80000000 else age - 0x100000000
-                    row["adc_diag_batch_fresh"] = int(count_value > 0)
+                    row["adc_diag_batch_fresh"] = int(count_value > 0 and row["adc_diag_batch_consistent"])
+                    adc_diag_consistent_rows += row["adc_diag_batch_consistent"]
+                    adc_diag_torn_rows += 1 - row["adc_diag_batch_consistent"]
                 if first_frame_pwm_us is None:
                     first_frame_pwm_us = row["frame_pwm_us"]
                 max_frame_pwm_us = max(max_frame_pwm_us, row["frame_pwm_us"])
@@ -404,6 +413,8 @@ def main():
         "adc_diag_batch_count_min": adc_diag_batch_min,
         "adc_diag_batch_count_max": adc_diag_batch_max,
         "adc_diag_batches_advanced": (adc_diag_batch_max > 0) if adc_diag_batch_max is not None else False,
+        "adc_diag_consistent_rows": adc_diag_consistent_rows,
+        "adc_diag_torn_rows": adc_diag_torn_rows,
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "symbol_addresses": {k: hex(v) for k, v in addresses.items()},
         "note": "SWD observer only; the firmware may generate its own internal center command sweep. Diagnostic request counters summarize nonzero software duty requests and do not prove physical bridge output.",
