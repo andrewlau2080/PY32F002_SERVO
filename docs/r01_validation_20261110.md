@@ -321,6 +321,6 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 用户补测PA3=0.005V。PA3在现行TSSOP20规划中是PWM输入脚；此前因引用过期接线资料而要求补测PA3，是不必要的操作，现已更正。该值不表示电位器反馈位置，不要求用户再测端点或引脚。
 - 原计划做R24逐批VREFINT刷新与旧20ms节奏对照；R25对照已完成，结果见下方。保持PA3/PA4映射不变、不调整补偿、不触发电机。用户此前完成的ADC高低端验证继续沿用。
 - R25已作为force-coast对照固件下载：与R24相同的TSSOP20映射和四点ADC诊断，但不启用逐批VREFINT刷新（恢复20ms节奏）。下载前R24整片备份SHA256=`083e4346b17dd74fb01cf1c21a7469fc8836347b6edaafce4b107a43b199e7e3`；2MHz under-reset写入后整片SHA256=`f7c62dd81d97687ff41a93ef1ca51383fbfd9665e8a6d81f09405296a3ac8fa3`，20,480B应用前19,032B与BIN逐字节匹配、尾384B未变，核心Running。R25 BIN SHA256=`8a2f1154d1313921ff7f04615c5b1630cf41f59c05b6d5780fd68e6a5f1edc6d`，manifest=`build/releases/V10.6_TSSOP20_R01_R02_DIAG_FORCE_COAST_20261117_R25/manifest.json`。
-- R25静态只读采集51帧、一致51/51、撕裂0，未触发内部扫动。`raw_adc_last`中位4095；四个子样本中位数均4095，sample0最低3638、sample1最低3971；停用逐批VREF刷新后异常仍在，故该改动不是充分原因。CSV SHA256=`3ceae5c0f686d7174d4e0c5005130953169379dbf391feab20926f7fe`。
+- R25静态只读采集51帧、一致51/51、撕裂0，未触发内部扫动。`raw_adc_last`中位4095；四个子样本中位数均4095，sample0最低3638、sample1最低3971；停用逐批VREF刷新后异常仍在，故该改动不是充分原因。CSV SHA256=`3ceae5c0f686d7174d4e0c500513095316937e95c1979dbf391feab20926f7fe`。
 - 静态状态下SWD只读ADC寄存器：`ADC1->CHSELR=0x10`（选中通道4），`GPIOA->MODER=0xEBFF97D5`（PA4模式为模拟输入），`ADC1->DR=0x0FFF`。这验证固件选通道和GPIO模式符合当前TSSOP20规划，但不能解释PA4万用表1.120V与满量程转换的矛盾。PA3=0.005V是PWM输入脚读数，与反馈无关。
 - **R01/R02状态**：不因这次读数矛盾重做既有ADC高低端验证。R01仍缺当前固件下可重复实体位移；R02同步快照通过，但PA4电压与ADC转换不一致、负载瞬态未验。当前板已从R24换为R25，仍force-coast、不驱动机构。后续源码侧应核对ADC数据读出和转换完成标志；若源码确认无误，才需要对比MCU PA4引脚处的电压与板上测点电压。
