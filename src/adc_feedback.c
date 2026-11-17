@@ -212,12 +212,12 @@ uint16_t ADC_Feedback_ReadRaw(void)
    * 多次采样去掉最大/最小值后平均，降低 H 桥开关尖峰和马达刷火噪声
    * 对电位器反馈的影响。采样次数仍由参数区决定，便于现场继续调试。
    */
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
   if (sample_count == 4U)
   {
-#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
     g_adc_diag_seq++;
-#endif
   }
+#endif
   for (uint32_t i = 0; i < sample_count; i++)
   {
     uint16_t sample = read_selected_channel_once();
@@ -250,12 +250,12 @@ uint16_t ADC_Feedback_ReadRaw(void)
     sum += sample;
   }
 
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
   if (sample_count == 4U)
   {
-#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
     g_adc_diag_seq++;
-#endif
   }
+#endif
   if (sample_count >= 4U)
   {
     sum -= min_sample;

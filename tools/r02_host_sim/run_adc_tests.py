@@ -23,6 +23,7 @@ def main():
         cmd = ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
                "-DBOARD_TSSOP20_DEBUG_PINS=" + debug,
                "-DSERVO_VREFINT_SETTLE_FIX=1",
+               "-DSERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1",
                "-I", str(ROOT / "tools/r02_host_sim"), "-I", str(ROOT / "inc"),
                str(ROOT / "tools/r02_host_sim/test_adc_feedback.c"),
                str(ROOT / "src/adc_feedback.c"), "-o", str(binary)]

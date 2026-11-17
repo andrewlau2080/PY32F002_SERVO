@@ -20,6 +20,10 @@ extern volatile uint32_t s_vdd_sample_us_q4;
 extern volatile uint32_t s_adc_raw_sample_us_q4;
 extern volatile uint16_t g_adc_vdd_compensated_last;
 extern volatile uint8_t s_vdd_sample_valid;
+extern volatile uint32_t g_adc_diag_seq;
+extern volatile uint32_t g_adc_diag_batch_count;
+extern volatile uint16_t g_adc_diag_sample0, g_adc_diag_sample1;
+extern volatile uint16_t g_adc_diag_sample2, g_adc_diag_sample3;
 
 const ServoParams *Servo_Params_Get(void) { return &params; }
 void APP_ErrorHandler(void) { fprintf(stderr, "ADC HAL failure\n"); exit(2); }
@@ -61,6 +65,8 @@ int main(void)
   ADC_Feedback_Init();
   check("configured physical ADC pin", gpio_pin, BOARD_POT_ADC_PIN, BOARD_POT_ADC_PIN);
   check("initial raw and filter", ADC_Feedback_GetFiltered(), 2000, 2000);
+  check("diagnostic sequence ends even after complete batch", (int)(g_adc_diag_seq & 1U), 0, 0);
+  check("diagnostic batch count advances", (int)g_adc_diag_batch_count, 1, 1);
   check("initial VREF sample", ADC_Feedback_GetVrefintRaw(), 1489, 1489);
   check("position ADC sample timestamp", (int)s_adc_raw_sample_ms, (int)tick, (int)tick);
   check("position sample timestamp follows VDD sample",
@@ -105,7 +111,13 @@ int main(void)
 
   samples[0] = 1900U; samples[1] = 2048U; samples[2] = 2049U; samples[3] = 2190U;
   sample_index = 0U; sample_count = 4U;
+  uint32_t seq_before_batch = g_adc_diag_seq;
   check("four-sample trimmed mean", ADC_Feedback_ReadRaw(), 2048, 2048);
+  check("completed four-sample batch advances sequence by two",
+        (int)(g_adc_diag_seq - seq_before_batch), 2, 2);
+  check("completed four-sample batch leaves sequence even", (int)(g_adc_diag_seq & 1U), 0, 0);
+  check("diagnostic batch preserves sample order", g_adc_diag_sample0, 1900, 1900);
+  check("diagnostic batch captures fourth sample", g_adc_diag_sample3, 2190, 2190);
   samples[0] = 2207U; samples[1] = 2166U; samples[2] = 2166U; samples[3] = 2207U;
   sample_index = 0U; sample_count = 4U;
   check("two low samples retain half excursion after trimming",
