@@ -87,8 +87,8 @@ Layout 注意：
 
 | 功能 | SOP8 最终脚 | TSSOP20 调试脚 | 说明 |
 |---|---|---|---|
-| PWM 输入/配置 | `PA4`，SOP8 2 脚 | `PA4`，TSSOP20 15 脚 | 同一功能 |
-| 电位器 ADC | `PA3`，SOP8 3 脚 | `PA3`，TSSOP20 14 脚 | 同一功能 |
+| PWM 输入/配置 | `PA4`，SOP8 2 脚 | `PA3`，TSSOP20（2026-06-20改线后） | SOP8与TSSOP20物理脚不同；按各自固件配置 |
+| 电位器 ADC | `PA3`，SOP8 3 脚 | `PA4/ADC4`，TSSOP20（2026-06-20改线后） | SOP8与TSSOP20物理脚不同；按各自固件配置 |
 | H 桥 `CP1 / CPG2` | `PA1`，SOP8 7 脚 | `PA1`，TSSOP20 12 脚 | 同一功能 |
 | H 桥 `CTR_NG1` | `PA2`，SOP8 6 脚 | `PA2`，TSSOP20 13 脚 | 同一功能 |
 | H 桥 `CP2 / CPG1` | `PA13`，SOP8 5 脚 | `PA6`，TSSOP20 6 脚 | 调试板临时代替，避免占 SWDIO |

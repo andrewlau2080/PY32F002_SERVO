@@ -139,7 +139,7 @@ void ADC_Feedback_Init(void)
   GPIO_InitTypeDef gpio = {0};
   ADC_ChannelConfTypeDef channel = {0};
 
-  /* PA3 接电位器滑动端，必须配置成模拟输入以降低数字输入干扰。 */
+  /* 配置当前板型对应的 BOARD_POT_ADC_PIN 为模拟输入。 */
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_ADC_FORCE_RESET();
   __HAL_RCC_ADC_RELEASE_RESET();

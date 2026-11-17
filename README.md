@@ -32,6 +32,11 @@ PA3 potentiometer ADC -> feedback ADC
 target - feedback -> motor direction and duty
 ```
 
+The mapping above describes the SOP8 product pinout. The TSSOP20 development
+board was rewired on 2026-06-20: PA3 is PWM input and PA4/ADC4 is potentiometer
+feedback. Select the matching board profile when building; do not infer the
+development-board pinout from the SOP8 overview.
+
 Firmware structure:
 
 ```text
