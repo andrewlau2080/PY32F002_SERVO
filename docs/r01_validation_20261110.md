@@ -332,3 +332,8 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - R26 Ubuntu构建通过，BIN 19,032B，SHA256=`986e0ae33decc2599a47a71acf7e9af486850cd9376c178a17e55fb5096c5ad3`；manifest=`build/releases/V10.6_TSSOP20_R01_R02_DIAG_FORCE_COAST_LONG_ADC_20261117_R26/manifest.json`，编译日志确认`SERVO_ADC_LONG_SAMPLE_DIAGNOSTIC=1`。候选尚未下载。
 - 下载前只读备份未能启动：Ubuntu报告未发现DAPLink（0 probes）。未执行任何擦除/写入，当前板仍是已确认的R25 force-coast固件，R26不能作为板上结果。待DAPLink重新枚举后，先读回并核对R25整片镜像，再决定是否下载R26；不触发电机。
 - **结论**：R01仍缺当前候选下可重复实体位移，且方向既有结论沿用、不要求重测；R02的PA4电压/raw矛盾尚无根因结论，既有ADC高低端验证沿用。下一项只需比较R26四点ADC与R25静态数据：若raw明显回到约1423，采样建立时间是重要因素；若仍饱和，则转查PA4引脚实际电压/走线与输入源阻抗。当前没有要求用户按键、移动机构或重复测高低端。
+
+## 2026-11-17 HAL初始化顺序复核更正
+
+- 二次检查本地PY32 HAL实现后，撤回“校准早于HAL_ADC_Init是不妥”的判断：校准API写明的前提是ADC禁用；当前实现启动校准前已开ADC时钟且ADC未启用。先前把通用ADC注释误读为本PY32 HAL存在单独稳压器启动序列。源码保持原校准顺序，不据此声称找到R01/R02根因。
+- R27曾以该顺序调整加239.5-cycle长采样构建成功，BIN SHA256=`e873ca2481f97adf1f0fbc0d4ee551d8178e56810871df6fd1c423bed17bb5aa`；但没有下载，且顺序调整无证据支持，故R27不采用、不作为后续板测候选。R26（仅长采样诊断、force-coast）仍是本轮可比较的诊断候选；仿真器不在手边，不做板上操作。
