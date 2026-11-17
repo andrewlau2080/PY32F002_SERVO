@@ -147,3 +147,20 @@ R02 仍未通过：需要先确认方向并改善起始阶段同步采集，再�
 - R5 force-coast软件复位后只读采集40.149秒，共166帧；119帧满足序号/误差一致及VDD-ADC时间差≤20ms。VDD估值3166–3211mV（中位3195mV），raw ADC 2212–2259。H桥保持coast，没有电机电流负载。
 - 此数据验证了VDD与ADC时间戳可同步读取，不能说明电机动作时的VDD波动或其对反馈偏差的贡献；不据此配置补偿系数。R02仍未通过。
 - 证据：`firmware/evidence/r01_center_anchor_m3_coast_r5_20261115/capture_after_reset`及同名`.json`；R01详细统计见`r01_validation_20261110.md`。
+
+
+## 2026-11-17 R17比例式电位器反馈保护
+
+- 源码复核发现一个会直接影响R01位置误差的风险：TSSOP20调试构建启用`SERVO_ENABLE_PA0_POT_POWER=1`，`Board_PotPowerInit()`把PA0拉高供电位器；ADC参考是MCU VDDA。对共VDDA供电的电位器，raw ADC天然是比例值，乘以`VDD/3300`会再次引入电压变化。以R13约VDD=3278mV、raw≈2155计，该额外归一项会把读数拉低约14 ADC count，量级接近观察到的15 count偏差；这是一种可解释软件误差的机制，但不是已证实的全部根因，因为当前板实际走线和同步物理位置尚未独立测量。
+- 新增`ADC_Feedback_GetControlValue()`：TSSOP20且PA0为电位器供电时控制路径使用raw ADC；仅TSSOP20 PA0供电关闭（即未配置共源激励）的构建才采用VDD归一。所有TSSOP20构建仍保留VDD监测/低压保护；独立供电归一函数保留。SOP8行为不作为本轮验收结论。
+- TSSOP20主机ADC仿真：原20ms VDD刷新模式50/50通过；诊断逐批VDD刷新模式51/51通过，新增共源供电不重复校正、独立供电仍执行归一两项。Ubuntu R17诊断构建通过，BIN 19,368B SHA256=`24ca6365ea02c6a4a32784650391619b84dbd180c2e36bd242d850a82b952a22`，ELF SHA256=`6e4133a943a25ba9e082aa5a8a324c1fbde47f40f7b9d409e3ddc9f29edb2dd5`，manifest=`build/releases/V10.6_TSSOP20_R01_CENTER_M3_ADC_DIAG_20261117_R17/manifest.json`。构建标记PA0供电、VDD逐批刷新、100/1000软件占空上限；**未下载**。
+- **R02尚未实板通过**：目前依赖固件配置和历史接线记录推断比例供电关系，没有当前板原理图或PA0/PA4/VDDA同步电压读数。R01也仍缺可重复真实位移及H桥两路波形。新控制路径需要R17板上只读/安全验证后才可确认改善。当前板仍R13 coast。
+
+## 2026-11-17 R24同步VDD/ADC静态实板采集
+
+- 修正R16–R18构建结论：manifest标记逐批VDD宏，但Makefile未传递该宏，因此这些镜像没有实际启用逐批刷新。Makefile和构建脚本现已修复并增加编译日志断言；R24是首个确认该宏实际生效的板上版本。
+- R24 force-coast诊断固件通过2MHz under-reset下载；整片20,480B读回SHA256=`083e4346b17dd74fb01cf1c21a7469fc8836347b6edaafce4b107a43b199e7e3`，应用逐字节匹配BIN、尾384B不变、核心Running。BIN 19,132B SHA256=`801f27fcacb2378d501007bd760c441ec73dbf96342ab566f226a55087db87bd`。
+- 静止20.404秒采集52帧，快照一致52/52、撕裂0；每帧VDD与四点位置ADC位于同一冻结快照，时间差约200–216µs，快照约86–303µs内读完。VDD估值约3252–3260mV。CSV/JSON位于`build/board_readback/20261117_R24_static.csv/.json`。
+- 该数据只验证板上监测链路的配对/一致性。采集时无负载，不能说明电机工作时供电是否下跌；VREFINT估算MCU VDDA/VDD，也不替代外部电机电源或PA0电位器供电测量。
+- 反馈ADC同时接近上限：sample3为4095，sample2中位4095，raw_adc_last中位4095。固件数据无法区分机构位置、电位器/PA4接线或输入电压问题。为避免在高端位置继续驱动，本轮没有触发动作。继续确认需要PA4对模拟地、PA0供电和VDDA的可信电压/接线对应关系；无需按键或输入PWM。
+- **R02部分改善、仍未实板验收**：同步VDD/ADC监测及抗撕裂快照已在TSSOP20板上运行；比例式反馈不重复归一的修正仍只有源码/模拟依据。缺可追溯PA4/PA0/VDDA电压及带实际负载的VDD记录。主机模拟60/60通过是模拟HAL，不代表物理ADC精度或供电拓扑。

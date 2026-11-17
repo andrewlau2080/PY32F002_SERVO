@@ -60,6 +60,7 @@ SYMBOLS = {
     "r01_diag_min_vdd_when_request": ("g_r01_diag_min_vdd_when_request", 2, False),
     "r01_diag_max_vdd_when_request": ("g_r01_diag_max_vdd_when_request", 2, False),
     "r01_diag_lock_reason": ("g_r01_diag_lock_reason", 1, False),
+    "r01_diag_control_adc": ("g_r01_diag_control_adc", 2, False),
     "r01_diag_lock_feedback": ("g_r01_diag_lock_feedback", 2, False),
     "r01_diag_lock_error": ("g_r01_diag_lock_error", 2, True),
     "r01_diag_lock_displacement": ("g_r01_diag_lock_displacement", 2, True),
@@ -68,16 +69,14 @@ SYMBOLS = {
     "adc_diag_sample1": ("g_adc_diag_sample1", 2, False),
     "adc_diag_sample2": ("g_adc_diag_sample2", 2, False),
     "adc_diag_sample3": ("g_adc_diag_sample3", 2, False),
-    "adc_diag_vdd0": ("g_adc_diag_vdd0", 2, False),
-    "adc_diag_vdd1": ("g_adc_diag_vdd1", 2, False),
-    "adc_diag_vdd2": ("g_adc_diag_vdd2", 2, False),
-    "adc_diag_vdd3": ("g_adc_diag_vdd3", 2, False),
+    "adc_diag_vdd_mv": ("g_adc_diag_vdd_mv", 2, False),
     "adc_diag_time0_q4": ("g_adc_diag_time0_q4", 4, False),
-    "adc_diag_time1_q4": ("g_adc_diag_time1_q4", 4, False),
-    "adc_diag_time2_q4": ("g_adc_diag_time2_q4", 4, False),
     "adc_diag_time3_q4": ("g_adc_diag_time3_q4", 4, False),
-    "adc_diag_batch_count": ("g_adc_diag_batch_count", 4, False),
+    "adc_diag_batch_count": ("g_adc_diag_batch_count", 2, False),
     "adc_diag_seq": ("g_adc_diag_seq", 4, False),
+    "adc_diag_snapshot_request": ("g_adc_diag_snapshot_request", 4, False),
+    "adc_diag_snapshot_ack": ("g_adc_diag_snapshot_ack", 4, False),
+    "adc_diag_vdd_sample_us_q4": ("g_adc_diag_vdd_sample_us_q4", 4, False),
     "adc_diag_start_request": ("g_adc_diag_start_request", 4, False),
     "r04_scheduler_overrun_contexts": ("g_r04_scheduler_overrun_context_nibbles", 2, False),
     "r04_scheduler_dropped_ticks": ("g_r04_scheduler_dropped_tick_count", 4, False),
@@ -180,8 +179,9 @@ def main():
     active = [label for label, (name, _size, _signed) in SYMBOLS.items() if name in addresses]
     adc_diag_labels = {
         "adc_diag_sample0", "adc_diag_sample1", "adc_diag_sample2", "adc_diag_sample3",
-        "adc_diag_time0_q4", "adc_diag_time1_q4", "adc_diag_time2_q4", "adc_diag_time3_q4",
-        "adc_diag_batch_count",
+        "adc_diag_time0_q4", "adc_diag_time3_q4", "adc_diag_batch_count",
+        "adc_diag_seq", "adc_diag_snapshot_request", "adc_diag_snapshot_ack",
+        "adc_diag_vdd_mv", "adc_diag_vdd_sample_us_q4",
     }
     if args.expect_center_sweep and not adc_diag_labels.issubset(active):
         raise SystemExit("Selected ELF lacks the required four-sample ADC diagnostic telemetry")
@@ -232,12 +232,12 @@ def main():
     fields = ["wall_s"] + [k for k in active if k != "frame"] + list(FRAME) + [
         "tick_after", "input_age_ms", "vdd_age_ms", "vdd_to_adc_age_ms",
         "vdd_to_adc_age_q4",
-        "adc_diag_vdd_age_0_q4", "adc_diag_vdd_age_1_q4",
-        "adc_diag_vdd_age_2_q4", "adc_diag_vdd_age_3_q4",
+        "adc_diag_vdd_age_start_q4", "adc_diag_vdd_age_end_q4",
         "frame_seq_consistent", "error_consistent",
         "vdd_compensation_input_adc", "feedback_mv_est", "feedback_norm_adc_3300",
-        "adc_diag_interval_01_q4", "adc_diag_interval_12_q4", "adc_diag_interval_23_q4",
+        "adc_diag_span_03_q4",
         "adc_diag_batch_fresh", "adc_diag_seq_after", "adc_diag_batch_consistent"]
+    fields += ["adc_diag_freeze_ack"]
     count = 0
     last_stage_stats = 0
     core_end = "unknown"
@@ -245,6 +245,9 @@ def main():
     max_frame_pwm_us = 0
     saw_sweep_peak = False
     saw_center_return = False
+    diag_snapshot_request_addr = addresses.get("g_adc_diag_snapshot_request")
+    diag_snapshot_ack_addr = addresses.get("g_adc_diag_snapshot_ack")
+    diag_snapshot_hold = False
     adc_diag_batch_min = None
     adc_diag_batch_max = None
     adc_diag_consistent_rows = 0
@@ -258,6 +261,21 @@ def main():
             while time.monotonic() - started < args.seconds:
                 sample_start = time.monotonic()
                 row = {"wall_s": round(sample_start - started, 6)}
+                if diag_snapshot_request_addr is not None and diag_snapshot_ack_addr is not None:
+                    deadline = time.monotonic() + 1.0
+                    while int(target.read32(diag_snapshot_ack_addr)) != 0:
+                        if time.monotonic() >= deadline:
+                            raise SystemExit("Timed out waiting for previous ADC snapshot release")
+                        time.sleep(0.001)
+                    target.write32(diag_snapshot_request_addr, 1)
+                    diag_snapshot_hold = True
+                    deadline = time.monotonic() + 1.0
+                    while int(target.read32(diag_snapshot_ack_addr)) == 0:
+                        if time.monotonic() >= deadline:
+                            target.write32(diag_snapshot_request_addr, 0)
+                            diag_snapshot_hold = False
+                            raise SystemExit("Timed out waiting for coherent ADC diagnostic snapshot")
+                        time.sleep(0.001)
                 # Keep reads short: a full-RAM poll consumes much more SWD bus
                 # time and makes it difficult to measure the running system.
                 for labels in (
@@ -273,14 +291,15 @@ def main():
                      "r01_diag_max_feedback_when_request", "r01_diag_min_vdd_when_request",
                      "r01_diag_max_vdd_when_request", "r01_diag_lock_reason",
                      "r01_diag_lock_feedback", "r01_diag_lock_error",
-                     "r01_diag_lock_displacement"),
+                     "r01_diag_lock_displacement", "r01_diag_control_adc"),
                     ("r01_stage_stats",),
                     ("adc_raw_last", "adc_vdd_compensated_last", "adc_filtered", "vrefint_raw", "vdd_mv", "vdd_sample_valid", "vdd_sample_ms",
                      "vdd_sample_us_q4", "adc_raw_sample_ms", "adc_raw_sample_us_q4"),
                     ("adc_diag_sample0", "adc_diag_sample1", "adc_diag_sample2", "adc_diag_sample3",
-                     "adc_diag_vdd0", "adc_diag_vdd1", "adc_diag_vdd2", "adc_diag_vdd3",
-                     "adc_diag_time0_q4", "adc_diag_time1_q4", "adc_diag_time2_q4", "adc_diag_time3_q4",
-                     "adc_diag_batch_count", "adc_diag_seq"),
+                     "adc_diag_vdd_mv",
+                     "adc_diag_time0_q4", "adc_diag_time3_q4",
+                     "adc_diag_batch_count", "adc_diag_seq", "adc_diag_vdd_sample_us_q4",
+                     "adc_diag_snapshot_ack"),
                     ("r04_scheduler_overrun_contexts", "r04_scheduler_dropped_ticks",
                      "r04_scheduler_max_dropped_ticks"),
                     ("r04_timing_samples", "r04_timing_bin_0_lt500", "r04_timing_bin_1_500_899",
@@ -299,6 +318,16 @@ def main():
                     for label in labels:
                         symbol, size, signed = SYMBOLS[label]
                         row[label] = value(data, addresses[symbol] - group_start, size, signed)
+                    if "adc_diag_seq" in labels:
+                        row["adc_diag_seq_after"] = int(target.read32(addresses["g_adc_diag_seq"]))
+                        row["adc_diag_freeze_ack"] = (int(target.read32(diag_snapshot_ack_addr))
+                                                        if diag_snapshot_ack_addr is not None else 0)
+                        row["adc_diag_batch_consistent"] = int(
+                            row["adc_diag_freeze_ack"] == 1 and
+                            diagnostic_snapshot_consistent(row["adc_diag_seq"], row["adc_diag_seq_after"]))
+                        if diag_snapshot_request_addr is not None:
+                            target.write32(diag_snapshot_request_addr, 0)
+                            diag_snapshot_hold = False
                 last_stage_stats = row.get("r01_stage_stats", last_stage_stats)
                 frame_address = addresses[SYMBOLS["frame"][0]]
                 for _attempt in range(3):
@@ -343,19 +372,22 @@ def main():
                 row["feedback_norm_adc_3300"] = round(vdd_adc * row.get("vdd_mv", 0) / 3300.0, 3)
                 if "adc_diag_batch_count" in row:
                     count_value = row["adc_diag_batch_count"]
-                    seq_before = row["adc_diag_seq"]
-                    seq_after = int(target.read32(addresses["g_adc_diag_seq"]))
-                    row["adc_diag_seq_after"] = seq_after
-                    row["adc_diag_batch_consistent"] = int(diagnostic_snapshot_consistent(seq_before, seq_after))
+                    seq_before = row.get("adc_diag_seq", 1)
+                    seq_after = row.get("adc_diag_seq_after", seq_before)
+                    if "adc_diag_batch_consistent" not in row:
+                        row["adc_diag_seq_after"] = seq_after
+                        row["adc_diag_batch_consistent"] = 0
                     adc_diag_batch_min = count_value if adc_diag_batch_min is None else min(adc_diag_batch_min, count_value)
                     adc_diag_batch_max = count_value if adc_diag_batch_max is None else max(adc_diag_batch_max, count_value)
-                    for i in range(3):
-                        row[f"adc_diag_interval_{i}{i + 1}_q4"] = (
-                            row[f"adc_diag_time{i + 1}_q4"] - row[f"adc_diag_time{i}_q4"]
-                        ) & 0xFFFFFFFF
-                    for i in range(4):
-                        age = (row[f"adc_diag_time{i}_q4"] - row["vdd_sample_us_q4"]) & 0xFFFFFFFF
-                        row[f"adc_diag_vdd_age_{i}_q4"] = age if age < 0x80000000 else age - 0x100000000
+                    row["adc_diag_span_03_q4"] = (row["adc_diag_time3_q4"] - row["adc_diag_time0_q4"]) & 0xFFFFFFFF
+                    vdd_time = row.get("adc_diag_vdd_sample_us_q4", row.get("vdd_sample_us_q4"))
+                    for label, sample_time in (("start", row["adc_diag_time0_q4"]),
+                                               ("end", row["adc_diag_time3_q4"])):
+                        if vdd_time is None:
+                            row[f"adc_diag_vdd_age_{label}_q4"] = ""
+                        else:
+                            age = (sample_time - vdd_time) & 0xFFFFFFFF
+                            row[f"adc_diag_vdd_age_{label}_q4"] = age if age < 0x80000000 else age - 0x100000000
                     row["adc_diag_batch_fresh"] = int(count_value > 0 and row["adc_diag_batch_consistent"])
                     adc_diag_consistent_rows += row["adc_diag_batch_consistent"]
                     adc_diag_torn_rows += 1 - row["adc_diag_batch_consistent"]
@@ -371,6 +403,11 @@ def main():
                 time.sleep(max(0.0, args.interval_ms / 1000.0 - (time.monotonic() - sample_start)))
         core_end = str(target.get_state())
     finally:
+        if diag_snapshot_hold and diag_snapshot_request_addr is not None:
+            try:
+                target.write32(diag_snapshot_request_addr, 0)
+            except Exception:
+                pass
         session.close()
     center_sweep_sync = {
         "required": args.expect_center_sweep or args.expect_pwm_sweep,

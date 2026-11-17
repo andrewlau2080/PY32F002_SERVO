@@ -36,17 +36,15 @@ volatile uint16_t g_adc_diag_sample0;
 volatile uint16_t g_adc_diag_sample1;
 volatile uint16_t g_adc_diag_sample2;
 volatile uint16_t g_adc_diag_sample3;
-volatile uint16_t g_adc_diag_vdd0;
-volatile uint16_t g_adc_diag_vdd1;
-volatile uint16_t g_adc_diag_vdd2;
-volatile uint16_t g_adc_diag_vdd3;
+volatile uint16_t g_adc_diag_vdd_mv;
 volatile uint32_t g_adc_diag_time0_q4;
-volatile uint32_t g_adc_diag_time1_q4;
-volatile uint32_t g_adc_diag_time2_q4;
 volatile uint32_t g_adc_diag_time3_q4;
-volatile uint32_t g_adc_diag_batch_count;
+volatile uint16_t g_adc_diag_batch_count;
 /* Odd while a diagnostic batch is being updated; even when it is coherent. */
 volatile uint32_t g_adc_diag_seq;
+volatile uint32_t g_adc_diag_snapshot_request;
+volatile uint32_t g_adc_diag_snapshot_ack;
+volatile uint32_t g_adc_diag_vdd_sample_us_q4;
 #endif
 
 static void select_channel(uint32_t adc_channel)
@@ -197,6 +195,10 @@ uint16_t ADC_Feedback_ReadRaw(void)
   uint16_t sample_count = params->adc_sample_count;
   uint16_t min_sample = 0xFFFFU;
   uint16_t max_sample = 0U;
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
+  uint8_t diag_capture_batch = 1U;
+  uint32_t diag_vdd_sample_us_q4 = 0U;
+#endif
 
   /* LCDM uses this API directly. Sample VREFINT here too, so motor-load VDD
    * changes are observed even when the generic filtered path is not running. */
@@ -231,22 +233,35 @@ uint16_t ADC_Feedback_ReadRaw(void)
 #if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
   if (sample_count == 4U)
   {
-    g_adc_diag_seq++;
+    if (g_adc_diag_snapshot_request != 0U)
+    {
+      diag_capture_batch = (g_adc_diag_snapshot_ack == 0U) ? 1U : 0U;
+    }
+    else
+    {
+      g_adc_diag_snapshot_ack = 0U;
+    }
+    if (diag_capture_batch != 0U)
+    {
+      diag_vdd_sample_us_q4 = s_vdd_sample_us_q4;
+      g_adc_diag_seq++;
+      g_adc_diag_vdd_mv = s_vdd_mv;
+    }
   }
 #endif
   for (uint32_t i = 0; i < sample_count; i++)
   {
     uint16_t sample = read_selected_channel_once();
 #if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
-    if (sample_count == 4U)
+    if ((sample_count == 4U) && (diag_capture_batch != 0U))
     {
       uint32_t sample_time_q4 = Board_MicrosQ4();
       switch (i)
       {
-        case 0U: g_adc_diag_sample0 = sample; g_adc_diag_vdd0 = s_vdd_mv; g_adc_diag_time0_q4 = sample_time_q4; break;
-        case 1U: g_adc_diag_sample1 = sample; g_adc_diag_vdd1 = s_vdd_mv; g_adc_diag_time1_q4 = sample_time_q4; break;
-        case 2U: g_adc_diag_sample2 = sample; g_adc_diag_vdd2 = s_vdd_mv; g_adc_diag_time2_q4 = sample_time_q4; break;
-        case 3U: g_adc_diag_sample3 = sample; g_adc_diag_vdd3 = s_vdd_mv; g_adc_diag_time3_q4 = sample_time_q4; break;
+        case 0U: g_adc_diag_sample0 = sample; g_adc_diag_time0_q4 = sample_time_q4; break;
+        case 1U: g_adc_diag_sample1 = sample; break;
+        case 2U: g_adc_diag_sample2 = sample; break;
+        case 3U: g_adc_diag_sample3 = sample; g_adc_diag_time3_q4 = sample_time_q4; break;
         default: break;
       }
       if (i == 3U)
@@ -267,9 +282,14 @@ uint16_t ADC_Feedback_ReadRaw(void)
   }
 
 #if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
-  if (sample_count == 4U)
+  if ((sample_count == 4U) && (diag_capture_batch != 0U))
   {
     g_adc_diag_seq++;
+    g_adc_diag_vdd_sample_us_q4 = diag_vdd_sample_us_q4;
+    if (g_adc_diag_snapshot_request != 0U)
+    {
+      g_adc_diag_snapshot_ack = 1U;
+    }
   }
 #endif
   if (sample_count >= 4U)
@@ -371,6 +391,20 @@ uint16_t ADC_Feedback_GetVddMv(void)
 uint32_t ADC_Feedback_GetVddSampleMs(void)
 {
   return s_vdd_sample_ms;
+}
+
+uint16_t ADC_Feedback_GetControlValue(uint16_t raw_adc,
+                                      bool supply_is_ratiometric,
+                                      uint16_t nominal_vdd_mv,
+                                      uint16_t max_sample_age_ms)
+{
+  /* A pot driven from MCU VDDA is already ratiometric to the ADC reference.
+   * Multiplying it by measured VDD would create a false position shift. */
+  if (supply_is_ratiometric)
+  {
+    return (raw_adc > 4095U) ? 4095U : raw_adc;
+  }
+  return ADC_Feedback_ApplyVddCompensation(raw_adc, nominal_vdd_mv, max_sample_age_ms);
 }
 
 uint16_t ADC_Feedback_ApplyVddCompensation(uint16_t raw_adc,

@@ -21,7 +21,8 @@ extern volatile uint32_t s_adc_raw_sample_us_q4;
 extern volatile uint16_t g_adc_vdd_compensated_last;
 extern volatile uint8_t s_vdd_sample_valid;
 extern volatile uint32_t g_adc_diag_seq;
-extern volatile uint32_t g_adc_diag_batch_count;
+extern volatile uint16_t g_adc_diag_batch_count;
+extern volatile uint32_t g_adc_diag_snapshot_request, g_adc_diag_snapshot_ack;
 extern volatile uint16_t g_adc_diag_sample0, g_adc_diag_sample1;
 extern volatile uint16_t g_adc_diag_sample2, g_adc_diag_sample3;
 
@@ -118,6 +119,31 @@ int main(void)
   check("completed four-sample batch leaves sequence even", (int)(g_adc_diag_seq & 1U), 0, 0);
   check("diagnostic batch preserves sample order", g_adc_diag_sample0, 1900, 1900);
   check("diagnostic batch captures fourth sample", g_adc_diag_sample3, 2190, 2190);
+  uint32_t seq_before_freeze = g_adc_diag_seq;
+  uint32_t count_before_freeze = g_adc_diag_batch_count;
+  samples[0] = 2100U; samples[1] = 2101U; samples[2] = 2102U; samples[3] = 2103U;
+  sample_index = 0U; sample_count = 4U;
+  g_adc_diag_snapshot_request = 1U;
+  (void)ADC_Feedback_ReadRaw();
+  check("snapshot request is acknowledged after full batch", g_adc_diag_snapshot_ack, 1, 1);
+  check("snapshot capture advances generation once", (int)(g_adc_diag_seq - seq_before_freeze), 2, 2);
+  check("snapshot capture advances batch count once", (int)(g_adc_diag_batch_count - count_before_freeze), 1, 1);
+  uint16_t frozen_sample0 = g_adc_diag_sample0;
+  uint32_t frozen_seq = g_adc_diag_seq;
+  uint32_t frozen_count = g_adc_diag_batch_count;
+  samples[0] = 3000U; samples[1] = 3001U; samples[2] = 3002U; samples[3] = 3003U;
+  sample_index = 0U;
+  check("diagnostic freeze leaves live ADC control reading active", ADC_Feedback_ReadRaw(), 3001, 3002);
+  check("diagnostic freeze preserves captured sample", g_adc_diag_sample0, frozen_sample0, frozen_sample0);
+  check("diagnostic freeze holds sequence and batch count", (int)(g_adc_diag_seq - frozen_seq), 0, 0);
+  check("diagnostic freeze holds batch counter", (int)(g_adc_diag_batch_count - frozen_count), 0, 0);
+  g_adc_diag_snapshot_request = 0U;
+  samples[0] = 3100U; samples[1] = 3101U; samples[2] = 3102U; samples[3] = 3103U;
+  sample_index = 0U;
+  (void)ADC_Feedback_ReadRaw();
+  check("snapshot release clears acknowledgment", g_adc_diag_snapshot_ack, 0, 0);
+  check("snapshot release resumes ADC diagnostic updates", g_adc_diag_sample0, 3100, 3100);
+  sample_count = 0U;
   samples[0] = 2207U; samples[1] = 2166U; samples[2] = 2166U; samples[3] = 2207U;
   sample_index = 0U; sample_count = 4U;
   check("two low samples retain half excursion after trimming",
@@ -150,6 +176,10 @@ int main(void)
 #endif
   check("VREFINT startup delay before periodic conversion", (int)vref_settle_errors, 0, 0);
   check("VDD estimate follows VREF change", ADC_Feedback_GetVddMv(), 3201, 3201);
+  check("ratiometric pot keeps raw position across VDD change",
+        ADC_Feedback_GetControlValue(2000U, true, 3300U, 100U), 2000, 2000);
+  check("independent pot supply applies VDD normalization",
+        ADC_Feedback_GetControlValue(2000U, false, 3300U, 100U), 1940, 1940);
   check("valid VREF marks VDD sample usable", s_vdd_sample_valid, 1, 1);
   check("VDD sample timestamp", (int) ADC_Feedback_GetVddSampleMs(), (int)tick, (int)tick);
   check("VDD compensation normalizes to nominal rail",

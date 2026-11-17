@@ -24,6 +24,9 @@
 #ifndef SERVO_ENABLE_INTERNAL_STEP_TEST
 #define SERVO_ENABLE_INTERNAL_STEP_TEST 0
 #endif
+#ifndef SERVO_ENABLE_PA0_POT_POWER
+#define SERVO_ENABLE_PA0_POT_POWER 0
+#endif
 #ifndef SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
 #define SERVO_ADC_SUBSAMPLE_DIAGNOSTIC 0
 #endif
@@ -48,6 +51,7 @@ volatile uint16_t g_r01_diag_min_vdd_when_request = 0xFFFFU;
 volatile uint16_t g_r01_diag_max_vdd_when_request;
 /* Latched guard reason: 1=position excursion, 2=opposite feedback trend. */
 volatile uint8_t g_r01_diag_lock_reason;
+volatile uint16_t g_r01_diag_control_adc;
 volatile uint16_t g_r01_diag_lock_feedback;
 volatile int16_t g_r01_diag_lock_error;
 volatile int16_t g_r01_diag_lock_displacement;
@@ -2620,11 +2624,20 @@ static int16_t lcdm_servo_loop_update_fast(void)
   }
 
   raw_adc = ADC_Feedback_ReadRaw();
-#if BOARD_TSSOP20_DEBUG_PINS
-  control_adc = ADC_Feedback_ApplyVddCompensation(
-      raw_adc, Servo_Params_Get()->vdd_nominal_mv, 100U);
+#if BOARD_TSSOP20_DEBUG_PINS && SERVO_ENABLE_PA0_POT_POWER
+  /* PA0 excites the potentiometer from MCU VDDA: raw ADC is ratiometric.
+   * Continue monitoring VDD for the low-rail guard, but do not double-correct position. */
+  control_adc = ADC_Feedback_GetControlValue(
+      raw_adc, true, Servo_Params_Get()->vdd_nominal_mv, 100U);
+#elif BOARD_TSSOP20_DEBUG_PINS
+  /* Independent sensor excitation requires VDD normalization. */
+  control_adc = ADC_Feedback_GetControlValue(
+      raw_adc, false, Servo_Params_Get()->vdd_nominal_mv, 100U);
 #else
   control_adc = raw_adc;
+#endif
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
+  g_r01_diag_control_adc = control_adc;
 #endif
 
   if (frequency_hz != s_lcdm_last_hbridge_frequency_hz)

@@ -60,6 +60,8 @@ def main():
                         help='tag the paired ADC timestamp diagnostic image as P160H')
     parser.add_argument('--adc-subsample-diagnostic', action='store_true',
                         help='record the four position ADC conversions and Q4 timestamps')
+    parser.add_argument('--adc-vdd-each-batch', action='store_true',
+                        help='refresh VREFINT before every four-sample position ADC batch')
     args = parser.parse_args()
     if args.internal_step_test and args.profile != 'lcdm':
         parser.error('--internal-step-test requires --profile lcdm')
@@ -69,6 +71,8 @@ def main():
         parser.error('--production-lcdm cannot be combined with diagnostic test modes')
     if args.adc_subsample_diagnostic and not args.internal_step_test:
         parser.error('--adc-subsample-diagnostic requires --internal-step-test')
+    if args.adc_vdd_each_batch and not args.adc_subsample_diagnostic:
+        parser.error('--adc-vdd-each-batch requires --adc-subsample-diagnostic')
     if args.r04_ui_redraw_stress and not (args.internal_step_test and args.profile == 'lcdm'):
         parser.error('--r04-ui-redraw-stress requires --profile lcdm --internal-step-test')
     source = (ROOT / 'src/app_entry.c').read_text()
@@ -88,7 +92,9 @@ def main():
     if args.r04_ui_redraw_stress:
         flags = flags + ['SERVO_R04_UI_REDRAW_STRESS=1', 'SERVO_R04_TIMING_TRACE=1']
     if args.adc_subsample_diagnostic:
-        flags = flags + ['SERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1', 'SERVO_ADC_VDD_EACH_DIAG_BATCH=1']
+        flags = flags + ['SERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1']
+    if args.adc_vdd_each_batch:
+        flags = flags + ['SERVO_ADC_VDD_EACH_DIAG_BATCH=1']
     if args.force_coast:
         flags = flags + ['SERVO_HBRIDGE_FORCE_COAST=1']
     if args.direction_probe:
@@ -149,6 +155,10 @@ def main():
     if result.returncode:
         print((out / 'build.log').read_text()[-4000:])
         raise SystemExit(result.returncode)
+    if args.adc_vdd_each_batch:
+        build_log = (out / 'build.log').read_text(errors='replace')
+        if '-DSERVO_ADC_VDD_EACH_DIAG_BATCH=1' not in build_log:
+            raise SystemExit('Requested VDD-per-batch macro is absent from the compiler command; candidate rejected')
     artifacts = {}
     for ext in ['elf', 'bin', 'hex', 'map']:
         name = 'py32f002_servo.' + ext
@@ -171,7 +181,7 @@ def main():
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=version, profile=args.profile, production_lcdm=args.production_lcdm, internal_step_test=args.internal_step_test, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=version, profile=args.profile, production_lcdm=args.production_lcdm, internal_step_test=args.internal_step_test, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),

@@ -294,3 +294,21 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - ADC HAL主机仿真分别核对原20ms间隔与逐批刷新路径；TSSOP20开发板配置在新路径下49/49通过、0失败，包括每批增加一次VREF转换、VDD/位置样本时序差小于模拟1ms门槛、VREF无效时标记无效并按诊断批次重试。证据`build/r01_vdd_pair_retry_20261117/report.json`，模拟HAL不代表实体ADC时序。
 - R16 Ubuntu构建通过，BIN 19,484B SHA256=`09cb57215b19845ca74e212b6ad5428f7f163e81d5de1da39809f2446627c614`；ELF SHA256=`a4c7f9961237d3bd71d265fedfa4bd762f242d9a80b8992b85cb759b6c2db13b`；manifest`build/releases/V10.6_TSSOP20_R01_CENTER_M3_ADC_DIAG_20261117_R16/manifest.json`标记`SERVO_ADC_VDD_EACH_DIAG_BATCH=1`、100/1000软件占空上限、`flashed=false`。
 - **当前板仍为R13并持续coast；R16未下载。**逐批刷新增加诊断环路的VREF转换与15µs等待，实际占用/反馈效果尚未测量；R01实体运动仍未通过。不会把模拟时序结果当作实板性能结论。
+
+
+## 2026-11-17 R01/R02补充根因假设：比例式反馈被重复补偿
+
+- TSSOP20诊断构建把PA0配置为电位器供电脚，同时PA4为位置ADC输入、MCU VDDA为ADC参考。R13 raw ADC约2155、VDD约3278mV；旧TSSOP20 LCDM控制路径乘VDD/3300会计算约2141，相差约14 count。该量级与用户关注的15 count误差相近，说明之前候选中的VDD归一可能人为制造位置偏差。
+- 已修正R17：PA0供电配置下控制器直接使用raw ADC；仍以逐批VREFINT遥测电压并执行低VDD安全门控。仿真ADC回归测试共源激励raw不重复补偿、独立激励保留归一，两种刷新模式均通过；Ubuntu构建通过。**这只是代码层纠偏，不能单凭历史读数宣布R01通过**；需要R17板上输出/反馈对照和实际位置观察。
+- R17尚未下载，仿真板仍为R13。按当前“先审同步采集、暂不触发电机”的状态，没有执行实机动作；R01/R02仍未通过。
+
+## 2026-11-17 R24同步ADC/VDD快照实板验证
+
+- 修正R16–R18构建记录：manifest曾声明`SERVO_ADC_VDD_EACH_DIAG_BATCH=1`，但当时Makefile没有将该宏传给编译器；所以旧版本实际未启用逐批VDD采样。Makefile现已加入宏传播，构建脚本会检查日志中确有`-DSERVO_ADC_VDD_EACH_DIAG_BATCH=1`，缺失即拒绝候选。R24构建日志和manifest均确认实际启用。
+- R24为TSSOP20 force-coast诊断版，内部微步程序存在但监视器没有写入触发标志；H桥强制coast。下载前完整备份已归档于`build/board_readback/20261117_R24_before/`；使用2MHz under-reset写入，整片20,480B读回SHA256=`083e4346b17dd74fb01cf1c21a7469fc8836347b6edaafce4b107a43b199e7e3`，应用区与R24 BIN逐字节匹配，尾384B保持不变，核心Running。R24 BIN 19,132B SHA256=`801f27fcacb2378d501007bd760c441ec73dbf96342ab566f226a55087db87bd`；manifest=`build/releases/V10.6_TSSOP20_R01_R02_DIAG_FORCE_COAST_20261117_R24/manifest.json`。
+- R24只读静止监测20.404秒、52帧；快照一致52/52、撕裂0，ADC批次持续前进。监视器未触发内部扫动，H桥强制coast。CSV SHA256=`5d2ca8e654ec0d87b794663b69f218ecf35a1328a01e9f85d0a12f34e99575ca`，JSON SHA256=`04aaf8fc439230605893d22f4ef54a5f30f6be5635358e1e0035f5602be89d31`。
+- 同一冻结批次中VDD样本到位置ADC首末样本跨度约3,207–3,449个Q4 tick（约200–216µs）；快照约86–303µs内读完。静止VDD估值约3,252–3,260mV。此结果证明诊断配对和采集一致性，不是负载瞬态、外部电机电源或PA0供电拓扑的测量。
+- R24静止时PA4 raw子样本靠近高端：sample0为3306–3976（中位3893.5），sample1最小3640且中位4095，sample2最小3948且中位4095，sample3全为4095；52帧`raw_adc_last`中位4095。单靠固件读数无法区分真实电位器位置、PA4电压/接线或ADC输入饱和。因反馈接近量程上沿且实体位置未独立确认，本轮未触发动作。
+- ADC主机模拟（逐批VDD诊断）60/60通过、0失败；快照冻结/释放专项回归通过；Python语法检查与`git diff --check`通过。报告`build/r01_adc_snapshot_freeze_final_20261117/report.json`，SHA256=`3dbfb7c3b91c0842c7db5bffb24dbe25ebe0706196ccb453b42dc73ddcd3e555`。报告列有development与SOP8配置；本轮实际验收仍仅采纳TSSOP20，不表示SOP8验收。
+- **R01仍未通过**：解决了诊断采集快照混批问题，但没有命令步进、可观察角度变化或物理H桥波形。沿用用户既有方向结论，不要求重新确认方向；当前未通过的直接原因是缺少可重复实体位移证据，且本次静态反馈接近ADC上沿。继续验证前需确认转臂/电位器轴的位置并观察微动；无需按数字键或提供外部50Hz输入。端点留到最后，禁止大步/极限驱动。
+- **板上当前状态**：R24 `force_coast=1`，没有动作触发，核心Running。下一步先取得PA4对模拟地、PA0电位器供电及VDDA的可信电压/接线关系；在raw接近4095的原因查清且机构处于安全中位后，再评估一次中心微步。不得从软件duty推断引脚驱动。
