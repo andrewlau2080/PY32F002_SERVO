@@ -88,7 +88,7 @@ def main():
     if args.r04_ui_redraw_stress:
         flags = flags + ['SERVO_R04_UI_REDRAW_STRESS=1', 'SERVO_R04_TIMING_TRACE=1']
     if args.adc_subsample_diagnostic:
-        flags = flags + ['SERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1']
+        flags = flags + ['SERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1', 'SERVO_ADC_VDD_EACH_DIAG_BATCH=1']
     if args.force_coast:
         flags = flags + ['SERVO_HBRIDGE_FORCE_COAST=1']
     if args.direction_probe:

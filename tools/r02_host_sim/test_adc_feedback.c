@@ -132,12 +132,22 @@ int main(void)
   check("periodic VREF sample", ADC_Feedback_GetVrefintRaw(), 1489, 1489);
   params.vdd_sample_interval_ms = 20U;
   vrefint = 1535U;
+#if SERVO_ADC_VDD_EACH_DIAG_BATCH
+  unsigned reads_before_batch_refresh = vref_reads;
+  (void)ADC_Feedback_ReadRaw();
+  check("diagnostic batch refreshes VDD immediately", (int)vref_reads,
+        (int)reads_before_batch_refresh + 1, (int)reads_before_batch_refresh + 1);
+  check("diagnostic VDD is paired with position batch", ADC_Feedback_GetVrefintRaw(), 1535, 1535);
+  check("diagnostic VDD-to-position age stays within 1 ms",
+        (int)(s_adc_raw_sample_us_q4 - s_vdd_sample_us_q4), 1, 16000);
+#else
   tick += 19U;
   (void)ADC_Feedback_ReadRaw();
   check("VDD sample held inside interval", ADC_Feedback_GetVrefintRaw(), 1489, 1489);
   tick += 1U;
   (void)ADC_Feedback_ReadRaw();
   check("LCDM raw path refreshes VDD at interval", ADC_Feedback_GetVrefintRaw(), 1535, 1535);
+#endif
   check("VREFINT startup delay before periodic conversion", (int)vref_settle_errors, 0, 0);
   check("VDD estimate follows VREF change", ADC_Feedback_GetVddMv(), 3201, 3201);
   check("valid VREF marks VDD sample usable", s_vdd_sample_valid, 1, 1);
@@ -176,7 +186,13 @@ int main(void)
   unsigned reads_after_invalid = vref_reads;
   tick += 1U;
   (void)ADC_Feedback_ReadRaw();
-  check("invalid VREF does not retrigger before interval", (int)vref_reads, (int)reads_after_invalid, (int)reads_after_invalid);
+#if SERVO_ADC_VDD_EACH_DIAG_BATCH
+  check("diagnostic mode retries VREF on next ADC batch", (int)vref_reads,
+        (int)reads_after_invalid + 1, (int)reads_after_invalid + 1);
+#else
+  check("invalid VREF does not retrigger before interval", (int)vref_reads,
+        (int)reads_after_invalid, (int)reads_after_invalid);
+#endif
   pot = 0U;
   check("raw ADC supports lower rail", ADC_Feedback_ReadRaw(), 0, 0);
   pot = 4095U;

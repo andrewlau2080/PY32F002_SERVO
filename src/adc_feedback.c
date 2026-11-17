@@ -10,6 +10,9 @@
 #ifndef SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
 #define SERVO_ADC_SUBSAMPLE_DIAGNOSTIC 0
 #endif
+#ifndef SERVO_ADC_VDD_EACH_DIAG_BATCH
+#define SERVO_ADC_VDD_EACH_DIAG_BATCH 0
+#endif
 
 static ADC_HandleTypeDef s_adc;
 static uint16_t s_last_raw;
@@ -89,7 +92,8 @@ static uint16_t read_selected_channel_once(void)
 static void update_vdd_sample(void)
 {
   select_channel(ADC_CHANNEL_VREFINT);
-#if defined(SERVO_VREFINT_SETTLE_FIX) && (SERVO_VREFINT_SETTLE_FIX != 0)
+#if (defined(SERVO_VREFINT_SETTLE_FIX) && (SERVO_VREFINT_SETTLE_FIX != 0)) || \
+    (SERVO_ADC_VDD_EACH_DIAG_BATCH != 0)
   /* HAL enables the internal VREF path when the channel enters the sequence.
    * The PY32F002A datasheet allows up to 15 us startup; wait before sampling
    * so VDD telemetry does not depend on a partially settled reference. */
@@ -196,7 +200,19 @@ uint16_t ADC_Feedback_ReadRaw(void)
 
   /* LCDM uses this API directly. Sample VREFINT here too, so motor-load VDD
    * changes are observed even when the generic filtered path is not running. */
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC && SERVO_ADC_VDD_EACH_DIAG_BATCH
+  if (sample_count == 4U)
+  {
+    /* Diagnostic only: refresh VDD immediately before its paired position batch. */
+    update_vdd_sample();
+  }
+  else
+  {
+    update_vdd_if_due(HAL_GetTick());
+  }
+#else
   update_vdd_if_due(HAL_GetTick());
+#endif
 
   if (sample_count == 0U)
   {

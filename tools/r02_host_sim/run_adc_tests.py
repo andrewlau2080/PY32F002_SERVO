@@ -13,6 +13,8 @@ FILES = ("src/adc_feedback.c", "inc/board.h", "tools/r02_host_sim/test_adc_feedb
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--diag-vdd-each-batch", action="store_true",
+                        help="force a settled VREFINT conversion before each diagnostic 4-sample batch")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     profiles = {}
@@ -20,10 +22,11 @@ def main():
         out = args.output / name
         out.mkdir()
         binary = out / "test_adc"
+        extra = ["-DSERVO_ADC_VDD_EACH_DIAG_BATCH=1"] if args.diag_vdd_each_batch else []
         cmd = ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
                "-DBOARD_TSSOP20_DEBUG_PINS=" + debug,
                "-DSERVO_VREFINT_SETTLE_FIX=1",
-               "-DSERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1",
+               "-DSERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1", *extra,
                "-I", str(ROOT / "tools/r02_host_sim"), "-I", str(ROOT / "inc"),
                str(ROOT / "tools/r02_host_sim/test_adc_feedback.c"),
                str(ROOT / "src/adc_feedback.c"), "-o", str(binary)]
@@ -40,6 +43,7 @@ def main():
     report = {"files_sha256": {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
                                for name in FILES},
               "profiles": profiles,
+              "diag_vdd_each_batch": args.diag_vdd_each_batch,
               "scope": "Production ADC source with simulated channel conversions, no physical ADC or motor."}
     (args.output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     if any(p["exit_code"] for p in profiles.values()):

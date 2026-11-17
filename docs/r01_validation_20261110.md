@@ -286,3 +286,11 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 扩展R02 ADC主机仿真，启用与R15相同的`SERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1`编译路径；验证完整采样后序列号从偶数增加2并保持偶数、批次计数递增、首/末子样本与模拟输入一致。TSSOP20开发板配置48/48通过、0失败；证据报告`build/r01_adc_sequence_lock_20261117/report.json`，SHA256=`4c9483f8e1bb826744dc62acb331a5de1ce7985c6776507af8f2501550fc613d`。这是HAL仿真，不是实体ADC测试。
 - 重新构建R15以匹配当前源码：BIN 19,484B，SHA256=`09cb57215b19845ca74e212b6ad5428f7f163e81d5de1da39809f2446627c614`；manifest在`build/releases/V10.6_TSSOP20_R01_CENTER_M3_ADC_DIAG_20261117_R15/manifest.json`。动作范围仍只含1503–1506µs中心微步，软件占空限制100/1000，**未下载**。
 - 监视器现在要求至少有一个完整一致快照，否则将捕获判为失败；一致/撕裂行分别计数。序列锁回归和构建通过只关闭“采样快照可能混批”的软件缺陷，不证明R01实体位置响应。当前仿真板保持R13，动作窗后coast；不做重复实动，仍需转臂/轴微动观察及双路H桥测量。
+
+
+## 2026-11-17 R16诊断VDD逐批刷新
+
+- R13配对数据的VDD读数相对位置ADC约滞后18–42ms，原配置按20ms间隔刷新，无法观察电机动作期间更快的供电变化。R16仅在ADC诊断构建启用逐批刷新：每个四点PA3位置采样批次前切换到VREFINT，等待15µs启动稳定后读VDD，再立即执行四点位置采样并记录时间戳；生产固件路径保持原配置。
+- ADC HAL主机仿真分别核对原20ms间隔与逐批刷新路径；TSSOP20开发板配置在新路径下49/49通过、0失败，包括每批增加一次VREF转换、VDD/位置样本时序差小于模拟1ms门槛、VREF无效时标记无效并按诊断批次重试。证据`build/r01_vdd_pair_retry_20261117/report.json`，模拟HAL不代表实体ADC时序。
+- R16 Ubuntu构建通过，BIN 19,484B SHA256=`09cb57215b19845ca74e212b6ad5428f7f163e81d5de1da39809f2446627c614`；ELF SHA256=`a4c7f9961237d3bd71d265fedfa4bd762f242d9a80b8992b85cb759b6c2db13b`；manifest`build/releases/V10.6_TSSOP20_R01_CENTER_M3_ADC_DIAG_20261117_R16/manifest.json`标记`SERVO_ADC_VDD_EACH_DIAG_BATCH=1`、100/1000软件占空上限、`flashed=false`。
+- **当前板仍为R13并持续coast；R16未下载。**逐批刷新增加诊断环路的VREF转换与15µs等待，实际占用/反馈效果尚未测量；R01实体运动仍未通过。不会把模拟时序结果当作实板性能结论。
