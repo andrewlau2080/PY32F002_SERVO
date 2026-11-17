@@ -324,3 +324,11 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - R25静态只读采集51帧、一致51/51、撕裂0，未触发内部扫动。`raw_adc_last`中位4095；四个子样本中位数均4095，sample0最低3638、sample1最低3971；停用逐批VREF刷新后异常仍在，故该改动不是充分原因。CSV SHA256=`3ceae5c0f686d7174d4e0c500513095316937e95c1979dbf391feab20926f7fe`。
 - 静态状态下SWD只读ADC寄存器：`ADC1->CHSELR=0x10`（选中通道4），`GPIOA->MODER=0xEBFF97D5`（PA4模式为模拟输入），`ADC1->DR=0x0FFF`。这验证固件选通道和GPIO模式符合当前TSSOP20规划，但不能解释PA4万用表1.120V与满量程转换的矛盾。PA3=0.005V是PWM输入脚读数，与反馈无关。
 - **R01/R02状态**：不因这次读数矛盾重做既有ADC高低端验证。R01仍缺当前固件下可重复实体位移；R02同步快照通过，但PA4电压与ADC转换不一致、负载瞬态未验。当前板已从R24换为R25，仍force-coast、不驱动机构。后续源码侧应核对ADC数据读出和转换完成标志；若源码确认无误，才需要对比MCU PA4引脚处的电压与板上测点电压。
+
+## 2026-11-17 R25 ADC读取路径复核与R26长采样候选
+
+- 按后期TSSOP20规划核对：`BOARD_POT_ADC_PIN/CHANNEL`指向PA4/ADC4；初始化将该脚设为模拟输入，`HAL_ADC_ConfigChannel()`配置ADC4。每次读取依次`HAL_ADC_Start()`、`HAL_ADC_PollForConversion()`、`HAL_ADC_GetValue()`、`HAL_ADC_Stop()`；VREFINT切换前先禁用旧通道rank，再启用目标通道。Ubuntu HAL实现会在Start清状态并从DR取值。源码审查未发现把PA3 PWM值当作反馈或明显读取旧变量/错误通道的路径；因此没有据此改动量程映射或VDD补偿。
+- R25在通道4/PA4模拟模式正确的情况下仍饱和近4095。新增R26仅把ADC采样时间由41.5 cycles提高到PY32F002支持的239.5 cycles，用于隔离源阻抗/采样建立时间影响；保留四点诊断，并强制H桥coast。构建脚本要求长采样标志必须与ADC子样本诊断、force-coast同时启用。
+- R26 Ubuntu构建通过，BIN 19,032B，SHA256=`986e0ae33decc2599a47a71acf7e9af486850cd9376c178a17e55fb5096c5ad3`；manifest=`build/releases/V10.6_TSSOP20_R01_R02_DIAG_FORCE_COAST_LONG_ADC_20261117_R26/manifest.json`，编译日志确认`SERVO_ADC_LONG_SAMPLE_DIAGNOSTIC=1`。候选尚未下载。
+- 下载前只读备份未能启动：Ubuntu报告未发现DAPLink（0 probes）。未执行任何擦除/写入，当前板仍是已确认的R25 force-coast固件，R26不能作为板上结果。待DAPLink重新枚举后，先读回并核对R25整片镜像，再决定是否下载R26；不触发电机。
+- **结论**：R01仍缺当前候选下可重复实体位移，且方向既有结论沿用、不要求重测；R02的PA4电压/raw矛盾尚无根因结论，既有ADC高低端验证沿用。下一项只需比较R26四点ADC与R25静态数据：若raw明显回到约1423，采样建立时间是重要因素；若仍饱和，则转查PA4引脚实际电压/走线与输入源阻抗。当前没有要求用户按键、移动机构或重复测高低端。

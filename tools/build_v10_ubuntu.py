@@ -62,6 +62,8 @@ def main():
                         help='record the four position ADC conversions and Q4 timestamps')
     parser.add_argument('--adc-vdd-each-batch', action='store_true',
                         help='refresh VREFINT before every four-sample position ADC batch')
+    parser.add_argument('--adc-long-sample-diagnostic', action='store_true',
+                        help='use maximum ADC acquisition time for force-coast diagnostics')
     args = parser.parse_args()
     if args.internal_step_test and args.profile != 'lcdm':
         parser.error('--internal-step-test requires --profile lcdm')
@@ -73,6 +75,8 @@ def main():
         parser.error('--adc-subsample-diagnostic requires --internal-step-test')
     if args.adc_vdd_each_batch and not args.adc_subsample_diagnostic:
         parser.error('--adc-vdd-each-batch requires --adc-subsample-diagnostic')
+    if args.adc_long_sample_diagnostic and not (args.adc_subsample_diagnostic and args.force_coast):
+        parser.error('--adc-long-sample-diagnostic requires --adc-subsample-diagnostic --force-coast')
     if args.r04_ui_redraw_stress and not (args.internal_step_test and args.profile == 'lcdm'):
         parser.error('--r04-ui-redraw-stress requires --profile lcdm --internal-step-test')
     source = (ROOT / 'src/app_entry.c').read_text()
@@ -95,6 +99,8 @@ def main():
         flags = flags + ['SERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1']
     if args.adc_vdd_each_batch:
         flags = flags + ['SERVO_ADC_VDD_EACH_DIAG_BATCH=1']
+    if args.adc_long_sample_diagnostic:
+        flags = flags + ['SERVO_ADC_LONG_SAMPLE_DIAGNOSTIC=1']
     if args.force_coast:
         flags = flags + ['SERVO_HBRIDGE_FORCE_COAST=1']
     if args.direction_probe:
@@ -181,7 +187,7 @@ def main():
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=version, profile=args.profile, production_lcdm=args.production_lcdm, internal_step_test=args.internal_step_test, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=version, profile=args.profile, production_lcdm=args.production_lcdm, internal_step_test=args.internal_step_test, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),

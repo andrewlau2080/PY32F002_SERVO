@@ -13,6 +13,9 @@
 #ifndef SERVO_ADC_VDD_EACH_DIAG_BATCH
 #define SERVO_ADC_VDD_EACH_DIAG_BATCH 0
 #endif
+#ifndef SERVO_ADC_LONG_SAMPLE_DIAGNOSTIC
+#define SERVO_ADC_LONG_SAMPLE_DIAGNOSTIC 0
+#endif
 
 static ADC_HandleTypeDef s_adc;
 static uint16_t s_last_raw;
@@ -168,7 +171,12 @@ void ADC_Feedback_Init(void)
   s_adc.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   s_adc.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   s_adc.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+#if SERVO_ADC_LONG_SAMPLE_DIAGNOSTIC
+  /* Diagnostic only: distinguish a high source impedance / settling issue. */
+  s_adc.Init.SamplingTimeCommon = ADC_SAMPLETIME_239CYCLES_5;
+#else
   s_adc.Init.SamplingTimeCommon = ADC_SAMPLETIME_41CYCLES_5;
+#endif
 
   if (HAL_ADC_Init(&s_adc) != HAL_OK)
   {
