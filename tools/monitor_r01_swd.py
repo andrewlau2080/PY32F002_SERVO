@@ -20,6 +20,7 @@ from unittest.mock import patch
 
 SYMBOLS = {
     "tick": ("uwTick", 4, False),
+    "runtime_pwm_start_ms": ("s_lcdm_runtime_pwm_start_ms", 4, False),
     "source": ("s_lcdm_pwm_source", 1, False),
     "edge_count": ("s_edge_count", 4, False),
     "pulse_count": ("s_pulse_count", 4, False),
@@ -155,6 +156,8 @@ def main():
     # Default duration covers the 30 s pre-roll plus the center microstep sweep.
     p.add_argument("--seconds", type=float, default=70.0)
     p.add_argument("--interval-ms", type=int, default=50)
+    p.add_argument("--announce-before-sweep-ms", type=int, default=0,
+                   help="stream an immediate warning this many ms before the automatic 30 s center sweep")
     p.add_argument("--expect-center-sweep", action="store_true",
                    help="require PWM sweep sync plus fresh four-sample ADC diagnostic batches")
     p.add_argument("--expect-pwm-sweep", action="store_true",
@@ -167,6 +170,8 @@ def main():
     monitor_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     if args.seconds <= 0 or args.interval_ms < 10:
         p.error("seconds must be positive and interval-ms at least 10")
+    if not 0 <= args.announce_before_sweep_ms <= 29000:
+        p.error("announce-before-sweep-ms must be in 0..29000")
     if (args.expect_center_sweep or args.expect_pwm_sweep) and args.seconds < 35.0:
         p.error("center microstep capture must cover at least 35 seconds")
     if args.arm_center_sweep and not args.expect_center_sweep:
@@ -177,6 +182,8 @@ def main():
         p.error("PWM sweep checks require the V10.6SIMB2 diagnostic ELF")
     addresses = read_symbols(args.elf)
     active = [label for label, (name, _size, _signed) in SYMBOLS.items() if name in addresses]
+    if args.announce_before_sweep_ms and "runtime_pwm_start_ms" not in active:
+        raise SystemExit("Selected ELF lacks the runtime PWM start timestamp needed for an advance warning")
     adc_diag_labels = {
         "adc_diag_sample0", "adc_diag_sample1", "adc_diag_sample2", "adc_diag_sample3",
         "adc_diag_time0_q4", "adc_diag_time3_q4", "adc_diag_batch_count",
@@ -252,6 +259,7 @@ def main():
     adc_diag_batch_max = None
     adc_diag_consistent_rows = 0
     adc_diag_torn_rows = 0
+    sweep_warning_sent = False
     wall_start = datetime.datetime.now().astimezone().isoformat()
     started = time.monotonic()
     try:
@@ -280,7 +288,7 @@ def main():
                 # time and makes it difficult to measure the running system.
                 for labels in (
                     ("hw_raw_us", "hw_accepted_us", "hw_candidate_us", "latched_us"),
-                    ("tick", "edge_count", "pulse_count", "input_valid", "last_edge_ms"),
+                    ("tick", "runtime_pwm_start_ms", "edge_count", "pulse_count", "input_valid", "last_edge_ms"),
                     ("source",),
                     ("control_duty", "control_state", "velocity_q4_live",
                      "traj_pos_q4_live", "traj_vel_q4_live"),
@@ -339,6 +347,26 @@ def main():
                 # Tick must be sampled after last_edge_ms; otherwise an edge
                 # arriving during the SWD read can appear as a 32-bit underflow.
                 row["tick_after"] = int(target.read32(addresses["uwTick"]))
+                if args.announce_before_sweep_ms and not sweep_warning_sent:
+                    elapsed_ms = (row["tick_after"] - row["runtime_pwm_start_ms"]) & 0xffffffff
+                    remaining_ms = 30000 - elapsed_ms
+                    if elapsed_ms >= 38000:
+                        message = f"R01_ACTION_WINDOW_EXPIRED elapsed_ms={elapsed_ms}; no visual observation is possible"
+                        sweep_warning_sent = True
+                    elif elapsed_ms >= 30000:
+                        message = f"R01_ACTION_ALREADY_STARTED elapsed_ms={elapsed_ms}; watch now if motion is still visible"
+                        sweep_warning_sent = True
+                    elif remaining_ms <= args.announce_before_sweep_ms:
+                        message = (f"R01_ACTION_IMMINENT elapsed_ms={elapsed_ms} remaining_ms={remaining_ms}; "
+                                   "watch the mechanism now")
+                        sweep_warning_sent = True
+                    else:
+                        message = None
+                    if message:
+                        print(
+                            message,
+                            flush=True,
+                        )
                 if "last_edge_ms" in row:
                     row["input_age_ms"] = (row["tick_after"] - row["last_edge_ms"]) & 0xffffffff
                 else:
