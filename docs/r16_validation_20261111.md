@@ -25,4 +25,5 @@ R01–R15及R17–R22状态按对应记录；R16新发现已更正，本轮只�
 
 - `tools/render_customer_channel_compare.py`新增`--customer-vcd`输入，可从Logic 1导出的VCD提取Channel 2/3/6/7单比特数字轨迹，并显示最后一段连续活动；有VCD时不再尝试解析原`.logicdata`。原始Edge Finder显示路径仍保留。
 - 合成四通道VCD端到端页面检查通过：四路阶跃均生成SVG轨迹；HTML/SVG明确说明客户采集与我方VSG曲线分别归零、不是同步实测。`py_compile`、`--help`、`git diff --check`通过。测试输出在临时目录，未写入项目证据目录。
+- 再用唯一真实`../PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata`运行旧版Edge Finder路径成功：识别3个连续事件块并生成SVG；未修改原文件，也没有把Edge Finder事件冒充数字电平。
 - 这只是导入/绘图准备，不是客户文件解码。当前没有真实VCD，客户高低脉宽、探头极性、桥臂真值表仍未确认；R16未通过。待用户在Logic 1导出既有文件，无需重新采集。
