@@ -25,7 +25,7 @@ R01–R16 未通过项留待后续统一复核，本轮未重跑。
 
 ## 2026-11-19 页面接入客户数字轨迹
 
-- `tools/render_customer_channel_compare.py --customer-vcd <VCD>`现在可在同一SVG顶部显示客户Channel 2/3/6/7数字电平，下方仍显示我方VSG signed-duty软件包络；没有VCD时保留旧Edge Finder边沿标记路径。HTML仍每秒刷新SVG，配合独立CSV更新进程使用。
-- 修正了页面文案：客户采集与VSG曲线各自按动作起点归零，明确标记为“非同步实测”；VSG包络不能作为H桥引脚波形。合成VCD端到端检查显示四通道轨迹、页面文案和SVG均有效；Python语法/CLI及`git diff --check`通过。
-- 使用实际`CUSTOMER.logicdata`与历史91帧VSG CSV运行旧版输入分支，生成页面成功，解析到3个Edge Finder事件块；此兼容检查不提供数字通道电平或动作同步证据。
+- `tools/render_customer_channel_compare.py --customer-vcd <VCD>`或`--customer-csv <CSV>`现在可在同一SVG顶部显示客户Channel 2/3/6/7数字电平，下方仍显示我方VSG signed-duty软件包络；没有数字导出时保留旧Edge Finder边沿标记路径。HTML仍每秒刷新SVG，配合独立CSV更新进程使用。
+- 修正了页面文案：客户采集与VSG曲线各自按动作起点归零，明确标记为“非同步实测”；VSG包络不能作为H桥引脚波形。合成VCD和CSV四通道渲染通过，VCD未知电平间隔正确断线，缺失通道时会报错；Python语法/CLI及`git diff --check`通过。
+- 使用实际`CUSTOMER.logicdata`与历史91帧VSG CSV运行旧版输入分支，生成页面成功，解析到3个Edge Finder事件块；另用合成VCD、`Time [ms]`/`Time [ns]` CSV检查新分支，并确认非法时间单位报错。此兼容检查不提供数字通道电平或动作同步证据。
 - 没有真实VCD和新的VSG动作数据，本次没有生成项目内页面快照或进行板上动作。采集→生成循环、共同时间基准、真实双路H桥波形、反馈同屏仍未完成；R17未通过。R16导出可用后可以直接接入本工具，无需重采客户波形。

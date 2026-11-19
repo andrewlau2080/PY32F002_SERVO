@@ -15,6 +15,7 @@ from pathlib import Path
 from analyze_customer_vcd import parse_vcd
 
 TICK_HZ = 250_000_000
+CHANNEL_RE = re.compile(r"\b(?:Channel\s*|Ch\s*)([2367])\b", re.IGNORECASE)
 MOVES = [("1000 → 1500", "low", "mid"), ("1500 → 2000", "mid", "high"),
          ("2000 → 1500", "high", "mid"), ("1500 → 1000", "mid", "low"),
          ("1000 → 2000", "low", "high"), ("2000 → 1000", "high", "low")]
@@ -63,18 +64,21 @@ def customer_vcd_tracks(path: Path):
         raise SystemExit(f"Unsupported or missing VCD timescale: {timescale}")
     selected = []
     for code, sig in signals.items():
-        match = re.search(r"Channel\s*([2367])\b", sig.name, re.IGNORECASE)
+        match = CHANNEL_RE.search(sig.name)
         if match and sig.width == 1 and changes.get(code):
             selected.append((int(match.group(1)), sig, changes[code]))
     selected.sort(key=lambda item: item[0])
     if not selected:
         raise SystemExit("VCD has no single-bit Channel 2/3/6/7 signals")
+    missing = sorted({2, 3, 6, 7} - {channel for channel, _, _ in selected})
+    if missing:
+        raise SystemExit(f"VCD is missing digital channel(s): {', '.join(map(str, missing))}")
 
     activity = sorted({tick for _, _, seq in selected for tick, value in seq
                        if value[-1:].lower() in ("0", "1")})
     if not activity:
         raise SystemExit("VCD channels contain no known digital levels")
-    max_gap = max(1, int(0.015 / seconds_per_tick))
+    max_gap = max(1, 0.015 / seconds_per_tick)
     clusters: list[list[int]] = []
     for tick in activity:
         if not clusters or tick - clusters[-1][-1] > max_gap:
@@ -101,6 +105,68 @@ def customer_vcd_tracks(path: Path):
         tracks.append((channel, sig.name, points))
     duration_ms = max(0.001, (end_tick - start_tick) * seconds_per_tick * 1000.0)
     return timescale, seconds_per_tick, start_tick, end_tick, duration_ms, tracks
+
+
+def customer_csv_tracks(path: Path):
+    with path.open(newline="", errors="replace") as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            raise SystemExit("Customer CSV has no header")
+        time_col = next((name for name in reader.fieldnames
+                         if re.match(r"^\s*time(?:\s*\[([^]]+)\])?\s*$", name, re.IGNORECASE)), None)
+        if not time_col:
+            raise SystemExit("Customer CSV needs a Time column (optionally [s], [ms], [us], or [ns])")
+        unit_match = re.search(r"\[([^]]+)\]", time_col)
+        unit = unit_match.group(1).strip().lower() if unit_match else "s"
+        scale = {"s": 1.0, "sec": 1.0, "ms": 1e-3,
+                 "us": 1e-6, "µs": 1e-6, "ns": 1e-9}.get(unit)
+        if scale is None:
+            raise SystemExit(f"Unsupported CSV time unit: {unit}")
+        columns = []
+        for name in reader.fieldnames:
+            match = CHANNEL_RE.search(name)
+            if match:
+                columns.append((int(match.group(1)), name))
+        columns.sort()
+        if not columns:
+            raise SystemExit("Customer CSV has no Channel 2/3/6/7 columns")
+        missing = sorted({2, 3, 6, 7} - {channel for channel, _ in columns})
+        if missing:
+            raise SystemExit(f"CSV is missing channel(s): {', '.join(map(str, missing))}")
+        samples = []
+        for row in reader:
+            try:
+                seconds = float(row[time_col]) * scale
+            except (TypeError, ValueError):
+                continue
+            samples.append((seconds, row))
+    if not samples:
+        raise SystemExit("Customer CSV has no timestamped samples")
+    times = [t for t, _ in samples]
+    max_gap = 0.015
+    clusters: list[list[float]] = []
+    for sec in times:
+        if not clusters or sec - clusters[-1][-1] > max_gap:
+            clusters.append([sec])
+        else:
+            clusters[-1].append(sec)
+    start_sec, end_sec = clusters[-1][0], clusters[-1][-1]
+    tracks = []
+    for channel, name in columns:
+        points = []
+        state = None
+        for sec, row in samples:
+            if sec < start_sec or sec > end_sec:
+                continue
+            value = (row.get(name) or "").strip().lower()
+            if value not in ("0", "1", "x", "z"):
+                continue
+            if value != state:
+                points.append((sec, value))
+                state = value
+        tracks.append((channel, name, points))
+    duration_ms = max(0.001, (end_sec - start_sec) * 1000.0)
+    return "CSV seconds", 1.0, start_sec, end_sec, duration_ms, tracks
 
 
 def level(pwm: int) -> str:
@@ -163,7 +229,7 @@ def render_svg(customer: list[list[int]], rows: list[dict[str, str]], limit_ms: 
     parts.append('<text x="24" y="88" font-size="16" font-weight="700">客户标准原始通道</text>')
     if vcd_data:
         timescale, seconds_per_tick, start_tick, end_tick, cust_ms, tracks = vcd_data
-        parts.append(f'<text x="24" y="108" font-size="12" fill="#555">VCD Channel 2/3/6/7 数字电平 · 最后活动段起点为 t=0 · timescale {html.escape(timescale)}</text>')
+        parts.append(f'<text x="24" y="108" font-size="12" fill="#555">{html.escape(timescale)} Channel 2/3/6/7 数字电平 · 最后活动段起点为 t=0</text>')
     else:
         parts.append('<text x="24" y="111" font-size="12" fill="#555">Channel 2 · 250 MHz 时间戳 · Edge Finder标记；未解码电平极性/脉宽</text>')
         start_tick = customer[0][0] if customer else 0
@@ -188,6 +254,9 @@ def render_svg(customer: list[list[int]], rows: list[dict[str, str]], limit_ms: 
             for tick, value in points:
                 x = cx((tick - start_tick) * seconds_per_tick * 1000.0)
                 if value == "x":
+                    if state is not None:
+                        old_y = y - 7 if state == "1" else y + 7
+                        d_parts.append(f'M {prev_x:.1f} {old_y:.1f} H {x:.1f}')
                     state = None
                     continue
                 level_y = y - 7 if value == "1" else y + 7
@@ -281,12 +350,16 @@ def render_svg(customer: list[list[int]], rows: list[dict[str, str]], limit_ms: 
 
 def write_page(args: argparse.Namespace) -> None:
     rows=read_vsg(args.ours)
-    blocks=[] if args.customer_vcd else customer_blocks(args.customer)
-    vcd_data = customer_vcd_tracks(args.customer_vcd) if args.customer_vcd else None
+    digital_export = args.customer_vcd or args.customer_csv
+    blocks=[] if digital_export else customer_blocks(args.customer)
+    vcd_data = (customer_vcd_tracks(args.customer_vcd) if args.customer_vcd else
+                customer_csv_tracks(args.customer_csv) if args.customer_csv else None)
     args.out_dir.mkdir(parents=True,exist_ok=True)
     svgname='customer_logic_compare.svg'
     (args.out_dir/svgname).write_text(render_svg(blocks,rows,args.window_ms,vcd_data),encoding='utf-8')
-    source_label = 'VCD 导出的客户数字通道' if args.customer_vcd else 'CUSTOMER.logicdata 客户边沿'
+    source_label = ('VCD 导出的客户数字通道' if args.customer_vcd else
+                    'CSV 导出的客户数字通道' if args.customer_csv else
+                    'CUSTOMER.logicdata 客户边沿')
     html_text=f'''<!doctype html><html><head><meta charset="utf-8"><title>客户波形与双向 PWM 对照</title><style>body{{margin:0;background:#f5f5f5;font:14px Arial,"PingFang SC",sans-serif;color:#222}}header{{position:sticky;top:0;background:#fff;padding:10px 14px;border-bottom:1px solid #ddd;z-index:2}}main{{max-width:1480px;margin:auto}}img{{width:100%;height:auto;background:white;display:block}}</style></head><body><header>{source_label}在上｜VSG 正反向占空比包络在下（非同步实测）｜实时更新 <span id="stamp"></span></header><main><img id="cmp" src="{svgname}" alt="客户与双向 PWM 对照"></main><script>function refresh(){{let n=Date.now();document.getElementById('cmp').src='{svgname}?t='+n;document.getElementById('stamp').textContent=new Date(n).toLocaleTimeString()}}setInterval(refresh,1000);refresh();</script></body></html>'''
     (args.out_dir/'customer_logic_compare.html').write_text(html_text,encoding='utf-8')
     print(f"updated rows={len(rows)} customer_blocks={len(blocks)} page={args.out_dir/'customer_logic_compare.html'}",flush=True)
@@ -296,12 +369,17 @@ def main() -> None:
     p=argparse.ArgumentParser()
     p.add_argument('--customer',type=Path,default=Path('../PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata'))
     p.add_argument('--customer-vcd',type=Path,help='optional Logic 1 VCD export; plots digital Channel 2/3/6/7 levels')
+    p.add_argument('--customer-csv',type=Path,help='optional digital CSV with Time [s/ms/us/ns] and Channel 2/3/6/7 columns')
     p.add_argument('--ours',type=Path,default=Path('build/servo_curve_live/servo_curve_live.csv'))
     p.add_argument('--out-dir',type=Path,default=Path('build/customer_logic_compare'))
     p.add_argument('--window-ms',type=float,default=1200.0)
     p.add_argument('--watch',action='store_true',help='refresh output as the live CSV grows')
     p.add_argument('--refresh-sec',type=float,default=1.0)
     a=p.parse_args()
+    if a.customer_vcd and a.customer_csv:
+        p.error('choose only one of --customer-vcd or --customer-csv')
+    if a.customer_vcd or a.customer_csv:
+        a.customer = None
     while True:
         write_page(a)
         if not a.watch: break
