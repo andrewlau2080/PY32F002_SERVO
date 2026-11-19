@@ -284,3 +284,5 @@
 
 
 **2026-11-19 R29B第二轮和安全恢复**：更新后的监视器静态17帧通过；arm后22.148秒中56次tick分组读取全部失败，目标报告LOCKUP，动作期无有效遥测，R01仍未通过。随后用已核验的TSSOP20 force-coast构建执行2MHz under-reset恢复；读回重试后通过，当前板`P50 V10.6SIMB2C`，全片SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，核心Running。活动测试暂停，先定位负载期间SWD/目标锁定根因。原始动作窗证据见`firmware/evidence/r01_r29b_retry_lockup_20261119/`。
+
+**2026-11-19 R30A显示式10µs动作结果**：P50源码/构建已加入R01 WAIT/+10us/CENTER/COAST阶段显示，10µs受限中心动作构建BIN SHA256=`e7e855fe5cfc4f463d2692ab0da9ecef8a1e9fa44e0e33d24085865057c60e68`，18,740B；显示尚无用户实屏确认。下载读回通过；动作窗22行SWD数据全失败，结束状态HALTED，R01仍未通过。已恢复force-coast板，整片20KB SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`、Running。暂停活动测试，先查动作后失联/停机；动作记录见`docs/r01_validation_20261110.md`和`firmware/evidence/r01_r30a_10us_lcdm_20261119/`。

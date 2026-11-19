@@ -44,8 +44,14 @@
 #ifndef SERVO_R01_TEST_MAX_DUTY
 #define SERVO_R01_TEST_MAX_DUTY 40
 #endif
+#ifndef SERVO_R01_TEST_STEP_US
+#define SERVO_R01_TEST_STEP_US 1
+#endif
 #if SERVO_R01_EXPLICIT_ARM && (!SERVO_ENABLE_INTERNAL_STEP_TEST || SERVO_HBRIDGE_FORCE_COAST || SERVO_R01_TEST_MAX_DUTY > 40)
 #error Explicit R01 motion arm requires an active center test capped at 40 permille or lower.
+#endif
+#if SERVO_R01_EXPLICIT_ARM && (SERVO_R01_TEST_STEP_US != 10)
+#error The R01 visible-action diagnostic must use exactly a 10 us center step.
 #endif
 
 volatile uint8_t g_servo_model_record_valid;
@@ -1247,7 +1253,7 @@ static void run_pa7_tjc_test(void)
 #endif
 #else
 #if SERVO_R01_EXPLICIT_ARM
-#define LCDM_SERVO_FW_TAG " V10.6SIMB2R29B"
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2R30A"
 #else
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2"
 #endif
@@ -1404,6 +1410,9 @@ static int16_t s_lcdm_last_servo_error_adc = 32767;
 static int16_t s_lcdm_last_pwm_duty = 32767;
 static int8_t s_lcdm_last_pwm_direction = 127;
 static uint8_t s_lcdm_last_pwm_state = 0xFFU;
+#if SERVO_R01_EXPLICIT_ARM
+static uint8_t s_lcdm_last_r01_display_stage = 0xFFU;
+#endif
 static uint16_t s_lcdm_last_hbridge_frequency_hz;
 static int16_t s_lcdm_servo_current_duty;
 static uint32_t s_lcdm_servo_slew_tick_ms;
@@ -2032,7 +2041,7 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
     }
   }
 #endif
-  /* Center-only diagnostic: hold each 1 us step for one second for clean feedback statistics. */
+  /* Center-only diagnostic: hold each step for one second for clean feedback statistics. */
   /* Give the SWD observer time to attach after the under-reset download. */
   const uint32_t baseline_ms = 30000U;
   const uint32_t step_ms = 1000U;
@@ -2042,7 +2051,11 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   }
   else if (elapsed < (baseline_ms + 6U * step_ms))
   {
+#if SERVO_R01_EXPLICIT_ARM
+    static const uint16_t steps[6] = {1503U + SERVO_R01_TEST_STEP_US, 1503U, 1503U, 1503U, 1503U, 1503U};
+#else
     static const uint16_t steps[6] = {1504U, 1505U, 1506U, 1505U, 1504U, 1503U};
+#endif
     pulse = steps[(elapsed - baseline_ms) / step_ms];
   }
   else
@@ -2099,6 +2112,9 @@ static void lcdm_reset_pwm_live_cache(void)
   s_lcdm_last_pwm_duty = 32767;
   s_lcdm_last_pwm_direction = 127;
   s_lcdm_last_pwm_state = 0xFFU;
+#if SERVO_R01_EXPLICIT_ARM
+  s_lcdm_last_r01_display_stage = 0xFFU;
+#endif
   s_lcdm_servo_current_duty = 0;
   s_lcdm_servo_slew_tick_ms = HAL_GetTick();
   s_lcdm_servo_output_dir = 0;
@@ -3719,7 +3735,12 @@ static void lcdm_draw_p50(uint16_t step)
   lcdm_row(1U, "T", "--", LCDM_COLOR_BLUE);
   lcdm_row(2U, "A", "--", LCDM_COLOR_BLUE);
   lcdm_row(3U, "E", "--", LCDM_COLOR_RED);
+#if SERVO_R01_EXPLICIT_ARM
+  s_lcdm_last_r01_display_stage = 0xFFU;
+  lcdm_row(4U, "R01", "WAIT", LCDM_COLOR_YELLOW);
+#else
   lcdm_row(4U, "H", "W", LCDM_COLOR_RED);
+#endif
   lcdm_footer("M", "IN", "4");
 }
 
@@ -3975,6 +3996,46 @@ static void lcdm_update_pwm_live_values(void)
     state_code = has_edge ? LCDM_SERVO_STATE_BAD : LCDM_SERVO_STATE_NO_PWM;
   }
 
+#if SERVO_R01_EXPLICIT_ARM
+  {
+    uint8_t stage;
+    const char *stage_text;
+    uint32_t test_elapsed = (uint32_t)(HAL_GetTick() - s_lcdm_runtime_pwm_start_ms);
+    if (g_r01_active_test_arm_request == 0U)
+    {
+      stage = 0U;
+      stage_text = "WAIT";
+    }
+    else if ((g_r01_active_test_arm_request != 1U) ||
+             (s_lcdm_internal_active_started == 0U))
+    {
+      stage = 1U;
+      stage_text = "ARMED";
+    }
+    else if (test_elapsed < 31000U)
+    {
+      stage = 2U;
+      stage_text = "+10us";
+    }
+    else if (test_elapsed < 38000U)
+    {
+      stage = 3U;
+      stage_text = "CENTER";
+    }
+    else
+    {
+      stage = 4U;
+      stage_text = "COAST";
+    }
+    if (stage != s_lcdm_last_r01_display_stage)
+    {
+      lcdm_value_cell(4U, stage_text,
+                      (stage == 2U) ? LCDM_COLOR_BLUE :
+                      ((stage == 4U) ? LCDM_COLOR_RED : LCDM_COLOR_YELLOW));
+      s_lcdm_last_r01_display_stage = stage;
+    }
+  }
+#else
   if ((state_code != s_lcdm_last_pwm_state) ||
       (duty != s_lcdm_last_pwm_duty) ||
       (adc_velocity != s_lcdm_last_servo_velocity) ||
@@ -4036,6 +4097,7 @@ static void lcdm_update_pwm_live_values(void)
     s_lcdm_last_servo_velocity = adc_velocity;
     s_lcdm_last_servo_event = event;
   }
+#endif
 }
 
 static bool lcdm_runtime_param_table(LcdmRuntimePage page, LcdmRuntimeParam **params, uint8_t *count)

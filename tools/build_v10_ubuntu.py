@@ -50,6 +50,8 @@ def main():
                         help='maximum absolute R01 diagnostic duty in permille (1..100)')
     parser.add_argument('--r01-explicit-arm', action='store_true',
                         help='disable automatic R01 motion and wait for a live SWD arm request; capped at 40 permille')
+    parser.add_argument('--r01-test-step-us', type=int, default=1,
+                        help='internal R01 center-step size in microseconds (explicit-arm requires exactly 10)')
     parser.add_argument('--r04-ui-redraw-stress', action='store_true',
                         help='repaint the LCDM diagnostic page every 250 ms for R04 load testing')
     parser.add_argument('--force-coast', action='store_true',
@@ -75,10 +77,13 @@ def main():
         parser.error('--r01-test-max-duty must be in 1..100 permille')
     if args.internal_step_test and args.profile != 'lcdm':
         parser.error('--internal-step-test requires --profile lcdm')
+    if not 1 <= args.r01_test_step_us <= 10:
+        parser.error('--r01-test-step-us must be in 1..10 us')
     if args.r01_explicit_arm and (not args.internal_step_test or args.force_coast or
                                   args.direction_probe or args.r04_ui_redraw_stress or
-                                  args.adc_subsample_diagnostic or args.r01_test_max_duty > 40):
-        parser.error('--r01-explicit-arm requires an active LCDM internal-step test, no force-coast/direction/timing/subsample mode, and duty <= 40 permille')
+                                  args.adc_subsample_diagnostic or args.r01_test_max_duty > 40 or
+                                  args.r01_test_step_us != 10):
+        parser.error('--r01-explicit-arm requires a 10 us LCDM internal step, no force-coast/direction/timing/subsample mode, and duty <= 40 permille')
     if args.production_lcdm and args.profile != 'lcdm':
         parser.error('--production-lcdm requires --profile lcdm')
     if args.production_lcdm and (args.internal_step_test or args.r04_ui_redraw_stress):
@@ -105,7 +110,8 @@ def main():
         flags = flags + ['SERVO_TJC_RX_ENABLE=0']
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1',
                          'SERVO_R01_TEST_DUTY_INVERT=1',
-                         f'SERVO_R01_TEST_MAX_DUTY={args.r01_test_max_duty}']
+                         f'SERVO_R01_TEST_MAX_DUTY={args.r01_test_max_duty}',
+                         f'SERVO_R01_TEST_STEP_US={args.r01_test_step_us}']
         if args.r01_explicit_arm:
             flags = flags + ['SERVO_R01_EXPLICIT_ARM=1']
     if args.disable_tjc_rx:
@@ -197,7 +203,7 @@ def main():
     versions = re.findall(rb'P50 V[0-9A-Za-z.]+', image)
     direction_suffix = ('SIMB2P' + str(args.probe_pulse_us) +
                         ('H' if args.adc_pair_time_tag else ('G' if args.vrefint_settle_fix else 'F')))
-    expected_suffix = ('SIMB2R29B' if args.r01_explicit_arm else
+    expected_suffix = ('SIMB2R30A' if args.r01_explicit_arm else
                        (direction_suffix if args.direction_probe else
                        ('SIMB2C' if args.force_coast else ('SIMB2' if args.internal_step_test else '')))
                        )
@@ -207,7 +213,7 @@ def main():
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=version, profile=args.profile, production_lcdm=args.production_lcdm, internal_step_test=args.internal_step_test, r01_explicit_arm=args.r01_explicit_arm, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=version, profile=args.profile, production_lcdm=args.production_lcdm, internal_step_test=args.internal_step_test, r01_explicit_arm=args.r01_explicit_arm, r01_test_step_us=args.r01_test_step_us, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),

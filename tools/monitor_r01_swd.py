@@ -167,7 +167,7 @@ def main():
     p.add_argument("--arm-center-sweep", action="store_true",
                    help="start the one-shot sweep only after the SWD capture is attached")
     p.add_argument("--arm-r01-motion", action="store_true",
-                   help="after an 8-second observation lead-in, arm the explicitly armed <=40/1000 R29B center microstep image")
+                   help="after an 8-second observation lead-in, arm the explicitly armed <=40/1000 R30A 10-us center-step image")
     p.add_argument("--arm-r04-sweep", action="store_true",
                    help="start the R04 timing-trace sweep after SWD capture attaches")
     args = p.parse_args()
@@ -182,8 +182,8 @@ def main():
         p.error("--arm-center-sweep requires --expect-center-sweep")
     if args.arm_r01_motion and args.seconds < 15.0:
         p.error("--arm-r01-motion requires at least 15 seconds of capture")
-    if args.arm_r01_motion and b"P50 V10.6SIMB2R29B" not in args.elf.read_bytes():
-        p.error("--arm-r01-motion requires the explicitly armed R29B active diagnostic ELF")
+    if args.arm_r01_motion and b"P50 V10.6SIMB2R30A" not in args.elf.read_bytes():
+        p.error("--arm-r01-motion requires the explicitly armed R30A active diagnostic ELF")
     if args.arm_r04_sweep and not args.expect_pwm_sweep:
         p.error("--arm-r04-sweep requires --expect-pwm-sweep")
     if (args.expect_center_sweep or args.expect_pwm_sweep) and b"P50 V10.6SIMB2" not in args.elf.read_bytes():
@@ -192,7 +192,7 @@ def main():
     if args.arm_r01_motion and any(
         name not in addresses for name in ("g_r01_active_test_arm_request", "s_lcdm_internal_active_started")
     ):
-        raise SystemExit("Explicit-arm symbols are missing from the selected R29B ELF")
+        raise SystemExit("Explicit-arm symbols are missing from the selected R30A ELF")
     active = [label for label, (name, _size, _signed) in SYMBOLS.items() if name in addresses]
     if args.announce_before_sweep_ms and "runtime_pwm_start_ms" not in active:
         raise SystemExit("Selected ELF lacks the runtime PWM start timestamp needed for an advance warning")
@@ -293,7 +293,11 @@ def main():
                 print(f"SWD attached; target {core_start}; capture file is open. R01 microstep will arm in 8 seconds. Observe the actuator now; duty cap is 40/1000.", flush=True)
                 time.sleep(8.0)
                 target.write32(arm_addr, 0x52303141)
-                print("R01 one-shot arm request sent; 1503-1506 us center sequence is starting.", flush=True)
+                print("R01 ACTION: 1513 us (+10 us) starts now; LCDM shows +10us.", flush=True)
+                time.sleep(1.0)
+                print("R01 ACTION: return command 1503 us starts now; LCDM shows CENTER.", flush=True)
+                time.sleep(7.5)
+                print("R01 ACTION WINDOW ended; 0.5 s coast margin elapsed. Resuming SWD capture.", flush=True)
             while time.monotonic() - started < args.seconds:
                 sample_start = time.monotonic()
                 row = {"wall_s": round(sample_start - started, 6)}
