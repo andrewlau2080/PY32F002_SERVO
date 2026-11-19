@@ -39,6 +39,12 @@
 #ifndef SERVO_HBRIDGE_FORCE_COAST
 #define SERVO_HBRIDGE_FORCE_COAST 0
 #endif
+#ifndef SERVO_PA6_SINGLE_PULSE_TEST
+#define SERVO_PA6_SINGLE_PULSE_TEST 0
+#endif
+#ifndef SERVO_PA6_SINGLE_PULSE_WIDTH_US
+#define SERVO_PA6_SINGLE_PULSE_WIDTH_US 100U
+#endif
 
 #define LCDM_SERVO_STATE_BAD 3U
 #ifndef SERVO_R01_TEST_MAX_DUTY
@@ -60,6 +66,9 @@
 #endif
 
 volatile uint8_t g_servo_model_record_valid;
+#if SERVO_PA6_SINGLE_PULSE_TEST
+__attribute__((used)) volatile const char g_servo_firmware_version[] = "P50 V10.6SIMB2PA6P";
+#endif
 #if defined(SERVO_PRODUCTION_LCDM) && (SERVO_PRODUCTION_LCDM != 0)
 __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6";
 #endif
@@ -4636,6 +4645,32 @@ static void run_hbridge_io_test(void)
 int entry(void)
 {
   app_use_flash_vector_table();
+
+#if SERVO_PA6_SINGLE_PULSE_TEST
+  {
+    GPIO_InitTypeDef gpio = {0};
+    volatile uint32_t delay_loops;
+    (void)g_servo_firmware_version[0];
+    HAL_Init();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    gpio.Pin = GPIO_PIN_6;
+    gpio.Mode = GPIO_MODE_OUTPUT_PP;
+    gpio.Pull = GPIO_PULLDOWN;
+    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOA, &gpio);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
+    HAL_Delay(500U);
+    for (;;)
+    {
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);
+      delay_loops = (SystemCoreClock * SERVO_PA6_SINGLE_PULSE_WIDTH_US) / 3000000U;
+      while (delay_loops-- > 0U) { __NOP(); }
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
+      delay_loops = (SystemCoreClock * (10000U - SERVO_PA6_SINGLE_PULSE_WIDTH_US)) / 3000000U;
+      while (delay_loops-- > 0U) { __NOP(); }
+    }
+  }
+#endif
 
 #if SERVO_ENABLE_PA7_SQUARE_TEST
   run_pa7_square_test();

@@ -60,6 +60,8 @@ def main():
                         help='omit LCDM touch UART RX to reduce RAM/Flash for read-only diagnostics')
     parser.add_argument('--direction-probe', action='store_true',
                         help='build explicitly armed hardware single-pulse diagnostic')
+    parser.add_argument('--pa6-single-pulse', action='store_true',
+                        help='build a one-shot direct PA6 GPIO pulse diagnostic (no servo/H-bridge logic)')
     parser.add_argument('--probe-pulse-us', type=int, choices=[80, 120, 160], default=80,
                         help='one timer pulse width for direction diagnostics')
     parser.add_argument('--vrefint-settle-fix', action='store_true',
@@ -77,6 +79,8 @@ def main():
         parser.error('--r01-test-max-duty must be in 1..100 permille')
     if args.internal_step_test and args.profile != 'lcdm':
         parser.error('--internal-step-test requires --profile lcdm')
+    if args.pa6_single_pulse and (args.direction_probe or args.internal_step_test or args.force_coast or args.r04_ui_redraw_stress):
+        parser.error('--pa6-single-pulse is an isolated GPIO test; do not combine with other diagnostics')
     if not 1 <= args.r01_test_step_us <= 10:
         parser.error('--r01-test-step-us must be in 1..10 us')
     if args.r01_explicit_arm and (not args.internal_step_test or args.force_coast or
@@ -103,6 +107,10 @@ def main():
     version = match.group(1)
     flags = (PRODUCTION_LCDM_FLAGS if args.production_lcdm else
              (FLAGS if args.profile == 'lcdm' else GENERIC_FLAGS))
+    if args.pa6_single_pulse:
+        flags = ['LTO=1', 'BOARD_TSSOP20_DEBUG_PINS=1', 'SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=0',
+                 'SERVO_ENABLE_TJC_LCDM=0', 'SERVO_ENABLE_COMM=0',
+                 'SERVO_PA6_SINGLE_PULSE_TEST=1', 'SERVO_PA6_SINGLE_PULSE_WIDTH_US=100']
     if args.internal_step_test:
         # The diagnostic is armed and observed over SWD; touch RX is unused and
         # reserving it costs scarce RAM needed by the telemetry/stack budget.
@@ -139,8 +147,9 @@ def main():
         if not args.vrefint_settle_fix or not args.direction_probe:
             parser.error('--adc-pair-time-tag requires --vrefint-settle-fix and --direction-probe')
         flags = flags + ['SERVO_ADC_PAIR_TIME_TAG=1']
-    default_name = (version + '_internal_step' if args.internal_step_test else
-                    (version if args.profile == 'lcdm' else version + '_generic'))
+    default_name = ('V10.6_TSSOP20_PA6_SINGLE_PULSE_100US' if args.pa6_single_pulse else
+                    (version + '_internal_step' if args.internal_step_test else
+                     (version if args.profile == 'lcdm' else version + '_generic')))
     out = args.output or ROOT / 'build/releases' / default_name
     out.mkdir(parents=True, exist_ok=False)
     sdk_dir = ROOT / 'firmware/toolchains'
@@ -203,17 +212,19 @@ def main():
     versions = re.findall(rb'P50 V[0-9A-Za-z.]+', image)
     direction_suffix = ('SIMB2P' + str(args.probe_pulse_us) +
                         ('H' if args.adc_pair_time_tag else ('G' if args.vrefint_settle_fix else 'F')))
-    expected_suffix = ('SIMB2R30D' if args.r01_explicit_arm else
+    expected_suffix = ('SIMB2PA6P' if args.pa6_single_pulse else
+                       ('SIMB2R30D' if args.r01_explicit_arm else
                        (direction_suffix if args.direction_probe else
                        ('SIMB2C' if args.force_coast else ('SIMB2' if args.internal_step_test else '')))
-                       )
+                       ))
     expected_version = ('P50 ' + version + ('' if args.production_lcdm else expected_suffix)).encode()
-    if (args.profile == 'lcdm' and versions != [expected_version]) or (
+    if (args.profile == 'lcdm' and not args.pa6_single_pulse and versions != [expected_version]) or (
+            args.pa6_single_pulse and versions not in ([], [expected_version])) or (
             args.profile == 'generic' and versions not in ([], [expected_version])):
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=version, profile=args.profile, production_lcdm=args.production_lcdm, internal_step_test=args.internal_step_test, r01_explicit_arm=args.r01_explicit_arm, r01_test_step_us=args.r01_test_step_us, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=args.production_lcdm, internal_step_test=args.internal_step_test, r01_explicit_arm=args.r01_explicit_arm, r01_test_step_us=args.r01_test_step_us, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),

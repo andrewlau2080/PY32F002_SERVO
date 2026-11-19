@@ -437,3 +437,18 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 用户已接示波器，按既定TSSOP20正向输出脚PA6/CP2与PB0/NG2观察。下载R30D后全片读回SHA256=`f9d109de40e2aaa92fefa098265da9a9aa97f86d4a22c2fcfe260ead296aacd7`，版本串匹配、核心Running。
 - 已arm一轮1500↔1510µs中心动作（3次来回、占空≤40/1000）；终端提示各次1510阶段和回中阶段，动作期间不轮询SWD。动作后SWD再次30/30读失败，core HALTED，故无有效软件遥测。监视CSV SHA256=`784e6f770b4191f525b55328dc85684ddd1bebdc66d94455f3682922c8b6468f`，JSON SHA256=`6657c1f6f8a432eea548060a912a019267b11ea9acb328e0e323a40d29b6c6f1`，见`firmware/evidence/r01_r30d_scope_20261119/`。用户的示波器结果待其报告，当前不切换反向输出。
 - 动作后2MHz under-reset恢复force-coast；整片20,480B读回SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本`P50 V10.6SIMB2C`，核心Running。当前板force-coast。
+
+## 2026-11-19 PA6独立GPIO单脉冲核验
+
+- 用户质疑内部PWM命令是否连到H桥；按要求新增独立测试固件，仅初始化PA6为推挽低电平，等待500ms后拉高约100µs再拉低并停住；不初始化LCDM、输入捕获、舵机闭环、HBridge PWM或PB0等其它桥脚。此项只验证MCU PA6焊盘/示波器连接，不证明HBridge_SetSignedDuty逻辑。
+- 修改文件：`src/app_entry.c`添加受宏控的一次性GPIO测试；`tools/build_v10_ubuntu.py`增加`--pa6-single-pulse`隔离构建选项。Ubuntu构建成功：目录`build/releases/V10.6_TSSOP20_PA6_SINGLE_PULSE_100US_20261119_R3/`，BIN 9,468B SHA256=`51b96ffc350b3d439f002825882a4690b869734974f3cd655129d34845e0324e`，ELF SHA256=`e15446f8d0b909d0249a8197ecda90ef8437744043bb4383c2339989c72c843e`。前两次构建因版本字符串校验不适配无UI小固件而失败，调整校验后R3通过；Python语法、`git diff --check`通过。
+- 用户已接示波器。R3以2MHz under-reset下载并复位运行，复位约500ms后应在PA6产生唯一脉冲。全片读回20,480B SHA256=`b84c4c65cd61822f1bb1ab496b34f37765fde04561405eb82a9899c551166e07`；因镜像短于旧固件，未覆盖高地址残留版本字符串`P50 V10.6SIMB2C`，不能用该字符串识别当前应用；以下载BIN哈希和读回镜像为准。用户的PA6波形观测待回报。
+- 随后立即恢复强制coast镜像；整片20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本`P50 V10.6SIMB2C`，核心Running。当前板force-coast。下一步只依据用户的PA6单脉冲结果决定：若可见，PA6与示波器通路已证实，再单独测HBridge_SetSignedDuty；若不可见，先核对探头接点/公共地和端口复用。
+- 用户指出先前只观察到PA5约48ms心跳、未看到PA6脉冲。复核发现Makefile原先未将`SERVO_PA6_SINGLE_PULSE_TEST`转为编译器`-D`；R3/R4镜像未执行PA6分支。另R3调用`Board_Init()`会产生PA5调试心跳；R4移除该调用但仍未修复缺失的编译定义。已在Makefile加入宏映射，R5 BIN SHA256=`845bea3bf844ec6e1dfb1aea338d9772b4caba1d50d75770a83cb535e819db15`，版本标记`P50 V10.6SIMB2PA6P`，下载后用户仍未捕获其一次性脉冲。
+- 为便于示波器持续捕获且避免重复复位，R6改为仅PA6持续输出约100µs高、约9.9ms低的脉冲列（约100Hz）；无PA5心跳/舵机闭环/H桥PWM逻辑。Ubuntu构建通过，BIN 1,552B SHA256=`3574dbff3e6b0e1ac8faa045859ac259fb5bbf8ead5674578351c015b01f7b85`，标记同R5。已2MHz under-reset下载运行；**当前板留在R6持续PA6输出状态，未恢复**，等用户示波器确认。R6只证明GPIO/探头通路，不验证HBridge_SetSignedDuty连接。
+
+## 2026-11-19 用户要求回到V9.5已运行基线
+
+- 按用户要求停止PA6诊断并在板上测试V9.5。仓库无可直接下载的V9.5 BIN；从标签`v9.5-internal-pwm-stable`（commit `e3542a047aedbe6e2f627c2930ca4f26aae7b6ce`）构建。源归档SHA256=`53835a7d601b987b11cf4f3d6b223c2d2c5218f7ca7b6c4a1b22caf2014ee9f9`；使用项目固定OpenPuya SDK 1.4.4（SDK归档SHA256=`9f0511ea5ef700022c76b4b7da1f3e6d85cfe6669b6608aeb03ca2d7cb90f01a`），编译选项`BOARD_TSSOP20_DEBUG_PINS=1`、`SERVO_ENABLE_TJC_LCDM=1`、`SERVO_TJC_UART_ALT_PINS=1`、`LTO=1`。首次仅TSSOP20编译因缺LCDM源文件链接失败；加启用LCDM后Ubuntu构建通过。
+- 产物位于`build/releases/V9.5_TSSOP20_TAG_REBUILD_20261119/`：BIN 14,544B SHA256=`007b762dc38bfe629ba39c83f1902693a94d020e53b8ae0b7edc321b77c9a5c4`，ELF SHA256=`39a17b0ab9dbb9672c36f80141df2aa6b9fbe74f7ae42105428139c1f4ce4ce1`。这是从已标记V9.5源码重建的TSSOP20镜像，不声称与当年二进制逐字节相同。
+- 下载前完整20,480B板镜像已备份于`build/board_readback/20261119_pre_v95/`，SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`。V9.5使用2MHz under-reset下载后，读回全片SHA256=`96e57471990530f17bed0c2c30cd800179f4f4f1866d409f1903d81e174619ea`；读回前14,544B与BIN逐字节匹配，核心Running。尾部未保持下载前内容；因短应用残留，读回探测到的旧版本串`P50 V10.6SIMB2C`不代表当前应用版本。当前板保持V9.5重建版，等待用户按熟悉的正常输入方式观察驱动结果；尚无本轮行为验收结论。

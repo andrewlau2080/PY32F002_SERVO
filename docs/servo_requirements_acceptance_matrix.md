@@ -293,3 +293,9 @@
 **2026-11-19 R30D 软件PWM状态显示与重复10µs动作**：固件通过`HBridge_SetSignedDuty()`请求软件占空并在LCD显示`HBridge_GetDuty()`；最大40/1000、1500↔1510µs三轮。活动窗后30/30 SWD读取失败、core HALTED，0个有效样本；日志默认0不是实测占空。没有实际引脚PWM证据或马达位移确认，R01未通过。已恢复force-coast，整片哈希`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，核心Running。需要查明动作窗后SWD失联，并用示波器/逻辑分析仪看H桥引脚，详见`docs/r01_validation_20261110.md`及`firmware/evidence/r01_r30d_pwm_duty_lcd_20261119/`。
 
 **2026-11-19 R30D 示波器观察**：用户接示波器后运行1500↔1510µs三次来回，最大40/1000；本轮观察PA6/CP2、PB0/NG2正向输出。测试结束后SWD 30/30读取失败、core HALTED，故SWD无有效样本；用户直接观察到的示波器结果待回报。已恢复force-coast并整片读回核实，SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`、核心Running。当前不测试反向输出；详见`docs/r01_validation_20261110.md`及`firmware/evidence/r01_r30d_scope_20261119/`。
+
+**2026-11-19 PA6单GPIO脉冲**：新增仅初始化PA6、延时500ms后输出一次约100µs高脉冲并拉低的隔离固件；不运行H桥/伺服控制。构建BIN SHA256=`51b96ffc350b3d439f002825882a4690b869734974f3cd655129d34845e0324e`，已下载运行；全片读回SHA256=`b84c4c65cd61822f1bb1ab496b34f37765fde04561405eb82a9899c551166e07`。用户示波器结果待回报。已恢复force-coast，当前全片SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`、核心Running。此测试只隔离验证PA6引脚，后续再按结果测HBridge_SetSignedDuty连接。
+
+**2026-11-19 PA6诊断构建修正与持续波形**：用户观察到PA5约48ms心跳、未见PA6。定位Makefile遗漏PA6测试宏编译定义，故此前R3/R4没有执行专用代码。已修复Makefile宏映射，构建并下载R6：PA6单独持续输出约100µs高/9.9ms低，约100Hz；无PA5心跳、H桥控制或闭环。BIN SHA256=`3574dbff3e6b0e1ac8faa045859ac259fb5bbf8ead5674578351c015b01f7b85`。**当前板留在R6持续输出，未恢复，等待用户捕获波形**。详细记录见`docs/r01_validation_20261110.md`。
+
+**2026-11-19 回到V9.5基线实板测试**：按用户要求从标签`v9.5-internal-pwm-stable`（`e3542a047aedbe6e2f627c2930ca4f26aae7b6ce`）以TSSOP20/LCDM选项重建；BIN 14,544B SHA256=`007b762dc38bfe629ba39c83f1902693a94d020e53b8ae0b7edc321b77c9a5c4`。2MHz under-reset下载成功，读回应用区逐字节匹配，核心Running；全片哈希=`96e57471990530f17bed0c2c30cd800179f4f4f1866d409f1903d81e174619ea`。短镜像残留旧版本串，不能用该字符串判版；行为测试结果待用户报告。当前板为V9.5标签源码重建版，详见`docs/r01_validation_20261110.md`。
