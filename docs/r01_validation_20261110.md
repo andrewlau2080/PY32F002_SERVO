@@ -348,3 +348,10 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 采集CSV SHA256=`c4f3095cbb36b2464f15bcb81cf88cafa0639a932b05a2dada9103f8514a139a`，JSON SHA256=`885956fb52c0f635b50d6790ae6a19bf0ff4ae90ac1680b90a7cb336c2a2e37f`；路径`firmware/evidence/r01_active_center_lock_20261119_R28E/`。完整Flash备份/读回见`build/board_readback/20261119_before_active_test/`、`20261119_after_active_R28E/`和`20261119_after_coast_restore_R28E/`。
 - **恢复与当前板况**：动作窗后立即以2MHz under-reset恢复此前force-coast镜像；恢复后20,480B SHA256再次为`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，与下载前全片逐字节一致，核心Running，当前板为`P50 V10.6SIMB2C` force-coast。测试过程中及恢复均未更改尾部384B。
 - 源码SHA256：`src/app_entry.c` `0255cfa0d9c06a0e37c323cf8c0ec51a9986036dfa60ba4c1d617265ab679019`；构建工具SHA256：`tools/build_v10_ubuntu.py` `412e40421303620aa76f0fb8237f3f3796e0898f295d30a3d42ec86f4840d7b3`。失败候选和远程临时副本已清理；保留最终BIN/ELF、下载读回和一次有效采集证据。
+
+
+## 2026-11-19 用户观察时机流程纠正
+
+- 本次R28E动作前虽告知了中心序列，但没有在30秒基线结束、动作即将启动时再次即时提醒用户观察转臂；我直到48秒动作窗口结束后才询问是否看到运动，用户因此错过观察机会。此为测试协调失误，不能把“未获得用户观察”记成“机构未运动”。
+- 后续任何需要用户目视/听声/触碰（仅在安全且明确允许时）观察的实板动作：先说明动作窗口和大致开始时刻；动作开始前立即发出提醒，确保用户有机会观察；动作结束后再询问并记录结果。若无法提供即时提醒/观察同步，本轮仅作为软件遥测，不启动需要用户目视确认的动作。
+- 当前板已恢复为`P50 V10.6SIMB2C` force-coast，整片SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，核心Running，不会自动驱动。R28E活动诊断和证据仍按上一节记录；该轮没有用户目视反馈，不能据此判定机械是否动作。
