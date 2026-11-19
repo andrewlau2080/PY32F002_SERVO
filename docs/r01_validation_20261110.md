@@ -337,3 +337,14 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 
 - 二次检查本地PY32 HAL实现后，撤回“校准早于HAL_ADC_Init是不妥”的判断：校准API写明的前提是ADC禁用；当前实现启动校准前已开ADC时钟且ADC未启用。先前把通用ADC注释误读为本PY32 HAL存在单独稳压器启动序列。源码保持原校准顺序，不据此声称找到R01/R02根因。
 - R27曾以该顺序调整加239.5-cycle长采样构建成功，BIN SHA256=`e873ca2481f97adf1f0fbc0d4ee551d8178e56810871df6fd1c423bed17bb5aa`；但没有下载，且顺序调整无证据支持，故R27不采用、不作为后续板测候选。R26（仅长采样诊断、force-coast）仍是本轮可比较的诊断候选；仿真器不在手边，不做板上操作。
+
+
+## 2026-11-19 一次受限活动中心小步验证 R28E
+
+- **构建器调整**：此前内部动作构建器将占空上限硬编码为100/1000；本次增加`--r01-test-max-duty`并限定1–100，明确构建40/1000版本。内部动作固件标签条件块也补上了普通活动测试分支。为满足RAM至少1,536B栈预留，R01阶段汇总数组现在只在`SERVO_ADC_SUBSAMPLE_DIAGNOSTIC`启用时编译；活动测试保留锁存原因、请求计数、PWM/ADC/VDD常规遥测，本次未编入逐转换四点诊断。
+- **构建失败和处理**：初版因上述版本标签条件漏分支而未编译；修复后带ADC逐批诊断的候选及不带逐批VDD刷新候选均触发链接器RAM超限8B；将未使用的阶段统计数组限定到子样本诊断构建后，首次出现`lcdm_r01_stage_record`未定义，补齐无子样本时的调用保护。最终R28E构建通过，保留1,536B最低栈断言。产物`build/releases/V10.6_TSSOP20_R01_ACTIVE_CENTER_LOCK_DIAG_20261119_R28E/`，BIN 18,836B SHA256=`c797e948692d0e415fc5d9abb3819a35ce6510a87015b1a05bc5225df8547f3a`，ELF SHA256=`981a2f48542317373a002a363315a19aedb8ce94187ad189f8a82bd2cdda494d`；活动宏`SERVO_R01_TEST_MAX_DUTY=40`、方向反相诊断开启、force-coast关闭。
+- **下载前/后核对**：下载前20,480B force-coast镜像SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，2MHz under-reset下载R28E后核心Running。测试后读回全片SHA256=`a91ac7b9d871614564cd4e044dd0c0d649e67045f5da28a9f315af27808a6267`，应用区18,836B逐字节匹配BIN，尾384B与下载前备份相同。
+- **一次动作窗口**：监视器attach后只读48秒、181帧，无需外部PWM；内部序列1503→1504→1505→1506→1505→1504→1503µs，首帧、峰值和回中检查通过。非零软件请求累计2,977次，最大软件桥占空40/1000；位置/方向保护原因锁存为0。全行`adc_raw_last` 2027–2045、曲线raw 2036–2042、反馈2037–2041，VDD估值3254–3309mV。采集一致性有限：frame序号一致105/181，error字段一致133/181，两者同时一致仅78/181；在1506µs阶段只有1个双一致样本（反馈2040），不足以作阶段重复性判定；VDD样本年龄74–112ms，不能看快速瞬态。各档读数没有超出1503µs基线证据，不能确认可重复位移；软件占空请求不证明H桥物理引脚波形或目视轴角变化。**R01本轮未通过**，不扩大行程、不重复相似动作。
+- 采集CSV SHA256=`c4f3095cbb36b2464f15bcb81cf88cafa0639a932b05a2dada9103f8514a139a`，JSON SHA256=`885956fb52c0f635b50d6790ae6a19bf0ff4ae90ac1680b90a7cb336c2a2e37f`；路径`firmware/evidence/r01_active_center_lock_20261119_R28E/`。完整Flash备份/读回见`build/board_readback/20261119_before_active_test/`、`20261119_after_active_R28E/`和`20261119_after_coast_restore_R28E/`。
+- **恢复与当前板况**：动作窗后立即以2MHz under-reset恢复此前force-coast镜像；恢复后20,480B SHA256再次为`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，与下载前全片逐字节一致，核心Running，当前板为`P50 V10.6SIMB2C` force-coast。测试过程中及恢复均未更改尾部384B。
+- 源码SHA256：`src/app_entry.c` `0255cfa0d9c06a0e37c323cf8c0ec51a9986036dfa60ba4c1d617265ab679019`；构建工具SHA256：`tools/build_v10_ubuntu.py` `412e40421303620aa76f0fb8237f3f3796e0898f295d30a3d42ec86f4840d7b3`。失败候选和远程临时副本已清理；保留最终BIN/ELF、下载读回和一次有效采集证据。

@@ -57,6 +57,7 @@ volatile uint16_t g_r01_diag_control_adc;
 volatile uint16_t g_r01_diag_lock_feedback;
 volatile int16_t g_r01_diag_lock_error;
 volatile int16_t g_r01_diag_lock_displacement;
+#if SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
 /* Per-command aggregate: count, raw min/max, feedback min/max, VDD min/max, peak |duty|. */
 volatile uint16_t g_r01_stage_stats[4][8] = {
   {0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0xFFFFU, 0U, 0U},
@@ -92,6 +93,7 @@ static void lcdm_r01_stage_record(uint16_t pulse_us, uint16_t raw_adc,
   (void)pulse_us; (void)raw_adc; (void)feedback_adc; (void)applied_duty;
 #endif
 }
+#endif
 #endif
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
 /* The SWD monitor arms the one-shot center sweep after capture has started. */
@@ -1231,8 +1233,10 @@ static void run_pa7_tjc_test(void)
 #else
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2P80F"
 #endif
-#define LCDM_SERVO_INTERNAL_TEST_MAX_DUTY SERVO_R01_TEST_MAX_DUTY
+#else
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2"
 #endif
+#define LCDM_SERVO_INTERNAL_TEST_MAX_DUTY SERVO_R01_TEST_MAX_DUTY
 #elif SERVO_HBRIDGE_FORCE_COAST
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2C"
 #else
@@ -3599,7 +3603,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #endif
   if (duty == 0)
   {
-#if SERVO_ENABLE_INTERNAL_STEP_TEST
+#if SERVO_ENABLE_INTERNAL_STEP_TEST && SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
     lcdm_r01_stage_record(control_pulse_us, raw_adc, feedback, 0);
 #endif
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,

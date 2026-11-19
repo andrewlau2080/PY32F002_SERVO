@@ -46,6 +46,8 @@ def main():
                         help='build the TJC LCDM application path without the runtime-UI test harness')
     parser.add_argument('--internal-step-test', action='store_true',
                         help='build the guarded center-only LCDM diagnostic sequence')
+    parser.add_argument('--r01-test-max-duty', type=int, default=40,
+                        help='maximum absolute R01 diagnostic duty in permille (1..100)')
     parser.add_argument('--r04-ui-redraw-stress', action='store_true',
                         help='repaint the LCDM diagnostic page every 250 ms for R04 load testing')
     parser.add_argument('--force-coast', action='store_true',
@@ -67,6 +69,8 @@ def main():
     parser.add_argument('--adc-long-sample-diagnostic', action='store_true',
                         help='use maximum ADC acquisition time for force-coast diagnostics')
     args = parser.parse_args()
+    if not 1 <= args.r01_test_max_duty <= 100:
+        parser.error('--r01-test-max-duty must be in 1..100 permille')
     if args.internal_step_test and args.profile != 'lcdm':
         parser.error('--internal-step-test requires --profile lcdm')
     if args.production_lcdm and args.profile != 'lcdm':
@@ -94,7 +98,8 @@ def main():
         flags = [flag for flag in flags if flag != 'SERVO_TJC_RX_ENABLE=1']
         flags = flags + ['SERVO_TJC_RX_ENABLE=0']
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1',
-                         'SERVO_R01_TEST_DUTY_INVERT=1', 'SERVO_R01_TEST_MAX_DUTY=100']
+                         'SERVO_R01_TEST_DUTY_INVERT=1',
+                         f'SERVO_R01_TEST_MAX_DUTY={args.r01_test_max_duty}']
     if args.disable_tjc_rx:
         flags = [flag for flag in flags if not flag.startswith('SERVO_TJC_RX_ENABLE=')]
         flags = flags + ['SERVO_TJC_RX_ENABLE=0']
