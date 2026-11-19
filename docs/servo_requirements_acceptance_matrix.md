@@ -31,6 +31,8 @@
 **2026-11-19 force-coast候选板测续记（覆盖上一条中“未下载”状态）**：按项目under-reset流程下载force-coast候选并整片回读：20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，应用19,420B逐字节匹配BIN，尾384B全`FF`且与下载前一致，核心Running。精确ELF只读采集30秒120帧：PWM=1500µs、duty=0、丢tick累计28且窗口未增长，核心Running；状态ADC_LOST、raw 3914–4095。未观察到新的调度超限，故新降级分支未被实机触发，R04/R15仍未通过。板当前为force-coast诊断版，不动作；证据见R04/R15记录及`firmware/evidence/r04_r15_force_coast_readonly_20261119/`。
 
 **2026-11-19 受控调度故障注入续记**：新增`tools/trigger_r04_dropped_tick_swd.py`（SHA256=`4ab50dc4b16a5b54c0d3c0eafa6d041b4df157c700bab066d09a23fe0ef3fd73`）并在匹配force-coast ELF上只回拨RAM中的scheduler时间戳20ms。R04累计丢tick 28→53、最大单次10→25、overrun上下文51→4147；注入后5秒只读采集计数稳定53、软件duty=0、核心Running。触发的是调度丢周期降级分支；无Flash/RAM以外写入、无复位、无电机动作。该项证明分支执行，不替代真实UI负载或硬件周期校准；R04/R15仍未通过，证据见对应验证记录。
+
+**2026-11-19 R02 ADC寄存器定点诊断**：精确ELF下71帧寄存器快照显示PA4为模拟模式、无上下拉，ADC通道4（CHSELR=0x10）、41.5周期采样（SMPR=5）。单次受门控空闲DR读数4095与同刻`s_last_raw`一致，EOC读前后清零，CPU持续运行。证据表明原始满量程来自ADC数据寄存器，不是RAM后处理/监控字段错误；但未同步测到PA4焊盘电压，R02仍未通过。剩余关键现场证据为固定机构时同刻测PA4和VDDA，无需转动/碰端点；全程板为force-coast。细节见`docs/r02_validation_20261110.md`。
 用途：逐项核对“需求 → 源码 → 可观测输出”，任何项目不得只凭编译通过判为完成。
 
 ## 状态符号与验证层级（2026-11-15补充）

@@ -206,3 +206,10 @@ R02 仍未通过：需要先确认方向并改善起始阶段同步采集，再�
 - 全片只读备份确认板为`V10.6_TSSOP20_R01_R02_DIAG_FORCE_COAST_20261117_R25`，20,480B SHA256=`f7c62dd81d97687ff41a93ef1ca51383fbfd9665e8a6d81f09405296a3ac8fa3`；本轮没有下载或驱动机构。
 - 使用完全匹配R25 ELF attach采集20秒/52帧；运行raw `s_last_raw`范围3842–4095、首末4095；四点快照样本0范围3500–4095、样本1为3824–4095、样本2和3均固定4095；初始化滤波种子`2873`全程不变，LCDM反馈3970–4095；VDD估值3250–3267mV。CSV/JSON在`firmware/evidence/r04_r15_force_coast_readonly_20261119/`。这延续了raw与四点子样本的高码值现象，同时证明滤波变量只是静态初始化值；但未同步量到PA4焊盘电压，不能判定采样输入端电压，也不推翻用户既有端点验证。
 - 结论：R02矛盾仍未解决；优先下一步是用同一时刻的寄存器/DR/HAL状态和外部PA4电压判别ADC转换结果，不改补偿系数、不重复测机构端点、不触发动作。
+
+### 2026-11-19 V10.6SIMB2C ADC寄存器与DR实读
+
+- 新增`tools/capture_r02_adc_registers_swd.py`（最终SHA256=`b512248d69ae52f608305c1ab30b3728a2b4ad2a7d85e17c6c82b1eea24c1cf3`），Ubuntu Python语法/帮助检查通过。它只用精确匹配ELF读取ADC/GPIO寄存器与同一镜像的RAM raw，不暂停CPU；默认不读DR。可选DR读取严格等待ADC禁用、CHSELR=通道4、EOC清零，并检查读前后状态。
+- 10秒/71个寄存器快照：`GPIOA_MODER=0xEBFF9795`，PA4的MODER[9:8]=`11`（模拟输入）；`GPIOA_PUPDR`中PA4=无上下拉。`ADC_CHSELR`为`0x10`的68帧（通道4），另有2帧0和1帧`0x1000`（VREFINT切换/转换边界）；`ADC_SMPR=5`，按官方手册为41.5 ADC时钟采样时间。ADC空闲时CR=0，运行中会短暂见到ADEN/ADSTART；VREFINT采样CCR状态和通道切换可见。寄存器地址依据[普冉PY32F002A参考手册](https://www.puyasemi.com/download_path/%E7%94%A8%E6%88%B7%E6%89%8B%E5%86%8C/MCU%20%E5%BE%AE%E5%A4%84%E7%90%86%E5%99%A8/PY32F002A_Reference_Manual_V1.0.pdf)。
+- 随后在满足“ADC CR=0、CHSELR=0x10、ISR EOC=0”的单个时刻读取ADC_DR：`DR=4095`，同刻前后RAM `s_last_raw=4095`，ADC_ISR读前后均`0xA`（EOC仍清零），`CHSELR=0x10`保持；核心未暂停、未复位、未写Flash。证据CSV SHA256=`49686cf9b1504bae40d542727177f45d20f449b71b64c08f9fae88b557f6b56e`及同目录`r02_regs_20261119.csv[,.json]`、`r02_regs_dr_20261119.csv[,.json]`。
+- **结论收敛**：当前版本的PA4模拟模式、ADC通道选择、41.5-cycle采样配置和“DR→RAM raw”数值一致；满量程不是后处理或SWD字段解释算错。仍未证明芯片焊盘此刻实际电压：DR=4095按VDDA约3.25V对应接近3.25V，与另一个时间点PA4=1.120V（理论约1423）无法同时成立。故R02的剩余关键证据是同一时刻用万用表测PA4与VDDA；不需要转轴或复测端点，也不应先加VDD补偿。板当前仍为force-coast，不动作。
