@@ -363,3 +363,12 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 中断本地SSH后，Ubuntu上的监视器进程仍占用DAPLink，导致读写尝试报`Unable to open device`。已按PID结束本任务遗留进程；随后读回确认板仍为R28E活动镜像（全片SHA256=`a91ac7b9d871614564cd4e044dd0c0d649e67045f5da28a9f315af27808a6267`），再通过2MHz under-reset成功恢复force-coast。恢复后20,480B全片SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，核心Running。
 - 监视器已新增启动计时和提前提醒功能，但本次提醒迟到，不能算成功。工具SHA256（本次修正后）=`893c63cce827d056b02db0e5bdb85068fc9349920fdaee6b2e1736d987d50006`。未保存有效的新CSV/JSON，远程临时文件已清理。
 - **纠正措施**：后续不得再用复位后固定30秒自动动作给用户观察。要先构建等待SWD显式arm的候选，监视器连接并开始落盘后，先发出即时动作提醒，再由监视器发出一次性启动请求；仅在能确保提醒先于触发时运行。当前板保持force-coast；本轮没有有效用户目视结果，R01保持未通过。
+
+
+## 2026-11-19 快速离板回归与观察器时机修复
+
+- 当前源码TSSOP20相关R01回归：LCDM源函数29/29、参数9/9、HOLD/offset计时5/5、PWM输入配置两个TSSOP20 profile共92/92；ADC低/高故障、失联及范围释放遥测脚本重跑通过。该故障脚本先前编译失败是测试桩未纳入`servo_stability_timer.h`及对应定时器状态，不是生产代码失败；现已修复，脚本SHA256=`ad8f132bc7decd8511bf0d786ada2ae7d3c41220e465b6ec98a869b863b0f826`。
+- 用户准备观察期间，先完成20秒只读采集但未及时提示手动转动；该捕获没有配套观察动作，未保留为行程证据。随后在`monitor_r01_swd.py`加入“SWD连接成功后立即flush提示”的启动行并重跑25秒，只读100帧；采集期间按提示转动电位器，PA4 raw 2043起始、峰值3850、结束1856，反馈1797–3847。VDD 3258–3269mV；frame序号一致49/100，error一致100/100。该结果是电位器反馈通路证据，未启动任何内部PWM序列，未证明R01动作响应。
+- 最终实时采集证据`firmware/evidence/r02_manual_rotation_20261119/r02_manual_rotation_20261119_run4.csv` SHA256=`0394aef07aef9e46ae5a54307d37f399137867bda435be4a5a2c60ea568cd1ac`，报告JSON SHA256=`d39191c0d2aaf79a051cdbf54f50979c8e19b46a535ab37c4ccfbdf6e9fa03ea`。监视器新哈希=`de64948d322676aa08e3d78c35797bf864fc5611ab2242d0f5768bdd1cac980f`。
+- 另执行TSSOP20 host回归：带计数报告的项目合计608项通过、0失败；R01故障遥测脚本另行成功运行但不报告断言计数。Ubuntu production LCDM构建通过（BIN 18,472B，SHA256=`8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`），均不代替板上微步/机械运动验收。当前仍为SIMB2C force-coast，R01未通过；下一次动作须使用SWD显式arm流程，待监视器确认采集后再立即提示观察并启动。
+- 后续补跑`test_direction_probe.c`当前H桥源码：80/120/160µs三档、每档17个模拟情形，共51/51通过；`test_generic_mapping.c`当前通用映射7/7通过。使用的H桥构建定义了TSSOP20 debug pins和force-coast；这些是源码仿真，不是波形或马达实测。Mac端交叉编译器运行库自检失败（缺`stdint.h`和`libc.a`），但Ubuntu正式目标构建已通过；此Mac工具链检查不作为固件失败。

@@ -228,6 +228,7 @@ def main():
     if not core_start.endswith("RUNNING"):
         session.close()
         raise SystemExit("Target is not running: " + core_start)
+    print(f"SWD attached; target {core_start}; read-only capture started for {args.seconds:g}s. Potentiometer observation can begin now.", flush=True)
     trigger_written = False
     if args.arm_center_sweep:
         target.write32(addresses[SYMBOLS["adc_diag_start_request"][0]], 1)

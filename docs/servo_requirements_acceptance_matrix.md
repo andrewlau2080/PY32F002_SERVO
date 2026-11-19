@@ -265,3 +265,13 @@
 
 
 **2026-11-19用户观察窗口协调失败**：用户已准备观察后，R28E自动定时序列仍在监视器连好前启动；监视器先因字段缺失退出，修复/重连后才发现计时58.934秒，已超过动作窗。未获得目视观察，不能计作R01证据。Ubuntu遗留监视器进程占用DAPLink，结束进程后已成功恢复force-coast，整片SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，核心Running。下一版需等待监视器显式arm，不再用自动延时动作。详细故障经过见`docs/r01_validation_20261110.md`。
+
+
+## 2026-11-19 当前源码快速回归与实时反馈观察
+
+- **离板回归**：有计数报告的当前生产源码TSSOP20相关断言合计608项通过、0项失败，覆盖R01源函数/参数/HOLD计时/PWM输入，R02 ADC采样，R03 observer/RX ring/速度/学习时间，R05/R07学习与增益，R08轨迹与slew，R09制动预测，R10制动算术，R11稳定计时，R13模型存储及R15故障分支；另有R01故障遥测脚本成功运行（该脚本不输出断言计数）。主机回归不等于实体板或产品验收；SOP8结果不纳入本轮范围。`test_fault_telemetry.py`原先未引入真实`servo_stability_timer.h`而编译失败，现已修正测试桩并重跑通过；脚本SHA256=`ad8f132bc7decd8511bf0d786ada2ae7d3c41220e465b6ec98a869b863b0f826`。
+- **正式构建**：Ubuntu TSSOP20 production LCDM构建通过，产物`build/releases/V10.6_TSSOP20_PROD_VALIDATION_20261119/py32f002_servo.bin`，18,472B，SHA256=`8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`；ELF SHA256=`c3fa85497d1953f581ebb6c568398d6cf7b50a8e237ecf76a8d209d0233fc2e2`。只构建、未下载；板上状态未被构建改变。
+- **只读板况识别**：整片Flash仍为20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，启动版本`P50 V10.6SIMB2C`，核心Running。Flash中的应用与`V10.6_TSSOP20_R04_R15_OVERRUN_FORCE_COAST_20261119` BIN逐字节匹配；该镜像编译时强制H桥coast。
+- **实时手动电位器观察**：监视器连上后采集25秒、100帧，PA4 raw ADC 2043起始、峰值3850、结束1856；反馈字段范围1797–3847，未顶到4095。同步VDD估值3258–3269mV（11mV跨度），VDD到位置ADC年龄6–27ms。`input_valid=0`，没有外部PWM命令；frame序号一致49/100，但误差字段100/100自洽。该次支持电位器反馈随手动变化及静止状态VDD观测，不能证明机械端点、PWM响应、电机动作或带负载VDD补偿，R01仍未通过、R02仍部分完成。证据CSV SHA256=`0394aef07aef9e46ae5a54307d37f399137867bda435be4a5a2c60ea568cd1ac`，JSON SHA256=`d39191c0d2aaf79a051cdbf54f50979c8e19b46a535ab37c4ccfbdf6e9fa03ea`，位于`firmware/evidence/r02_manual_rotation_20261119/`。监视器在SWD连接成功后即时打印观察提示，SHA256=`de64948d322676aa08e3d78c35797bf864fc5611ab2242d0f5768bdd1cac980f`。
+- **尚需的具体证据**：R01需显式arm、采集已开始后同步观察限幅中位微步，并确认实际位移/输出；R02绝对PA4电压与VDD需同一时刻可信电压测量，负载下VDD影响需安全运行和同步采样。本轮无固件源码修改、无下载、无电机动作。
+- 随后额外补跑R01 H桥方向探针host仿真：80/120/160µs共51/51场景通过；通用pulse映射7/7通过。通用闭环六段模型全部进入HOLD，R11稳定候选至HOLD延迟20–26ms，6/6达到门槛。均是离板结果。Mac上的`arm-none-eabi`运行库检查未通过，因为该Mac安装缺`stdint.h`/`libc.a`；Ubuntu正式TSSOP20构建通过，故此为Mac工具链环境问题。

@@ -36,13 +36,16 @@ stub = r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "servo_stability_timer.h"
 static int coast_calls, invalid_calls, publish_calls, pub_event, pub_duty, pub_error, pub_feedback, pub_raw, pub_state;
 static int32_t s_lcdm_servo_vel_q4, s_lcdm_servo_pos_q4, s_lcdm_servo_traj_pos_q4, s_lcdm_servo_traj_vel_q4;
 static uint32_t s_lcdm_servo_traj_last_update_ms;
 static int s_lcdm_servo_current_duty, s_lcdm_servo_current_velocity, s_lcdm_servo_ref_velocity;
 static int s_lcdm_servo_hold_active, s_lcdm_servo_dir_bad_count, s_lcdm_servo_dir_alarm;
 static int s_lcdm_servo_filter_seeded, s_lcdm_servo_adc_jump_count, s_lcdm_servo_ab_seeded;
-static int s_lcdm_servo_hold_deviation_count, s_lcdm_servo_motion_settle_count, s_lcdm_servo_v3_phase;
+static int s_lcdm_servo_v3_phase;
+static ServoStabilityTimer s_lcdm_servo_hold_deviation_timer, s_lcdm_servo_hold_entry_timer;
+static ServoStabilityTimer s_lcdm_servo_motion_settle_timer;
 static int s_lcdm_servo_current_state, s_lcdm_servo_current_range;
 static uint8_t s_lcdm_servo_adc_lost_count;
 static uint16_t s_lcdm_servo_prev_feedback_adc, s_lcdm_servo_velocity_feedback_adc;
@@ -86,6 +89,7 @@ with tempfile.TemporaryDirectory(prefix="servo_fault_") as folder:
     src = Path(folder) / "fault.c"
     exe = Path(folder) / "fault"
     src.write_text(stub + "\n" + defines + wrappers + checks)
-    subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", str(src), "-o", str(exe)], check=True)
+    subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
+                    "-I", str(root / "inc"), str(src), "-o", str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
 print("fault telemetry: ADC low/high, debounce, input lost and range release passed")

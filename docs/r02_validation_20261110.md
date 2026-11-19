@@ -221,3 +221,11 @@ R02 仍未通过：需要先确认方向并改善起始阶段同步采集，再�
 - 证据：`firmware/evidence/r02_manual_rotation_20261119/r02_manual_rotation_20261119_run3.csv`，SHA256 `be7df6903d42b4215039fa1697641aa4432a8b1ae028c174a621d037fb64aacb`；配套JSON SHA256 `ea6cf8e07a228cc31d7556a3604f57f387c4e66fa616c05f9309b1d8d3db31aa`。采集ELF SHA256 `996e43f81f9f0ae567945b38312ded9ea0df0e1821f597175455e54489a3b7f9`。
 - **结论更新**：重新接线后ADC能随手动电位器大范围变化，先前满量程矛盾由断线导致的可能性很高；R02的“反馈随位置变化”子项得到支持，但整项仍未通过。此次VDD跨度22mV且没有负载，不能证明负载下VDD影响或PA4绝对电压映射；没有新的机械端点测试。板继续保持force-coast。
 - 本轮工具支持流式只读采集，`tools/capture_r02_adc_registers_swd.py` SHA256 `5580d53b415aea68073b71665a96e808a3e1af025b347c0112e91eb0140630c5`。断线初轮原始文件已用上述摘要替代并清理，以免保留无效重复数据。
+
+
+### 2026-11-19 补充实时手动反馈采集
+
+- 只读监视器连接当前force-coast板后采集25秒100帧；用户手动转动电位器期间，PA4 raw ADC由2043附近升至峰值3850，采集结束回到1856；feedback字段1797–3847。数据未顶到4095，支持ADC反馈随电位器位置变化。`input_valid=0`，没有外部PWM输入，电机保持coast。
+- 同步VDD估值3258–3269mV，跨度11mV，位置ADC与VDD样本年龄6–27ms。静止/手动电位器条件下未见显著供电变化；没有马达负载，不能据此确认动态VDD补偿。
+- 当前追踪CSV SHA256=`0394aef07aef9e46ae5a54307d37f399137867bda435be4a5a2c60ea568cd1ac`，报告JSON SHA256=`d39191c0d2aaf79a051cdbf54f50979c8e19b46a535ab37c4ccfbdf6e9fa03ea`，文件位于`firmware/evidence/r02_manual_rotation_20261119/`。核心采集前后Running。
+- 仍未通过：PA4与VDDA同刻可信电压/ADC对应、负载下VDD变化及补偿效果。需要同一时刻PA4和VDDA电压读数；负载项需之后在安全限幅动作期间同步采集。本轮不改补偿系数。

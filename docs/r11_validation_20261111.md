@@ -32,3 +32,8 @@
 - 边界回归`tools/r11_host_sim/test_stability_timer.c` **48/48通过**。生产`servo_control.c`六段对象模拟全部进入HOLD；由CSV重建的稳定候选至HOLD延时为20/26/26/20/26/20ms，**6/6通过**。数据`firmware/evidence/r11_hold_settle_20261115/simulation.csv`。这是软件模型结果，不代表实机稳定或外力恢复通过。
 - 正式TJC LCDM Ubuntu构建通过，BIN 15,928B，SHA256=`4f55dc44337a45ea1d60de85fded74c3bd57658007cfd2a7ddf424eb4c6df843`；`_ebss=0x20000334`，保留1536B栈后另有716B RAM余量。构建目录`build/releases/V10.6_R11_STABILITY_TIME_PRODUCTION_R3_20261115/`，未下载。force-coast LCDM诊断构建也通过，BIN 19,180B，未下载。
 - **R11仍部分通过**：两条软件路径的计数器已改为真实时间并完成离板对照；目标板长时间静稳、误差/速度门槛实效、轻推转臂后释放、二次换向和HOLD输出仍未验。当前板R6 force-coast，没有触发动作；实测须待R01方向安全证据具备后批量进行。
+
+## 2026-11-19 当前源码复跑
+
+- 重编译生产通用闭环六段host模型，并重跑`tools/r11_host_sim/verify_hold_settle.py`；稳定候选至HOLD为26/26/26/20/26/20ms，6/6达到至少20ms门槛。仿真CSV在`/tmp`完成检查后清理，未重复保存。
+- 这是通用生产控制路径和合成对象结果；TSSOP20 LCDM实板的长时HOLD与轻推释放仍未验证，R11继续部分通过。
