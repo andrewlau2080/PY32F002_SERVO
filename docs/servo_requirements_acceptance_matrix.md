@@ -2,7 +2,7 @@
 
 ## 当前整体进度（2026-11-19）
 
-共22项需求，目前**0项完成整项验收**：6项标记未通过（R01、R03、R12、R14、R15、R20），16项部分完成，R02已列为部分完成。R04丢tick降级分支已在force-coast板上受控触发，R02的DR→RAM路径已核实，但都只关闭了子问题，不能把整项改为通过。当前板为`P50 V10.6SIMB2C` force-coast；11月19日按用户指示完成一次R28E限幅中心微步诊断，反馈没有超出基线范围的可重复位移证据；随后已恢复force-coast。R01/R20仍未通过。
+共22项需求，目前**0项完成整项验收**：6项标记未通过（R01、R03、R12、R14、R15、R20），16项部分完成，R02已列为部分完成。R04丢tick降级分支已在force-coast板上受控触发，R02的DR→RAM路径已核实，但都只关闭了子问题，不能把整项改为通过。R29A未arm预检发现active flag可被独立计时分支设置，已作废。R29B下载读回通过，32秒未arm观察确认不自启动；随后显式arm一次中心微步，但SWD首个动作窗采样发生TransferError。动作后只读14帧确认PWM=1503µs、duty=0、HOLD，不能证明动作窗内位移。当前板仍为`P50 V10.6SIMB2R29B`，整片20,480B SHA256=`f8a3e63979cde160a6eb72e91715cf9c1db97c0534ac5f4df84ee776cd4fef85`，核心Running且已过一次性arm、处于coast；R01仍未通过。
 
 初版日期：2026-11-09；核对更新：2026-11-16  
 **当前阶段范围：仅TSSOP20仿真板；SOP8分析及验收暂缓，待本板要求与功能完成后再开始。**  
@@ -275,3 +275,9 @@
 - **实时手动电位器观察**：监视器连上后采集25秒、100帧，PA4 raw ADC 2043起始、峰值3850、结束1856；反馈字段范围1797–3847，未顶到4095。同步VDD估值3258–3269mV（11mV跨度），VDD到位置ADC年龄6–27ms。`input_valid=0`，没有外部PWM命令；frame序号一致49/100，但误差字段100/100自洽。该次支持电位器反馈随手动变化及静止状态VDD观测，不能证明机械端点、PWM响应、电机动作或带负载VDD补偿，R01仍未通过、R02仍部分完成。证据CSV SHA256=`0394aef07aef9e46ae5a54307d37f399137867bda435be4a5a2c60ea568cd1ac`，JSON SHA256=`d39191c0d2aaf79a051cdbf54f50979c8e19b46a535ab37c4ccfbdf6e9fa03ea`，位于`firmware/evidence/r02_manual_rotation_20261119/`。监视器在SWD连接成功后即时打印观察提示，SHA256=`de64948d322676aa08e3d78c35797bf864fc5611ab2242d0f5768bdd1cac980f`。
 - **尚需的具体证据**：R01需显式arm、采集已开始后同步观察限幅中位微步，并确认实际位移/输出；R02绝对PA4电压与VDD需同一时刻可信电压测量，负载下VDD影响需安全运行和同步采样。本轮无固件源码修改、无下载、无电机动作。
 - 随后额外补跑R01 H桥方向探针host仿真：80/120/160µs共51/51场景通过；通用pulse映射7/7通过。通用闭环六段模型全部进入HOLD，R11稳定候选至HOLD延迟20–26ms，6/6达到门槛。均是离板结果。Mac上的`arm-none-eabi`运行库检查未通过，因为该Mac安装缺`stdint.h`/`libc.a`；Ubuntu正式TSSOP20构建通过，故此为Mac工具链环境问题。
+- **R29A预检失败；R29B未arm板测通过**：R29A的14帧只读检查显示arm request=0、PWM frame始终1503µs、duty=0，但`active_started=1`。修复后R29B BIN 19,044B SHA256=`478b61f390286b86b39a2abc535a16e710c048676c8086b26104b2cc5fd658b8`，ELF SHA256=`a37d132ec36f5579786de8e8c108e61b462cdbaccc71c225e4f6f152289b4256`；栈余量1636B。下载写后整片20KB SHA256=`f8a3e63979cde160a6eb72e91715cf9c1db97c0534ac5f4df84ee776cd4fef85`，应用匹配、尾384B不变。32秒112帧预检arm=0、active=0、PWM=1503µs、duty=0、HOLD，越过30秒自动触发门槛仍未动作。现在可以执行已提示的单次中心微步；R01仍未验收通过。
+
+
+**2026-11-19 R29B动作窗增量**：显式arm已写入；首个SWD分组读取报TransferError，动作窗内无有效采集。动作后14帧确认回到1503µs/零duty/HOLD。不得据此判定没有运动。后动作CSV：`firmware/evidence/r01_r29b_after_coast_20261119/r29b_after_coast.csv`，SHA256=`da057e86c65410c0488cc43de3746ef33324e040039492c3cf25867fe86a6a58`。监视器需调整为先开CSV并取得基线，再arm；同时提高SWD瞬时传输错误的容错。R01未通过，R29B当前一次性arm已消费、处于coast。
+
+**2026-11-19 监视器修正**：动作前先创建并flush CSV；RAM分组读取最多重试4次，仍失败时保存错误行并继续采样，报告统计重试/失败数。`tools/monitor_r01_swd.py` SHA256=`38ebd464b6b5dd65ed6afc1a1ee9b53cfb9c796b916548e290d740efc7f199a7`；Python语法检查和`git diff --check`通过，尚未重新部署到Ubuntu或进行板上触发。R01仍未通过，当前R29B已消费一次性arm且处于coast。

@@ -33,10 +33,19 @@
 #ifndef SERVO_R01_TEST_DUTY_INVERT
 #define SERVO_R01_TEST_DUTY_INVERT 0
 #endif
+#ifndef SERVO_R01_EXPLICIT_ARM
+#define SERVO_R01_EXPLICIT_ARM 0
+#endif
+#ifndef SERVO_HBRIDGE_FORCE_COAST
+#define SERVO_HBRIDGE_FORCE_COAST 0
+#endif
 
 #define LCDM_SERVO_STATE_BAD 3U
 #ifndef SERVO_R01_TEST_MAX_DUTY
 #define SERVO_R01_TEST_MAX_DUTY 40
+#endif
+#if SERVO_R01_EXPLICIT_ARM && (!SERVO_ENABLE_INTERNAL_STEP_TEST || SERVO_HBRIDGE_FORCE_COAST || SERVO_R01_TEST_MAX_DUTY > 40)
+#error Explicit R01 motion arm requires an active center test capped at 40 permille or lower.
 #endif
 
 volatile uint8_t g_servo_model_record_valid;
@@ -44,6 +53,9 @@ volatile uint8_t g_servo_model_record_valid;
 __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6";
 #endif
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
+#if SERVO_R01_EXPLICIT_ARM && !SERVO_HBRIDGE_FORCE_COAST
+volatile uint32_t g_r01_active_test_arm_request;
+#endif
 volatile uint32_t g_r01_diag_nonzero_request_count;
 volatile uint16_t g_r01_diag_max_abs_request_duty;
 volatile int16_t g_r01_diag_last_request_duty;
@@ -1234,7 +1246,11 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2P80F"
 #endif
 #else
+#if SERVO_R01_EXPLICIT_ARM
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2R29B"
+#else
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2"
+#endif
 #endif
 #define LCDM_SERVO_INTERNAL_TEST_MAX_DUTY SERVO_R01_TEST_MAX_DUTY
 #elif SERVO_HBRIDGE_FORCE_COAST
@@ -1530,6 +1546,9 @@ typedef struct __attribute__((packed, aligned(4)))
 #elif SERVO_R04_TIMING_TRACE
 /* Timing histograms need RAM; preserve the stack reserve in this diagnostic image. */
 #define SERVO_CURVE_LOG_CAPACITY 6U
+#elif SERVO_R01_EXPLICIT_ARM
+/* The explicit-arm motion image favors stack margin; live SWD captures use the frame. */
+#define SERVO_CURVE_LOG_CAPACITY 4U
 #elif SERVO_ENABLE_INTERNAL_STEP_TEST
 /* Keep the guarded stack reserve with the R11 elapsed-time stability state. */
 #define SERVO_CURVE_LOG_CAPACITY 8U
@@ -1950,6 +1969,23 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
     s_lcdm_runtime_pwm_seeded = 1U;
   }
 
+#if SERVO_R01_EXPLICIT_ARM && !SERVO_HBRIDGE_FORCE_COAST
+  if ((s_lcdm_internal_active_started == 0U) &&
+      (g_r01_active_test_arm_request == 0x52303141UL))
+  {
+    g_r01_active_test_arm_request = 1U;
+    s_lcdm_runtime_pwm_start_ms = now - 30000UL;
+    s_lcdm_runtime_pwm_seeded = 1U;
+  }
+  if ((s_lcdm_internal_active_started == 0U) &&
+      (g_r01_active_test_arm_request != 1U))
+  {
+    g_r01_active_test_arm_request = 0U;
+    pulse = 1503U;
+    goto publish_internal_test_sample;
+  }
+#endif
+
   elapsed = now - s_lcdm_runtime_pwm_start_ms;
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
 #if SERVO_R04_TIMING_TRACE
@@ -2128,6 +2164,9 @@ static void lcdm_reset_pwm_live_cache(void)
   s_lcdm_internal_guard_seeded = 0U;
   s_lcdm_internal_drive_started = 0U;
   s_lcdm_internal_motion_locked = 0U;
+#if SERVO_R01_EXPLICIT_ARM && !SERVO_HBRIDGE_FORCE_COAST
+  g_r01_active_test_arm_request = 0U;
+#endif
   g_r01_diag_lock_reason = 0U;
   g_r01_diag_lock_feedback = 0U;
   g_r01_diag_lock_error = 0;
@@ -2888,6 +2927,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
     target_adc = (uint16_t)anchored_target;
   }
   if ((s_lcdm_internal_active_started == 0U) &&
+#if SERVO_R01_EXPLICIT_ARM && !SERVO_HBRIDGE_FORCE_COAST
+      (g_r01_active_test_arm_request == 1U) &&
+#endif
       ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 30000U))
   {
     uint16_t center_target_adc = lcdm_pwm_to_target_adc(1503U);

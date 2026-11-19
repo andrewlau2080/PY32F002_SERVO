@@ -65,6 +65,8 @@ SYMBOLS = {
     "r01_diag_lock_feedback": ("g_r01_diag_lock_feedback", 2, False),
     "r01_diag_lock_error": ("g_r01_diag_lock_error", 2, True),
     "r01_diag_lock_displacement": ("g_r01_diag_lock_displacement", 2, True),
+    "r01_active_test_arm_request": ("g_r01_active_test_arm_request", 4, False),
+    "r01_internal_active_started": ("s_lcdm_internal_active_started", 1, False),
     "r01_stage_stats": ("g_r01_stage_stats", 64, False),
     "adc_diag_sample0": ("g_adc_diag_sample0", 2, False),
     "adc_diag_sample1": ("g_adc_diag_sample1", 2, False),
@@ -164,6 +166,8 @@ def main():
                    help="require a 1503 us first frame, an upward sweep, and a return near center")
     p.add_argument("--arm-center-sweep", action="store_true",
                    help="start the one-shot sweep only after the SWD capture is attached")
+    p.add_argument("--arm-r01-motion", action="store_true",
+                   help="after an 8-second observation lead-in, arm the explicitly armed <=40/1000 R29B center microstep image")
     p.add_argument("--arm-r04-sweep", action="store_true",
                    help="start the R04 timing-trace sweep after SWD capture attaches")
     args = p.parse_args()
@@ -176,11 +180,19 @@ def main():
         p.error("center microstep capture must cover at least 35 seconds")
     if args.arm_center_sweep and not args.expect_center_sweep:
         p.error("--arm-center-sweep requires --expect-center-sweep")
+    if args.arm_r01_motion and args.seconds < 15.0:
+        p.error("--arm-r01-motion requires at least 15 seconds of capture")
+    if args.arm_r01_motion and b"P50 V10.6SIMB2R29B" not in args.elf.read_bytes():
+        p.error("--arm-r01-motion requires the explicitly armed R29B active diagnostic ELF")
     if args.arm_r04_sweep and not args.expect_pwm_sweep:
         p.error("--arm-r04-sweep requires --expect-pwm-sweep")
     if (args.expect_center_sweep or args.expect_pwm_sweep) and b"P50 V10.6SIMB2" not in args.elf.read_bytes():
         p.error("PWM sweep checks require the V10.6SIMB2 diagnostic ELF")
     addresses = read_symbols(args.elf)
+    if args.arm_r01_motion and any(
+        name not in addresses for name in ("g_r01_active_test_arm_request", "s_lcdm_internal_active_started")
+    ):
+        raise SystemExit("Explicit-arm symbols are missing from the selected R29B ELF")
     active = [label for label, (name, _size, _signed) in SYMBOLS.items() if name in addresses]
     if args.announce_before_sweep_ms and "runtime_pwm_start_ms" not in active:
         raise SystemExit("Selected ELF lacks the runtime PWM start timestamp needed for an advance warning")
@@ -228,7 +240,14 @@ def main():
     if not core_start.endswith("RUNNING"):
         session.close()
         raise SystemExit("Target is not running: " + core_start)
-    print(f"SWD attached; target {core_start}; read-only capture started for {args.seconds:g}s. Potentiometer observation can begin now.", flush=True)
+    if args.arm_r01_motion:
+        arm_addr = addresses[SYMBOLS["r01_active_test_arm_request"][0]]
+        started_addr = addresses[SYMBOLS["r01_internal_active_started"][0]]
+        if int(target.read8(started_addr)) != 0 or int(target.read32(arm_addr)) != 0:
+            session.close()
+            raise SystemExit("R01 test is already armed or started; refusing a second trigger")
+    else:
+        print(f"SWD attached; target {core_start}; read-only capture started for {args.seconds:g}s. Potentiometer observation can begin now.", flush=True)
     trigger_written = False
     if args.arm_center_sweep:
         target.write32(addresses[SYMBOLS["adc_diag_start_request"][0]], 1)
@@ -247,6 +266,8 @@ def main():
         "adc_diag_batch_fresh", "adc_diag_seq_after", "adc_diag_batch_consistent"]
     fields += ["adc_diag_freeze_ack"]
     count = 0
+    swd_read_retries = 0
+    swd_read_errors = 0
     last_stage_stats = 0
     core_end = "unknown"
     first_frame_pwm_us = None
@@ -265,8 +286,14 @@ def main():
     started = time.monotonic()
     try:
         with args.output.open("x", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fields)
+            writer = csv.DictWriter(f, fieldnames=fields + ["swd_error"])
             writer.writeheader()
+            f.flush()
+            if args.arm_r01_motion:
+                print(f"SWD attached; target {core_start}; capture file is open. R01 microstep will arm in 8 seconds. Observe the actuator now; duty cap is 40/1000.", flush=True)
+                time.sleep(8.0)
+                target.write32(arm_addr, 0x52303141)
+                print("R01 one-shot arm request sent; 1503-1506 us center sequence is starting.", flush=True)
             while time.monotonic() - started < args.seconds:
                 sample_start = time.monotonic()
                 row = {"wall_s": round(sample_start - started, 6)}
@@ -287,6 +314,7 @@ def main():
                         time.sleep(0.001)
                 # Keep reads short: a full-RAM poll consumes much more SWD bus
                 # time and makes it difficult to measure the running system.
+                sample_read_failed = False
                 for labels in (
                     ("hw_raw_us", "hw_accepted_us", "hw_candidate_us", "latched_us"),
                     ("tick", "runtime_pwm_start_ms", "edge_count", "pulse_count", "input_valid", "last_edge_ms"),
@@ -301,6 +329,7 @@ def main():
                      "r01_diag_max_vdd_when_request", "r01_diag_lock_reason",
                      "r01_diag_lock_feedback", "r01_diag_lock_error",
                      "r01_diag_lock_displacement", "r01_diag_control_adc"),
+                    ("r01_active_test_arm_request", "r01_internal_active_started"),
                     ("r01_stage_stats",),
                     ("adc_raw_last", "adc_vdd_compensated_last", "adc_filtered", "vrefint_raw", "vdd_mv", "vdd_sample_valid", "vdd_sample_ms",
                      "vdd_sample_us_q4", "adc_raw_sample_ms", "adc_raw_sample_us_q4"),
@@ -323,7 +352,23 @@ def main():
                         continue
                     group_start = min(addresses[SYMBOLS[label][0]] for label in labels)
                     group_end = max(addresses[SYMBOLS[label][0]] + SYMBOLS[label][1] for label in labels)
-                    data = bytes(target.read_memory_block8(group_start, group_end - group_start))
+                    data = None
+                    last_read_error = None
+                    for read_attempt in range(4):
+                        try:
+                            data = bytes(target.read_memory_block8(group_start, group_end - group_start))
+                            if read_attempt:
+                                swd_read_retries += read_attempt
+                            break
+                        except Exception as exc:
+                            last_read_error = exc
+                            if read_attempt < 3:
+                                time.sleep(0.02)
+                    if data is None:
+                        swd_read_errors += 1
+                        sample_read_failed = True
+                        row["swd_error"] = f"0x{group_start:08x}: {last_read_error}"
+                        break
                     for label in labels:
                         symbol, size, signed = SYMBOLS[label]
                         row[label] = value(data, addresses[symbol] - group_start, size, signed)
@@ -337,6 +382,12 @@ def main():
                         if diag_snapshot_request_addr is not None:
                             target.write32(diag_snapshot_request_addr, 0)
                             diag_snapshot_hold = False
+                if sample_read_failed:
+                    writer.writerow(row)
+                    f.flush()
+                    count += 1
+                    time.sleep(max(0.0, args.interval_ms / 1000.0 - (time.monotonic() - sample_start)))
+                    continue
                 last_stage_stats = row.get("r01_stage_stats", last_stage_stats)
                 frame_address = addresses[SYMBOLS["frame"][0]]
                 for _attempt in range(3):
@@ -474,6 +525,7 @@ def main():
         "elf": str(args.elf), "elf_sha256": hashlib.sha256(args.elf.read_bytes()).hexdigest(),
         "probe_uid": args.uid, "target": "py32f002ax5", "connect_mode": "attach",
         "core_start": core_start, "core_end": core_end, "samples": count,
+        "swd_read_retries": swd_read_retries, "swd_read_errors": swd_read_errors,
         "start_time": wall_start,
         "monitor_sha256": monitor_sha256,
         "requested_interval_ms": args.interval_ms,

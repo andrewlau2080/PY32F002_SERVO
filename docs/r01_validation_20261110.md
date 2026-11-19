@@ -372,3 +372,27 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 最终实时采集证据`firmware/evidence/r02_manual_rotation_20261119/r02_manual_rotation_20261119_run4.csv` SHA256=`0394aef07aef9e46ae5a54307d37f399137867bda435be4a5a2c60ea568cd1ac`，报告JSON SHA256=`d39191c0d2aaf79a051cdbf54f50979c8e19b46a535ab37c4ccfbdf6e9fa03ea`。监视器新哈希=`de64948d322676aa08e3d78c35797bf864fc5611ab2242d0f5768bdd1cac980f`。
 - 另执行TSSOP20 host回归：带计数报告的项目合计608项通过、0失败；R01故障遥测脚本另行成功运行但不报告断言计数。Ubuntu production LCDM构建通过（BIN 18,472B，SHA256=`8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`），均不代替板上微步/机械运动验收。当前仍为SIMB2C force-coast，R01未通过；下一次动作须使用SWD显式arm流程，待监视器确认采集后再立即提示观察并启动。
 - 后续补跑`test_direction_probe.c`当前H桥源码：80/120/160µs三档、每档17个模拟情形，共51/51通过；`test_generic_mapping.c`当前通用映射7/7通过。使用的H桥构建定义了TSSOP20 debug pins和force-coast；这些是源码仿真，不是波形或马达实测。Mac端交叉编译器运行库自检失败（缺`stdint.h`和`libc.a`），但Ubuntu正式目标构建已通过；此Mac工具链检查不作为固件失败。
+
+## 2026-11-19 显式触发R01候选审查：R29A作废、R29B修复中
+
+- `src/app_entry.c`增加了仅在活动内部微步诊断构建中存在的SWD arm请求；编译约束为非force-coast且占空≤40/1000。运行流程采纳魔数后从1503–1506µs执行中心序列，8秒后coast。`tools/build_v10_ubuntu.py`新增`--r01-explicit-arm`及配置限制，`Makefile`显式传递arm宏并检查内部测试许可、非coast和占空限制；`tools/monitor_r01_swd.py`只对标记的armed ELF接受一次请求并提供8秒观察提示。
+- **R29A构建记录**：首次构建后被版本标识检查拒绝，原因是Makefile未把新增宏传入C编译；修Makefile后构建成功。进一步为栈余量把事件环由8项减至4项，地图`_ebss=0x2000059c`、剩余1636B。R29A BIN 19,020B SHA256=`f1c1d0c51f683173fcdd02a3be2425c2f9308de923fd53bce4be680559757db4`，ELF SHA256=`681e3c7f5cf7ef333f69de6fed4677234b4babe89eb4a8481f2eae2397623643`。
+- **R29A预检失败与纠正**：以2MHz under-reset下载后，整片20,480B SHA256=`1e486cc45f444b70f16bc450e17b53277198dd9e21742ae7c8c9858c333a201e`，应用匹配，尾384B不变，核心Running。4秒SWD预检14帧显示arm request始终0、frame始终1503µs、软件duty始终0，但`active_started=1`。源码审查发现独立的启动计时分支仍能不经arm设置active flag；因此R29A禁止再用，未触发电机动作。证据CSV SHA256=`f766d5cf77be4e0a12ed4edbf7e1711a34270d85eb7b0dc5172b95e88d587a41`，JSON SHA256=`88e0b9bde1b003bc268b192974a2e68b7ac1da8e9e9bfc40dbdfa0ad4a72d121`，位于`firmware/evidence/r01_r29a_prearm_review_20261119/`。
+- **板已恢复**：立即使用2MHz under-reset恢复`P50 V10.6SIMB2C` force-coast，完整读回SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`、核心Running，报告`build/board_readback/20261119_after_r29a_prearm_review_restored/report.json`。R29B已加第二道门：除触发采样时钟外，设置active状态也必须看到已消费的arm值`1`；无arm时始终停在1503µs。
+- **R29B构建、下载及未arm实测通过**：Ubuntu候选`build/releases/V10.6_TSSOP20_R01_ARMED_CENTER_R29B_20261119/`，BIN 19,044B SHA256=`478b61f390286b86b39a2abc535a16e710c048676c8086b26104b2cc5fd658b8`，ELF SHA256=`a37d132ec36f5579786de8e8c108e61b462cdbaccc71c225e4f6f152289b4256`；源码SHA256=`2931eb4540ec0a7c86099fa5fa628463aaaefc7ca8276d710dc7b714aefc1cf4`，`Makefile`=`9d630a011458bdb76fc7206d83bc2302f5f343cdb8c8080b6aede0db2e9b298a`，构建器=`3f4a4a61a79ab5c516aade3839ee47d6bc941658fd223b7a32f71bcfc73d9301`，监视器=`715e96844b985273c34ed5dac61b46f328dc517bf5a1f37057de5f0dae85a020`。2MHz under-reset写后整片SHA256=`f8a3e63979cde160a6eb72e91715cf9c1db97c0534ac5f4df84ee776cd4fef85`，19,044B应用逐字节匹配BIN，尾384B不变，核心Running；读回报告`build/board_readback/20261119_r29b_after_download/report.json`。
+- 监视器未arm只读运行32.194秒，112帧：arm request始终0、`active_started`始终0、PWM始终1503µs、duty始终0、状态HOLD；raw ADC范围270–273。通过超过30秒的无arm防自动启动检查。证据`firmware/evidence/r01_r29b_unarmed_watch_20261119/r29b_unarmed.csv` SHA256=`f8e3cb7bcc9754e7855dd3d6f66fd956faf2bf28111e1ddfe81080fd09602754`，报告JSON SHA256=`0d78dc161b5a7f367078af8d12b14781c2de5c1cfe929204c577bbe4e3c30b37`。接下来开启8秒提示的arm动作窗口；当前仍未触发动作。
+
+
+## 2026-11-19 R29B显式arm动作窗与采集失败
+
+- **动作前安全检查**：R29B板上固件已通过32.194秒未arm观察；arm与active标志保持0、PWM 1503µs、软件duty 0、HOLD。候选上限40/1000，动作范围只限1503→1506→1503µs，8秒后自动coast；没有端点动作。
+- **实际触发结果**：监视器提示观察后，已成功向`g_r01_active_test_arm_request`写入一次性arm魔数`0x52303141`。随后第一次SWD遥测分组读取发生pyOCD `TransferError`，未获得动作窗期间有效CSV；因此不能从SWD判断此次软件请求、ADC位移或物理桥输出。错误发生在arm写入之后，动作窗预期已启动并自动结束。
+- **动作后核对**：未复位或重新下载，仅以只读方式确认板仍为R29B镜像，全片SHA256=`f8a3e63979cde160a6eb72e91715cf9c1db97c0534ac5f4df84ee776cd4fef85`，核心Running。动作窗后4.12秒采集14帧，arm=1、active=1、PWM=1503µs、软件duty=0、HOLD；这些是窗口结束后的状态，不能代替窗口内观测。CSV保存在`firmware/evidence/r01_r29b_after_coast_20261119/r29b_after_coast.csv`，SHA256=`da057e86c65410c0488cc43de3746ef33324e040039492c3cf25867fe86a6a58`。
+- **结果与未解决项**：R29B超过30秒未arm不自启通过；动作后自动coast状态通过。R01仍未通过，原因是8秒动作窗遥测丢失且尚无可确认的重复实体位移；不能把“未捕获”写成“没有运动”。用户目视反馈待补记。R02/R04/R15/R20状态不因这次动作窗改变。当前R29B已过一次性arm且处于coast，不能再次触发；下一轮先修监视器SWD读失败并保证CSV先落盘，再重新做受限中心测试。
+- **已识别的采集流程缺陷**：arm在CSV文件打开之前发送；这导致触发后才进入数据采集，失去动作前基线，也使首次传输失败无法恢复窗口记录。下一版监视器应先创建并flush CSV、采集至少一组基线，再执行8秒提醒和arm；对可恢复的分组读取错误做短重试并记录丢帧，不应异常退出整次采集。
+
+## 2026-11-19 R29B采集工具修正（未再次触发）
+
+- `tools/monitor_r01_swd.py`调整动作流程：显式arm前先创建并flush CSV；观察提示和8秒倒计时在文件已就绪后进行。RAM分组读取最多重试4次；持续失败写入`swd_error`标记并继续后续采样，JSON报告累计重试/失败数。避免一次传输异常直接中断整段采集，也避免arm前没有落盘文件。
+- 工具SHA256=`38ebd464b6b5dd65ed6afc1a1ee9b53cfb9c796b916548e290d740efc7f199a7`；`python3 -m py_compile tools/monitor_r01_swd.py`及`git diff --check`通过。没有在板上重跑此改动，R29B的一次性arm已消费，未再次触发。
+- 上一节动作窗内TransferError与动作后14帧证据仍有效；R01仍未通过，R29B当前在1503µs、零duty、HOLD/coast。下一轮先同步部署此监视器，然后待观察者准备好再做受限中心小步；不测试端点。
