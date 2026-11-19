@@ -396,3 +396,11 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - `tools/monitor_r01_swd.py`调整动作流程：显式arm前先创建并flush CSV；观察提示和8秒倒计时在文件已就绪后进行。RAM分组读取最多重试4次；持续失败写入`swd_error`标记并继续后续采样，JSON报告累计重试/失败数。避免一次传输异常直接中断整段采集，也避免arm前没有落盘文件。
 - 工具SHA256=`38ebd464b6b5dd65ed6afc1a1ee9b53cfb9c796b916548e290d740efc7f199a7`；`python3 -m py_compile tools/monitor_r01_swd.py`及`git diff --check`通过。没有在板上重跑此改动，R29B的一次性arm已消费，未再次触发。
 - 上一节动作窗内TransferError与动作后14帧证据仍有效；R01仍未通过，R29B当前在1503µs、零duty、HOLD/coast。下一轮先同步部署此监视器，然后待观察者准备好再做受限中心小步；不测试端点。
+
+
+## 2026-11-19 R29B第二轮动作窗失败及恢复
+
+- R29B在2MHz under-reset重载后，读回全片SHA256仍为`f8a3e63979cde160a6eb72e91715cf9c1db97c0534ac5f4df84ee776cd4fef85`，确认候选/尾部一致。更新后的监视器以Ubuntu pyOCD虚拟环境只读预检5秒：17帧、无重试/错误、PWM=1503µs；这是监视链路静止状态通过。Ubuntu系统Python缺pyOCD；使用项目虚拟环境解决。指定UID直传给ConnectHelper会报告找不到probe，省略UID后能attach；此限制已用于本次捕获命令。
+- 第二轮显式arm前已打开并flush CSV，提醒用户观察后8秒写入arm。捕获22.148秒、56行；每行的首次运行tick分组读在地址`0x200002cc`失败，四次重试均失败（报告`swd_read_errors=56`，无任何有效动作期遥测），断开时pyOCD提示probe disconnect错误，核心状态报告LOCKUP。该结果说明新监视器保存了失败行，但仍不能在动作负载下读RAM。没有PWM/ADC数据可用于判断机械位移或实际桥输出。CSV SHA256=`3275022d754cd8a77c58596dfa4059dc8f1ab672fb4a47b3d5928bca90f73afc`，JSON SHA256=`76072cd7550ad12f2d8eb23654c1d510aac2258979a95c7cd9516a58338f6bf8`，见`firmware/evidence/r01_r29b_retry_lockup_20261119/`。
+- **安全恢复已验证**：用已确认与原force-coast备份应用区逐字节匹配的TSSOP20 force-coast镜像`V10.6_TSSOP20_R04_R15_OVERRUN_FORCE_COAST_20261119`（BIN SHA256=`ff23b26b2851d64c27f85301f8732f1be4334c44be61306464483b52d997e6be`）2MHz under-reset下载并运行。第一次读回出现pyOCD `index out of range`瞬时错误，未写入；重试完整读回通过。当前整片20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本`P50 V10.6SIMB2C`，核心Running。**当前板回到force-coast，不会主动驱动**。证据`build/board_readback/20261119_after_r29b_lockup_restore_retry/report.json`。
+- R01仍未通过；下一步暂停R29B活动测试，不因这次重试继续动作。必须先定位“运动窗开始后SWD读失败/LOCKUP”是目标供电/电机干扰、固件异常还是DAPLink传输问题；现有动作期无样本，无法断言是哪一项，也无法确认是否转动。用户若刚才观察到动作，可补充方向/幅度；不需要再测端点或输入信号。

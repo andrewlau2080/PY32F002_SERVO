@@ -281,3 +281,6 @@
 **2026-11-19 R29B动作窗增量**：显式arm已写入；首个SWD分组读取报TransferError，动作窗内无有效采集。动作后14帧确认回到1503µs/零duty/HOLD。不得据此判定没有运动。后动作CSV：`firmware/evidence/r01_r29b_after_coast_20261119/r29b_after_coast.csv`，SHA256=`da057e86c65410c0488cc43de3746ef33324e040039492c3cf25867fe86a6a58`。监视器需调整为先开CSV并取得基线，再arm；同时提高SWD瞬时传输错误的容错。R01未通过，R29B当前一次性arm已消费、处于coast。
 
 **2026-11-19 监视器修正**：动作前先创建并flush CSV；RAM分组读取最多重试4次，仍失败时保存错误行并继续采样，报告统计重试/失败数。`tools/monitor_r01_swd.py` SHA256=`38ebd464b6b5dd65ed6afc1a1ee9b53cfb9c796b916548e290d740efc7f199a7`；Python语法检查和`git diff --check`通过，尚未重新部署到Ubuntu或进行板上触发。R01仍未通过，当前R29B已消费一次性arm且处于coast。
+
+
+**2026-11-19 R29B第二轮和安全恢复**：更新后的监视器静态17帧通过；arm后22.148秒中56次tick分组读取全部失败，目标报告LOCKUP，动作期无有效遥测，R01仍未通过。随后用已核验的TSSOP20 force-coast构建执行2MHz under-reset恢复；读回重试后通过，当前板`P50 V10.6SIMB2C`，全片SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，核心Running。活动测试暂停，先定位负载期间SWD/目标锁定根因。原始动作窗证据见`firmware/evidence/r01_r29b_retry_lockup_20261119/`。
