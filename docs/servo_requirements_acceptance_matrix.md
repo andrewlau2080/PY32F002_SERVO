@@ -299,3 +299,5 @@
 **2026-11-19 PA6诊断构建修正与持续波形**：用户观察到PA5约48ms心跳、未见PA6。定位Makefile遗漏PA6测试宏编译定义，故此前R3/R4没有执行专用代码。已修复Makefile宏映射，构建并下载R6：PA6单独持续输出约100µs高/9.9ms低，约100Hz；无PA5心跳、H桥控制或闭环。BIN SHA256=`3574dbff3e6b0e1ac8faa045859ac259fb5bbf8ead5674578351c015b01f7b85`。**当前板留在R6持续输出，未恢复，等待用户捕获波形**。详细记录见`docs/r01_validation_20261110.md`。
 
 **2026-11-19 回到V9.5基线实板测试**：按用户要求从标签`v9.5-internal-pwm-stable`（`e3542a047aedbe6e2f627c2930ca4f26aae7b6ce`）以TSSOP20/LCDM选项重建；BIN 14,544B SHA256=`007b762dc38bfe629ba39c83f1902693a94d020e53b8ae0b7edc321b77c9a5c4`。2MHz under-reset下载成功，读回应用区逐字节匹配，核心Running；全片哈希=`96e57471990530f17bed0c2c30cd800179f4f4f1866d409f1903d81e174619ea`。短镜像残留旧版本串，不能用该字符串判版；行为测试结果待用户报告。当前板为V9.5标签源码重建版，详见`docs/r01_validation_20261110.md`。
+
+**2026-11-19 V9.5板级配置修正**：首版漏设LCDM 230400波特率和PA0电位器供电，用户报告屏幕空白且无马达响应。已同tag重建并启用`TJC_LCDM_BAUD_OVERRIDE=230400`、`SERVO_ENABLE_PA0_POT_POWER=1`；BIN SHA256=`364b8a2b65e22319055d138263b16499ae99dfac23e0ae01f134476df77d7393`。下载后读回应用14,580B逐字节匹配，核心Running，全片哈希=`b1025dcdd95e934f2d5101a39e3b2ba75b61f3f2716ac58764496109efaf02fd`。当前V9.5修正重建版在板；LCDM和马达实测结果待用户确认。
