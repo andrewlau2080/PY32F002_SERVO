@@ -291,3 +291,5 @@
 **2026-11-19 LCDM 1500显示自查与R30B**：确认R30A显示读锁存值而非内部诊断脉宽，且以1503µs为中心；R30A屏幕未变应判显示/动作路径失败。R30B已改为1500中立、1510两秒后回1500，并让P行直接显示诊断命令。Ubuntu构建、R01源码29/29、下载读回和静止14帧通过；活动后30组SWD读取失败、目标报告HALTED，故不能确认显示或机械位移，R01仍未通过。已恢复force-coast，当前整片哈希`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`、核心Running。停止重复动作，先查停机/SWD失联原因。详见R01验证记录和`firmware/evidence/r01_r30b_direct_display_20261119/`。
 
 **2026-11-19 R30D 软件PWM状态显示与重复10µs动作**：固件通过`HBridge_SetSignedDuty()`请求软件占空并在LCD显示`HBridge_GetDuty()`；最大40/1000、1500↔1510µs三轮。活动窗后30/30 SWD读取失败、core HALTED，0个有效样本；日志默认0不是实测占空。没有实际引脚PWM证据或马达位移确认，R01未通过。已恢复force-coast，整片哈希`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，核心Running。需要查明动作窗后SWD失联，并用示波器/逻辑分析仪看H桥引脚，详见`docs/r01_validation_20261110.md`及`firmware/evidence/r01_r30d_pwm_duty_lcd_20261119/`。
+
+**2026-11-19 R30D 示波器观察**：用户接示波器后运行1500↔1510µs三次来回，最大40/1000；本轮观察PA6/CP2、PB0/NG2正向输出。测试结束后SWD 30/30读取失败、core HALTED，故SWD无有效样本；用户直接观察到的示波器结果待回报。已恢复force-coast并整片读回核实，SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`、核心Running。当前不测试反向输出；详见`docs/r01_validation_20261110.md`及`firmware/evidence/r01_r30d_scope_20261119/`。

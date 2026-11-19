@@ -431,3 +431,9 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - R30D显式arm动作窗后 SWD 采集共30次读取全部失败（无重试，`core_end=HALTED`），有效样本0；因此本轮无法确认LCD的D值、软件占空是否非零、H桥引脚是否有PWM、马达是否转动。测试日志JSON中的`max_abs_bridge_duty=0`只是无样本默认值，不能解释为实测零占空。日志CSV SHA256=`5352a849c858e149ae12dcd176937eb5bf072e8c0853695fc8402b0710d7e298`，JSON SHA256=`41d7e03ba68b7d08466c17f3a7087c90b98b7f0e871d5fae79d29f90ed0561b0`，位于`firmware/evidence/r01_r30d_pwm_duty_lcd_20261119/`。
 - 立即以2MHz under-reset恢复force-coast镜像；整片20,480B读回SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本`P50 V10.6SIMB2C`，核心Running。当前板为force-coast。
 - **R01未通过，不能回答这轮“实际有无输出PWM”为是。** 固件确实含软件PWM请求路径，但无动作期遥测/引脚测量，实际PWM未证实。连续几版动作窗后均出现SWD失联/HALTED；暂停再次动作，先查MCU复位/锁定与DAPLink/SWD失联原因。下一次应以独立逻辑分析仪/示波器直接观察两路H桥引脚，并同步读取LCD `Dxx`；若Dxx为0，查控制误差/请求门控，若非零但引脚无PWM，查H桥定时器/GPIO/使能/硬件连接。
+
+## 2026-11-19 R30D 示波器观察轮
+
+- 用户已接示波器，按既定TSSOP20正向输出脚PA6/CP2与PB0/NG2观察。下载R30D后全片读回SHA256=`f9d109de40e2aaa92fefa098265da9a9aa97f86d4a22c2fcfe260ead296aacd7`，版本串匹配、核心Running。
+- 已arm一轮1500↔1510µs中心动作（3次来回、占空≤40/1000）；终端提示各次1510阶段和回中阶段，动作期间不轮询SWD。动作后SWD再次30/30读失败，core HALTED，故无有效软件遥测。监视CSV SHA256=`784e6f770b4191f525b55328dc85684ddd1bebdc66d94455f3682922c8b6468f`，JSON SHA256=`6657c1f6f8a432eea548060a912a019267b11ea9acb328e0e323a40d29b6c6f1`，见`firmware/evidence/r01_r30d_scope_20261119/`。用户的示波器结果待其报告，当前不切换反向输出。
+- 动作后2MHz under-reset恢复force-coast；整片20,480B读回SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本`P50 V10.6SIMB2C`，核心Running。当前板force-coast。
