@@ -51,3 +51,8 @@ R01–R14 未通过项留待后续统一复核，本轮未重跑。
 
 - LCDM customer profile 以固定阶段输出：驱动7ms、反向制动2ms、反向尾段3ms，之后coast。`customer_profile_direct`绕过通用8ms换向死区和slew guard；该路径是为保持参考波形而设计，直接套用8ms死区会吞掉/改变其2ms与3ms阶段，不能当作无影响的安全修补。
 - 当前不修改该时序。离板可做的是抽取profile阶段和异常输入早退条件，核对其状态转移；要决定如何兼顾双路互锁与客户波形，仍需对应客户波形映射及目标板双路输出测量。R15整项仍未通过。
+
+## 2026-11-19 调度丢周期即时冻结
+
+- `src/app_entry.c`的LCDM runtime scheduler现于丢弃tick时coast、调用`Servo_Adaptive_Update(..., false)`使学习基准失效，并复位速度/轨迹观察基准、清除未完成的customer profile阶段。修正边界仅覆盖该runtime scheduler检测到的丢周期；未加入未经定义的超时阈值，也未宣称已覆盖所有快环入口。
+- 本机尝试用隔离临时目录编译TSSOP20 force-coast + LCDM runtime配置，但本机缺少项目HAL SDK，未能完成编译；无测试运行、无固件下载、无动作验证。R15仍未通过，后续须先在项目Ubuntu工具链构建，再用force-coast板况检查遥测，最后才安排实物故障与双路互锁验证。

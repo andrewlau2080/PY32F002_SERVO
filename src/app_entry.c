@@ -33,6 +33,8 @@
 #ifndef SERVO_R01_TEST_DUTY_INVERT
 #define SERVO_R01_TEST_DUTY_INVERT 0
 #endif
+
+#define LCDM_SERVO_STATE_BAD 3U
 #ifndef SERVO_R01_TEST_MAX_DUTY
 #define SERVO_R01_TEST_MAX_DUTY 40
 #endif
@@ -245,6 +247,20 @@ static UART_HandleTypeDef s_lcdm_runtime_uart;
 static bool s_lcdm_runtime_uart_ready;
 static bool s_lcdm_runtime_control_ready;
 static uint32_t s_lcdm_runtime_last_motor_ms;
+/* Scheduler-side fault handling needs these runtime state objects before the
+ * LCDM control implementation appears later in this translation unit. */
+static int16_t s_lcdm_servo_current_duty;
+static int16_t s_lcdm_servo_current_velocity;
+static int16_t s_lcdm_servo_ref_velocity;
+static uint8_t s_lcdm_servo_current_state;
+static uint8_t s_lcdm_servo_ab_seeded;
+static int32_t s_lcdm_servo_traj_vel_q4;
+static int8_t s_lcdm_servo_output_dir;
+static uint32_t s_lcdm_servo_reverse_dead_until_ms;
+static uint8_t s_lcdm_servo_reverse_dead_active;
+static uint8_t s_lcdm_servo_customer_active;
+static int8_t s_lcdm_servo_customer_dir;
+static LcdmVelocityObserver s_lcdm_velocity_observer;
 volatile uint16_t g_r04_scheduler_overrun_context_nibbles;
 volatile uint32_t g_r04_scheduler_dropped_tick_count;
 volatile uint16_t g_r04_scheduler_max_dropped_ticks;
@@ -422,6 +438,23 @@ static void lcdm_runtime_service_motor_control(uint8_t context)
           g_r04_scheduler_max_dropped_ticks = (dropped_ticks > 0xFFFFU) ?
                                                 0xFFFFU : (uint16_t)dropped_ticks;
         }
+
+        /* Do not continue a stale motor command or learning interval after
+         * the fast loop has discarded time it could not safely catch up. */
+        HBridge_Coast();
+        Servo_Adaptive_Update(resume_ms, 0, 0, false);
+        s_lcdm_servo_current_duty = 0;
+        s_lcdm_servo_current_velocity = 0;
+        s_lcdm_servo_ref_velocity = 0;
+        s_lcdm_servo_current_state = LCDM_SERVO_STATE_BAD;
+        s_lcdm_servo_ab_seeded = 0U;
+        s_lcdm_velocity_observer.tick_ms = 0U;
+        s_lcdm_servo_traj_vel_q4 = 0;
+        s_lcdm_servo_output_dir = 0;
+        s_lcdm_servo_reverse_dead_active = 0U;
+        s_lcdm_servo_reverse_dead_until_ms = 0U;
+        s_lcdm_servo_customer_active = 0U;
+        s_lcdm_servo_customer_dir = 0;
       }
       s_lcdm_runtime_last_motor_ms = resume_ms;
       break;
@@ -993,7 +1026,6 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_STATE_NO_PWM 0U
 #define LCDM_SERVO_STATE_HOLD   1U
 #define LCDM_SERVO_STATE_DRIVE  2U
-#define LCDM_SERVO_STATE_BAD    3U
 #define LCDM_SERVO_STATE_DIR_ALARM 4U
 #define LCDM_SERVO_STATE_LOW_LIMIT 5U
 #define LCDM_SERVO_STATE_HIGH_LIMIT 6U

@@ -48,6 +48,12 @@
 - 监控同步命令变化后采到duty 40，PWM变化与下一次250ms SWD抽样间隔不足以精确测延迟；R04仍部分通过而非整体通过。CSV/JSON：`firmware/evidence/r04_timing_trace_armed_20261115/`。采后under-reset恢复R6 force-coast，20KB读回SHA256=`89600fe63b3212efd5eaaf69503f06b06012296aae36e3cceef357b343098826`，核心Running。
 - 下一步时序方法：停止依赖未经校准的SysTick子毫秒估算；以PWM硬件更新事件或可读GPIO作示波器/逻辑分析仪基准，或者用独立硬件定时器捕获。当前无须用户即时操作；后续若要测真实H桥输出，必须先完成R01方向/同步安全门槛。
 
+## 2026-11-19 丢周期即时降级源码修正
+
+- LCDM runtime scheduler在4次补跑后若仍丢弃tick，现立即`HBridge_Coast()`，并以无效样本通知adaptive learner；同时清零当前占空比/速度、observer基准和轨迹速度，取消未完成的customer profile阶段，状态置为BAD。该修正只在检测到实际丢弃tick时执行，不改正常周期或客户profile的7/2/3ms波形参数。
+- 修改范围是`SERVO_ENABLE_LCDM_RUNTIME_UI_TEST`调度路径；它处理“发现丢周期后的即时安全降级”，不代表已完成所有生产控制路径的超时状态机，也不证明硬件输出波形或时序。
+- 本机临时构建因缺少`/opt/py32/PY32F0xx_Firmware` HAL头文件，在编译`src/app_entry.c`时失败；未运行测试、未下载、未触发动作。需在项目规定的Ubuntu工具链环境重建后才能确认编译，再进行force-coast板上诊断。R04仍未通过。
+
 ## 2026-11-15 窗口计数器清零后的复测（R10）
 
 - 为避免把启动后历史最大值混入本次窗口，R10在监控器arm时清零R04计时直方图、最大值、超时计数和scheduler丢tick统计。TSSOP20 force-coast BIN 19,148B，SHA256=`322ea25a8e3588dd67515fa55ac75583e64d2f6bb38364debbc5ac00f0a7b2302`；Ubuntu构建、栈保护通过。
