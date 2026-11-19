@@ -39,6 +39,7 @@ SERVO_ENABLE_INTERNAL_STEP_TEST ?= 0
 SERVO_ALLOW_INTERNAL_STEP_TEST ?= 0
 SERVO_R01_EXPLICIT_ARM ?= 0
 SERVO_R01_PRODUCTION_LOOP_TEST ?= 0
+SERVO_R01_CENTER_RETURN_TEST ?= 0
 SERVO_R01_TEST_STEP_US ?= 1
 SERVO_ENABLE_PA0_POT_POWER ?= 0
 SERVO_HBRIDGE_FORCE_HIZ ?= 0
@@ -158,11 +159,11 @@ endif
 ifeq ($(SERVO_HBRIDGE_FORCE_COAST),1)
 $(error SERVO_R01_EXPLICIT_ARM requires active diagnostic outputs)
 endif
-ifneq ($(shell test $(SERVO_R01_TEST_MAX_DUTY) -le 40 && echo yes),yes)
-$(error SERVO_R01_EXPLICIT_ARM duty limit must be <=40 permille)
+ifneq ($(shell test $(SERVO_R01_TEST_MAX_DUTY) -le 500 && echo yes),yes)
+$(error SERVO_R01_EXPLICIT_ARM duty limit must be <=500 permille)
 endif
-ifneq ($(SERVO_R01_TEST_STEP_US),10)
-$(error Explicitly armed R01 test requires SERVO_R01_TEST_STEP_US=10)
+ifneq ($(shell test $(SERVO_R01_TEST_STEP_US) -ge 10 -a $(SERVO_R01_TEST_STEP_US) -le 50 && echo yes),yes)
+$(error Explicitly armed R01 test requires SERVO_R01_TEST_STEP_US in 10..50)
 endif
 C_DEFS += -DSERVO_R01_EXPLICIT_ARM=1
 endif
@@ -177,6 +178,12 @@ ifeq ($(SERVO_ENABLE_LCDM_RUNTIME_UI_TEST),1)
 $(error SERVO_R01_PRODUCTION_LOOP_TEST cannot use the runtime UI harness)
 endif
 C_DEFS += -DSERVO_R01_PRODUCTION_LOOP_TEST=1
+endif
+ifeq ($(SERVO_R01_CENTER_RETURN_TEST),1)
+ifneq ($(SERVO_R01_PRODUCTION_LOOP_TEST),1)
+$(error SERVO_R01_CENTER_RETURN_TEST requires SERVO_R01_PRODUCTION_LOOP_TEST=1)
+endif
+C_DEFS += -DSERVO_R01_CENTER_RETURN_TEST=1
 endif
 ifeq ($(SERVO_ENABLE_PA0_POT_POWER),1)
 C_DEFS += -DSERVO_ENABLE_PA0_POT_POWER=1

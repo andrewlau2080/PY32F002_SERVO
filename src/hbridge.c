@@ -26,6 +26,11 @@ static volatile HBridgeState s_state = HBRIDGE_COAST;
 static volatile uint16_t s_pwm_phase_us;
 static volatile uint16_t s_pwm_period_us = HBRIDGE_PWM_PERIOD_US;
 
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+volatile uint32_t g_r01_bridge_forward_on_ticks;
+volatile uint32_t g_r01_bridge_reverse_on_ticks;
+#endif
+
 #if SERVO_DIRECTION_PROBE
 /* Diagnostic-only SWD request. Zero after reset: no automatic motor action. */
 volatile uint32_t g_direction_probe_request;
@@ -380,10 +385,16 @@ void HBridge_TickISR(void)
   else if (duty > 0)
   {
     apply_forward();
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+    g_r01_bridge_forward_on_ticks++;
+#endif
   }
   else
   {
     apply_reverse();
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+    g_r01_bridge_reverse_on_ticks++;
+#endif
   }
 #endif
 }

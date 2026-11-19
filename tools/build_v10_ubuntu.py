@@ -46,14 +46,16 @@ def main():
                         help='build the TJC LCDM application path without the runtime-UI test harness')
     parser.add_argument('--production-loop-r01-test', action='store_true',
                         help='build production TJC LCDM and Servo_Control with an explicitly armed internal 1500/1510 us source')
+    parser.add_argument('--r01-center-return-test', action='store_true',
+                        help='single armed 1500 us return from a measured low-end position')
     parser.add_argument('--internal-step-test', action='store_true',
                         help='build the guarded center-only LCDM diagnostic sequence')
     parser.add_argument('--r01-test-max-duty', type=int, default=40,
-                        help='maximum absolute R01 diagnostic duty in permille (1..100)')
+                        help='maximum absolute R01 diagnostic duty in permille (1..350 step, 1..500 return)')
     parser.add_argument('--r01-explicit-arm', action='store_true',
-                        help='disable automatic R01 motion and wait for a live SWD arm request; capped at 40 permille')
-    parser.add_argument('--r01-test-step-us', type=int, default=1,
-                        help='internal R01 center-step size in microseconds (explicit-arm requires exactly 10)')
+                        help='disable automatic R01 motion and wait for a live SWD arm request; capped at 150 permille')
+    parser.add_argument('--r01-test-step-us', type=int, default=None,
+                        help='internal R01 center-step size in microseconds (explicit-arm requires 10..50)')
     parser.add_argument('--r04-ui-redraw-stress', action='store_true',
                         help='repaint the LCDM diagnostic page every 250 ms for R04 load testing')
     parser.add_argument('--force-coast', action='store_true',
@@ -77,19 +79,23 @@ def main():
     parser.add_argument('--adc-long-sample-diagnostic', action='store_true',
                         help='use maximum ADC acquisition time for force-coast diagnostics')
     args = parser.parse_args()
-    if not 1 <= args.r01_test_max_duty <= 100:
-        parser.error('--r01-test-max-duty must be in 1..100 permille')
+    if args.r01_test_step_us is None:
+        args.r01_test_step_us = 10 if (args.production_loop_r01_test or args.r01_explicit_arm) else 1
+    if not 1 <= args.r01_test_max_duty <= (500 if args.r01_center_return_test else 350):
+        parser.error('--r01-test-max-duty exceeds the selected R01 diagnostic range')
+    if args.r01_center_return_test and not args.production_loop_r01_test:
+        parser.error('--r01-center-return-test requires --production-loop-r01-test')
     if args.internal_step_test and args.profile != 'lcdm':
         parser.error('--internal-step-test requires --profile lcdm')
     if args.pa6_single_pulse and (args.direction_probe or args.internal_step_test or args.force_coast or args.r04_ui_redraw_stress):
         parser.error('--pa6-single-pulse is an isolated GPIO test; do not combine with other diagnostics')
-    if not 1 <= args.r01_test_step_us <= 10:
-        parser.error('--r01-test-step-us must be in 1..10 us')
+    if not 1 <= args.r01_test_step_us <= 50:
+        parser.error('--r01-test-step-us must be in 1..50 us')
     if args.r01_explicit_arm and (not args.internal_step_test or args.force_coast or
                                   args.direction_probe or args.r04_ui_redraw_stress or
-                                  args.adc_subsample_diagnostic or args.r01_test_max_duty > 40 or
-                                  args.r01_test_step_us != 10):
-        parser.error('--r01-explicit-arm requires a 10 us LCDM internal step, no force-coast/direction/timing/subsample mode, and duty <= 40 permille')
+                                  args.adc_subsample_diagnostic or args.r01_test_max_duty > 150 or
+                                  not 10 <= args.r01_test_step_us <= 50):
+        parser.error('--r01-explicit-arm requires a 10 us LCDM internal step, no force-coast/direction/timing/subsample mode, and duty <= 150 permille')
     if args.production_lcdm and args.profile != 'lcdm':
         parser.error('--production-lcdm requires --profile lcdm')
     if args.production_lcdm and (args.internal_step_test or args.r04_ui_redraw_stress):
@@ -114,7 +120,11 @@ def main():
     if args.production_loop_r01_test:
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1',
                          'SERVO_R01_EXPLICIT_ARM=1', 'SERVO_R01_PRODUCTION_LOOP_TEST=1',
-                         'SERVO_R01_TEST_MAX_DUTY=40', 'SERVO_R01_TEST_STEP_US=10']
+                         f'SERVO_R01_TEST_MAX_DUTY={args.r01_test_max_duty}',
+                         f'SERVO_R01_TEST_STEP_US={args.r01_test_step_us}',
+                         'SERVO_R01_TEST_DWELL_MS=2000U']
+        if args.r01_center_return_test:
+            flags.append('SERVO_R01_CENTER_RETURN_TEST=1')
     if args.pa6_single_pulse:
         flags = ['LTO=1', 'BOARD_TSSOP20_DEBUG_PINS=1', 'SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=0',
                  'SERVO_ENABLE_TJC_LCDM=0', 'SERVO_ENABLE_COMM=0',
@@ -233,7 +243,7 @@ def main():
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=(10 if args.production_loop_r01_test else args.r01_test_step_us), r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, r01_center_return_test=args.r01_center_return_test, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=(10 if args.production_loop_r01_test else args.r01_test_step_us), r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),

@@ -39,6 +39,9 @@
 #ifndef SERVO_R01_PRODUCTION_LOOP_TEST
 #define SERVO_R01_PRODUCTION_LOOP_TEST 0
 #endif
+#ifndef SERVO_R01_CENTER_RETURN_TEST
+#define SERVO_R01_CENTER_RETURN_TEST 0
+#endif
 #ifndef SERVO_HBRIDGE_FORCE_COAST
 #define SERVO_HBRIDGE_FORCE_COAST 0
 #endif
@@ -56,11 +59,14 @@
 #ifndef SERVO_R01_TEST_STEP_US
 #define SERVO_R01_TEST_STEP_US 1
 #endif
-#if SERVO_R01_EXPLICIT_ARM && (!SERVO_ENABLE_INTERNAL_STEP_TEST || SERVO_HBRIDGE_FORCE_COAST || SERVO_R01_TEST_MAX_DUTY > 40)
-#error Explicit R01 motion arm requires an active center test capped at 40 permille or lower.
+#ifndef SERVO_R01_TEST_DWELL_MS
+#define SERVO_R01_TEST_DWELL_MS 1000U
 #endif
-#if SERVO_R01_EXPLICIT_ARM && (SERVO_R01_TEST_STEP_US != 10)
-#error The R01 visible-action diagnostic must use exactly a 10 us center step.
+#if SERVO_R01_EXPLICIT_ARM && (!SERVO_ENABLE_INTERNAL_STEP_TEST || SERVO_HBRIDGE_FORCE_COAST || SERVO_R01_TEST_MAX_DUTY > 500)
+#error Explicit R01 motion arm requires an active center test capped at 500 permille or lower.
+#endif
+#if SERVO_R01_EXPLICIT_ARM && (SERVO_R01_TEST_STEP_US < 10 || SERVO_R01_TEST_STEP_US > 50)
+#error The R01 visible-action diagnostic step must be 10..50 us.
 #endif
 #if SERVO_R01_EXPLICIT_ARM
 #define LCDM_SERVO_INTERNAL_TEST_CENTER_US 1500U
@@ -81,6 +87,12 @@ __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6PRODSTEP
 volatile uint8_t g_r01_production_test_active;
 volatile uint16_t g_r01_production_test_pulse_us = 1500U;
 static uint32_t s_r01_production_test_start_ms;
+#if SERVO_R01_CENTER_RETURN_TEST
+volatile uint16_t g_r01_center_live_adc;
+volatile uint16_t g_r01_center_start_adc;
+volatile uint16_t g_r01_center_target_adc;
+volatile uint8_t g_r01_center_result; /* 0 wait, 1 running, 2 centered, 3 no move, 4 wrong way, 5 timeout, 6 start rejected */
+#endif
 #elif defined(SERVO_PRODUCTION_LCDM) && (SERVO_PRODUCTION_LCDM != 0)
 __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6";
 #endif
@@ -4714,31 +4726,59 @@ int entry(void)
   Board_MotorTimerInit();
 
   uint32_t last_control_ms = HAL_GetTick();
+#if SERVO_R01_CENTER_RETURN_TEST
+  uint32_t last_center_adc_ms = 0U;
+#endif
 
   while (1)
   {
     uint32_t now_ms = HAL_GetTick();
 #if SERVO_R01_PRODUCTION_LOOP_TEST
     uint16_t test_pulse_us = 1500U;
+#if SERVO_R01_CENTER_RETURN_TEST
+    if ((uint32_t)(now_ms - last_center_adc_ms) >= 20U)
+    {
+      last_center_adc_ms = now_ms;
+      g_r01_center_live_adc = ADC_Feedback_ReadRaw();
+      g_r01_center_target_adc = Servo_Control_MapPulseToAdc(1500U);
+    }
+#endif
     if ((g_r01_production_test_active == 0U) &&
         (g_r01_active_test_arm_request == 0x52303141UL))
     {
+#if SERVO_R01_CENTER_RETURN_TEST
+      if ((g_r01_center_live_adc < 200U) || (g_r01_center_live_adc > 900U))
+      {
+        g_r01_active_test_arm_request = 3U;
+        g_r01_center_result = 6U;
+      }
+      else
+      {
+        g_r01_center_start_adc = g_r01_center_live_adc;
+        g_r01_center_result = 1U;
+#endif
       g_r01_active_test_arm_request = 1U;
       g_r01_production_test_active = 1U;
       s_r01_production_test_start_ms = now_ms;
+#if SERVO_R01_CENTER_RETURN_TEST
+      }
+#endif
     }
     if (g_r01_production_test_active != 0U)
     {
       uint32_t elapsed_ms = (uint32_t)(now_ms - s_r01_production_test_start_ms);
-      if (elapsed_ms < 20000U)
+#if SERVO_R01_CENTER_RETURN_TEST
+      if (elapsed_ms >= 9000U)
       {
-        test_pulse_us = (((elapsed_ms / 1000U) & 1U) == 0U) ? 1510U : 1500U;
-      }
-      else if (elapsed_ms >= 22000U)
-      {
+        g_r01_center_result = 5U;
         g_r01_production_test_active = 0U;
         g_r01_active_test_arm_request = 2U;
+        HBridge_Coast();
       }
+#else
+      test_pulse_us = (((elapsed_ms / SERVO_R01_TEST_DWELL_MS) & 1U) == 0U) ?
+                      (uint16_t)(1500U + SERVO_R01_TEST_STEP_US) : 1500U;
+#endif
     }
     g_r01_production_test_pulse_us = test_pulse_us;
     PWM_Input_SetTestPulse(test_pulse_us, now_ms);
@@ -4751,6 +4791,28 @@ int entry(void)
       if (g_r01_production_test_active != 0U)
       {
         Servo_Control_Update1ms();
+#if SERVO_R01_CENTER_RETURN_TEST
+        {
+          ServoStatus center_status = Servo_Control_GetStatus();
+          uint16_t current = center_status.feedback_adc;
+          uint16_t target = g_r01_center_target_adc;
+          uint32_t elapsed = (uint32_t)(now_ms - s_r01_production_test_start_ms);
+          g_r01_center_live_adc = current;
+          if ((uint32_t)current + 12U < g_r01_center_start_adc)
+            g_r01_center_result = 4U;
+          else if (elapsed >= 1500U && current < (uint16_t)(g_r01_center_start_adc + 8U))
+            g_r01_center_result = 3U;
+          else if ((current >= (uint16_t)(target - 24U)) &&
+                   (current <= (uint16_t)(target + 24U)))
+            g_r01_center_result = 2U;
+          if (g_r01_center_result != 1U)
+          {
+            HBridge_Coast();
+            g_r01_production_test_active = 0U;
+            g_r01_active_test_arm_request = 2U;
+          }
+        }
+#endif
       }
       else
       {
@@ -4762,6 +4824,13 @@ int entry(void)
     }
 
     TJC_LCDM_Process();
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+    {
+      ServoStatus status = Servo_Control_GetStatus();
+      TJC_LCDM_ShowR01Status(test_pulse_us, status.feedback_adc,
+                             status.target_adc, status.error_adc);
+    }
+#endif
     Board_StatusHeartbeat();
   }
 }

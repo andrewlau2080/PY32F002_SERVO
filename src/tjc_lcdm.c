@@ -135,6 +135,34 @@ static void send_cmd(const char *cmd)
   send_end();
 }
 
+#if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && SERVO_R01_PRODUCTION_LOOP_TEST
+void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
+                            uint16_t target_adc, int16_t error_adc)
+{
+  static uint16_t last_pulse_us = 0U;
+  static uint32_t last_draw_ms;
+  char cmd[80];
+  uint32_t now = HAL_GetTick();
+  if ((pulse_us == last_pulse_us) && ((uint32_t)(now - last_draw_ms) < 100U))
+  {
+    return;
+  }
+  if (last_pulse_us == 0U)
+  {
+    send_cmd("page 0");
+    send_cmd("cls 65535");
+  }
+  last_pulse_us = pulse_us;
+  last_draw_ms = now;
+  send_cmd("fill 20,70,440,100,65535");
+  (void)snprintf(cmd, sizeof(cmd),
+                 "xstr 20,70,440,100,0,31,65535,1,1,1,\"CMD %u ADC %u TGT %u ERR %d\"",
+                 (unsigned)pulse_us, (unsigned)feedback_adc,
+                 (unsigned)target_adc, (int)error_adc);
+  send_cmd(cmd);
+}
+#endif
+
 static void set_num(const char *obj, int32_t value)
 {
   char cmd[32];

@@ -171,7 +171,7 @@ def main():
     p.add_argument("--arm-center-sweep", action="store_true",
                    help="start the one-shot sweep only after the SWD capture is attached")
     p.add_argument("--arm-r01-motion", action="store_true",
-                   help="after an 8-second observation lead-in, arm the explicitly armed <=40/1000 R30D 10-us center-step image")
+                   help="after an 8-second observation lead-in, arm the explicitly armed R01 10-us center-step image")
     p.add_argument("--arm-r04-sweep", action="store_true",
                    help="start the R04 timing-trace sweep after SWD capture attaches")
     args = p.parse_args()
@@ -302,11 +302,11 @@ def main():
             writer.writeheader()
             f.flush()
             if args.arm_r01_motion:
-                print(f"SWD attached; target {core_start}; capture file is open. R01 microstep will arm in 8 seconds. Observe the actuator now; duty cap is 40/1000.", flush=True)
+                print(f"SWD attached; target {core_start}; capture file is open. R01 microstep will arm in 8 seconds. Observe the actuator now.", flush=True)
                 time.sleep(8.0)
                 target.write32(arm_addr, 0x52303141)
                 for cycle in range(10):
-                    print(f"R01 ACTION {cycle + 1}/10: board command 1510 us (+10 us); observe LCDM and actuator.", flush=True)
+                    print(f"R01 ACTION {cycle + 1}/10: board command increases from 1500 us; observe LCDM and actuator.", flush=True)
                     time.sleep(1.0)
                     print(f"R01 ACTION {cycle + 1}/10: board command returns to 1500 us.", flush=True)
                     time.sleep(1.0)

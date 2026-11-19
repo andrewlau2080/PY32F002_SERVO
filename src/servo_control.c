@@ -8,6 +8,9 @@
 #ifndef SERVO_R01_PRODUCTION_LOOP_TEST
 #define SERVO_R01_PRODUCTION_LOOP_TEST 0
 #endif
+#ifndef SERVO_R01_CENTER_RETURN_TEST
+#define SERVO_R01_CENTER_RETURN_TEST 0
+#endif
 #ifndef SERVO_R01_TEST_MAX_DUTY
 #define SERVO_R01_TEST_MAX_DUTY 40
 #endif
@@ -43,6 +46,21 @@ static uint32_t s_reverse_pause_until_ms;
 static uint32_t s_reverse_brake_until_ms;
 static uint32_t s_stall_ms;
 static uint32_t s_recover_until_ms;
+
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+extern volatile uint8_t g_r01_production_test_active;
+static int16_t s_r01_prod_center_offset_adc;
+static uint16_t s_r01_prod_anchor_feedback_adc;
+static uint8_t s_r01_prod_anchor_seeded;
+static uint8_t s_r01_prod_motion_locked;
+volatile uint16_t g_r01_prod_anchor_adc;
+volatile int16_t g_r01_prod_center_offset_adc;
+volatile uint32_t g_r01_prod_nonzero_duty_count;
+volatile uint16_t g_r01_prod_max_abs_duty;
+volatile uint16_t g_r01_prod_feedback_min = 0xFFFFU;
+volatile uint16_t g_r01_prod_feedback_max;
+volatile int16_t g_r01_prod_last_duty;
+#endif
 
 /* 小工具函数：限制参数或控制量范围，避免异常参数导致溢出输出。 */
 static int16_t clamp_i16(int32_t value, int16_t min_value, int16_t max_value)
@@ -379,6 +397,34 @@ void Servo_Control_Update1ms(void)
     }
   }
 
+#if SERVO_R01_PRODUCTION_LOOP_TEST && !SERVO_R01_CENTER_RETURN_TEST
+  if (g_r01_production_test_active != 0U)
+  {
+    if (s_r01_prod_anchor_seeded == 0U)
+    {
+      s_r01_prod_center_offset_adc = (int16_t)((int32_t)feedback -
+          (int32_t)Servo_Control_MapPulseToAdc(1500U));
+      s_r01_prod_anchor_feedback_adc = feedback;
+      g_r01_prod_anchor_adc = feedback;
+      g_r01_prod_center_offset_adc = s_r01_prod_center_offset_adc;
+      s_r01_prod_anchor_seeded = 1U;
+    }
+    int32_t anchored_target = (int32_t)target + s_r01_prod_center_offset_adc;
+    if (anchored_target < 0) anchored_target = 0;
+    if (anchored_target > 4095) anchored_target = 4095;
+    target = (uint16_t)anchored_target;
+    if (s_r01_prod_motion_locked != 0U)
+    {
+      HBridge_Coast();
+      s_status.state = SERVO_STATE_HOLD;
+      s_status.target_adc = target;
+      s_status.error_adc = (int16_t)((int32_t)target - feedback);
+      s_status.motor_duty = 0;
+      return;
+    }
+  }
+#endif
+
   if (Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_SOFT_START))
   {
     /* 软启动不是限制马达 PWM，而是限制“目标位置”的移动速度。 */
@@ -426,6 +472,12 @@ void Servo_Control_Update1ms(void)
   {
     hold_limit = deadband_count;
   }
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+  if (g_r01_production_test_active != 0U)
+  {
+    hold_limit = deadband_count;
+  }
+#endif
 
   bool velocity_settled = velocity_valid &&
                           (abs_i16((int16_t)velocity_q4) <=
@@ -506,6 +558,7 @@ void Servo_Control_Update1ms(void)
   }
 
   int8_t new_dir = (duty > 0) ? 1 : ((duty < 0) ? -1 : 0);
+  bool reverse_pause_completed = false;
   if ((s_reverse_pending_dir != 0) && time_before(now_ms, s_reverse_pause_until_ms))
   {
     if (time_before(now_ms, s_reverse_brake_until_ms))
@@ -520,9 +573,13 @@ void Servo_Control_Update1ms(void)
     s_status.motor_duty = 0;
     return;
   }
+  if ((s_reverse_pending_dir != 0) && (new_dir == s_reverse_pending_dir))
+  {
+    reverse_pause_completed = true;
+  }
   s_reverse_pending_dir = 0;
 
-  if ((new_dir != 0) &&
+  if (!reverse_pause_completed && (new_dir != 0) &&
       (s_last_drive_dir != 0) &&
       (new_dir != s_last_drive_dir) &&
       (params->reverse_pause_ms > 0U))
@@ -575,6 +632,11 @@ void Servo_Control_Update1ms(void)
   s_last_feedback = feedback;
 
 #if SERVO_R01_PRODUCTION_LOOP_TEST
+  if (!SERVO_R01_CENTER_RETURN_TEST && (g_r01_production_test_active != 0U) && (duty != 0) &&
+      (abs_i16(duty) < SERVO_R01_TEST_MAX_DUTY))
+  {
+    duty = (duty > 0) ? SERVO_R01_TEST_MAX_DUTY : -SERVO_R01_TEST_MAX_DUTY;
+  }
   if (duty > SERVO_R01_TEST_MAX_DUTY)
   {
     duty = SERVO_R01_TEST_MAX_DUTY;
@@ -582,6 +644,15 @@ void Servo_Control_Update1ms(void)
   else if (duty < -SERVO_R01_TEST_MAX_DUTY)
   {
     duty = -SERVO_R01_TEST_MAX_DUTY;
+  }
+  if (duty != 0)
+  {
+    uint16_t abs_duty = abs_i16(duty);
+    g_r01_prod_nonzero_duty_count++;
+    g_r01_prod_last_duty = duty;
+    if (abs_duty > g_r01_prod_max_abs_duty) g_r01_prod_max_abs_duty = abs_duty;
+    if (feedback < g_r01_prod_feedback_min) g_r01_prod_feedback_min = feedback;
+    if (feedback > g_r01_prod_feedback_max) g_r01_prod_feedback_max = feedback;
   }
 #endif
   HBridge_SetSignedDuty(duty);
