@@ -423,3 +423,11 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 下载前整片force-coast备份SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`。R30B使用2MHz under-reset下载后读回整片SHA256=`c52e8dd971b5bd0abf0ba74a08f58acb52d1ec221efa39667c0577a283e5d2fb`，版本串匹配、核心Running。正确R30B ELF待机只读14帧：frame PWM=1500、arm=0，核心Running、无SWD读错。
 - 一轮显式arm后，监视器不在8秒活动窗内读SWD，显示命令提示1510并在2秒后提示回1500；动作窗结束后继续读SWD仍有30组全部失败，断开提示probe error，core_end=HALTED。没有动作期PWM/ADC/核心变量，不能确认LCD实屏是否真的显示1510或机械是否动作。捕获CSV SHA256=`8aafdacaadc1d1e6336655f0e773e3e6879104a20b49a6d1bdaa22dc3f543202`，JSON SHA256=`7f51efc0023ddde0d736d08ce908db902293fabf775f651a1716c89477d0d5ba`，位于`firmware/evidence/r01_r30b_direct_display_20261119/`。
 - 已立即2MHz under-reset恢复force-coast；读回20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本SIMB2C、核心Running。当前板force-coast。R01仍未通过；重复动作停止，下一步查复位/停机与SWD同时失联原因，LCD显示和动作期反馈仍无实证。用户尚未报告R30B屏幕是否变化及转臂是否移动。
+
+## 2026-11-19 R30D：重复10µs动作并在LCD显示软件桥占空
+
+- 用户反馈“看见输入值变化，但没有马达PWM/马达不动”。源码路径中R30D在每个内部1500↔1510µs阶段调用`HBridge_SetSignedDuty(duty)`，并将`HBridge_GetDuty()`软件状态显示为LCD的`Dxx`；诊断最大请求限40/1000，三轮来回后coast。该LCD字段是软件占空请求，不是引脚波形测量。
+- R30D Ubuntu构建目录`build/releases/V10.6_TSSOP20_R01_LCDM_DUTY_10US_R30D_20261119/`：BIN 18,812B SHA256=`5374a07acc9b78c68c909b62e35cd17fdb712735efe379e364392b4200b196b0`，ELF SHA256=`b0cfdc4815212650af12cfe41935ba3fecad93c302e7996f28ec53058cbbb048`。下载后板上诊断版运行开始，活动后SWD无法读回；因此下载成功不代表PWM/马达验收。
+- R30D显式arm动作窗后 SWD 采集共30次读取全部失败（无重试，`core_end=HALTED`），有效样本0；因此本轮无法确认LCD的D值、软件占空是否非零、H桥引脚是否有PWM、马达是否转动。测试日志JSON中的`max_abs_bridge_duty=0`只是无样本默认值，不能解释为实测零占空。日志CSV SHA256=`5352a849c858e149ae12dcd176937eb5bf072e8c0853695fc8402b0710d7e298`，JSON SHA256=`41d7e03ba68b7d08466c17f3a7087c90b98b7f0e871d5fae79d29f90ed0561b0`，位于`firmware/evidence/r01_r30d_pwm_duty_lcd_20261119/`。
+- 立即以2MHz under-reset恢复force-coast镜像；整片20,480B读回SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本`P50 V10.6SIMB2C`，核心Running。当前板为force-coast。
+- **R01未通过，不能回答这轮“实际有无输出PWM”为是。** 固件确实含软件PWM请求路径，但无动作期遥测/引脚测量，实际PWM未证实。连续几版动作窗后均出现SWD失联/HALTED；暂停再次动作，先查MCU复位/锁定与DAPLink/SWD失联原因。下一次应以独立逻辑分析仪/示波器直接观察两路H桥引脚，并同步读取LCD `Dxx`；若Dxx为0，查控制误差/请求门控，若非零但引脚无PWM，查H桥定时器/GPIO/使能/硬件连接。

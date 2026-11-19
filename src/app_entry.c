@@ -1258,7 +1258,7 @@ static void run_pa7_tjc_test(void)
 #endif
 #else
 #if SERVO_R01_EXPLICIT_ARM
-#define LCDM_SERVO_FW_TAG " V10.6SIMB2R30B"
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2R30D"
 #else
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2"
 #endif
@@ -1417,6 +1417,7 @@ static int8_t s_lcdm_last_pwm_direction = 127;
 static uint8_t s_lcdm_last_pwm_state = 0xFFU;
 #if SERVO_R01_EXPLICIT_ARM
 static uint8_t s_lcdm_last_r01_display_stage = 0xFFU;
+static int16_t s_lcdm_last_r01_display_duty = 32767;
 #endif
 static uint16_t s_lcdm_last_hbridge_frequency_hz;
 static int16_t s_lcdm_servo_current_duty;
@@ -2049,7 +2050,7 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   /* Center-only diagnostic: hold each step for one second for clean feedback statistics. */
   /* Give the SWD observer time to attach after the under-reset download. */
   const uint32_t baseline_ms = 30000U;
-  const uint32_t step_ms = SERVO_R01_EXPLICIT_ARM ? 2000U : 1000U;
+  const uint32_t step_ms = 1000U;
   if (elapsed < baseline_ms)
   {
     pulse = LCDM_SERVO_INTERNAL_TEST_CENTER_US;
@@ -2059,9 +2060,9 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
 #if SERVO_R01_EXPLICIT_ARM
     static const uint16_t steps[6] = {LCDM_SERVO_INTERNAL_TEST_CENTER_US + SERVO_R01_TEST_STEP_US,
                                       LCDM_SERVO_INTERNAL_TEST_CENTER_US,
+                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US + SERVO_R01_TEST_STEP_US,
                                       LCDM_SERVO_INTERNAL_TEST_CENTER_US,
-                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US,
-                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US,
+                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US + SERVO_R01_TEST_STEP_US,
                                       LCDM_SERVO_INTERNAL_TEST_CENTER_US};
 #else
     static const uint16_t steps[6] = {1504U, 1505U, 1506U, 1505U, 1504U, 1503U};
@@ -2124,6 +2125,7 @@ static void lcdm_reset_pwm_live_cache(void)
   s_lcdm_last_pwm_state = 0xFFU;
 #if SERVO_R01_EXPLICIT_ARM
   s_lcdm_last_r01_display_stage = 0xFFU;
+  s_lcdm_last_r01_display_duty = 32767;
 #endif
   s_lcdm_servo_current_duty = 0;
   s_lcdm_servo_slew_tick_ms = HAL_GetTick();
@@ -4027,10 +4029,11 @@ static void lcdm_update_pwm_live_values(void)
       stage = 1U;
       stage_text = "ARMED";
     }
-    else if (test_elapsed < 32000U)
+    else if (test_elapsed < 36000U)
     {
-      stage = 2U;
-      stage_text = "+10us";
+      uint8_t step_index = (uint8_t)((test_elapsed - 30000U) / 1000U);
+      stage = ((step_index & 1U) == 0U) ? 2U : 3U;
+      stage_text = ((step_index & 1U) == 0U) ? "+10us" : "CENTER";
     }
     else if (test_elapsed < 38000U)
     {
@@ -4042,12 +4045,16 @@ static void lcdm_update_pwm_live_values(void)
       stage = 4U;
       stage_text = "COAST";
     }
-    if (stage != s_lcdm_last_r01_display_stage)
+    int16_t bridge_duty = HBridge_GetDuty();
+    if ((stage != s_lcdm_last_r01_display_stage) ||
+        (bridge_duty != s_lcdm_last_r01_display_duty))
     {
-      lcdm_value_cell(4U, stage_text,
-                      (stage == 2U) ? LCDM_COLOR_BLUE :
+      (void)lcdm_snprintf(text, sizeof(text), "%s D%d", stage_text, bridge_duty);
+      lcdm_value_cell(4U, text,
+                      (bridge_duty != 0) ? LCDM_COLOR_GREEN :
                       ((stage == 4U) ? LCDM_COLOR_RED : LCDM_COLOR_YELLOW));
       s_lcdm_last_r01_display_stage = stage;
+      s_lcdm_last_r01_display_duty = bridge_duty;
     }
   }
 #else

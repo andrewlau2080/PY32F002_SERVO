@@ -203,7 +203,7 @@ def main():
     versions = re.findall(rb'P50 V[0-9A-Za-z.]+', image)
     direction_suffix = ('SIMB2P' + str(args.probe_pulse_us) +
                         ('H' if args.adc_pair_time_tag else ('G' if args.vrefint_settle_fix else 'F')))
-    expected_suffix = ('SIMB2R30B' if args.r01_explicit_arm else
+    expected_suffix = ('SIMB2R30D' if args.r01_explicit_arm else
                        (direction_suffix if args.direction_probe else
                        ('SIMB2C' if args.force_coast else ('SIMB2' if args.internal_step_test else '')))
                        )
