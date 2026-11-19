@@ -46,3 +46,8 @@ R01–R14 未通过项留待后续统一复核，本轮未重跑。
 - R02 ADC+VDD主机模拟42/42；扩展后的R15 LCDM/生产控制源码检查13/13。历史统一TSSOP20回归为526/526；新增5项生产路径/界面检查见`firmware/evidence/r15_adc_fault_20261116/report.json`，SHA256 `002cf46d1bb5d736e34ce88202974c9430cd17226f181f9a3e740642e968ad18`。
 - Ubuntu TSSOP20正式LCDM全量构建已通过：`build/releases/V10.6_TSSOP20_R13_R15_20261116/`，BIN 16,104B，SHA256 `8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`；ELF 213,384B，构建产物未下载。
 - 欠压阈值目前沿用参数`vdd_warn_drop_mv`，须在实际供电与负载条件下确认不会误停；R15仍未通过。后续实体验证需要仿真板、限流供电，并观察两路H桥输出。
+
+## 2026-11-19 customer profile 换向保护复核
+
+- LCDM customer profile 以固定阶段输出：驱动7ms、反向制动2ms、反向尾段3ms，之后coast。`customer_profile_direct`绕过通用8ms换向死区和slew guard；该路径是为保持参考波形而设计，直接套用8ms死区会吞掉/改变其2ms与3ms阶段，不能当作无影响的安全修补。
+- 当前不修改该时序。离板可做的是抽取profile阶段和异常输入早退条件，核对其状态转移；要决定如何兼顾双路互锁与客户波形，仍需对应客户波形映射及目标板双路输出测量。R15整项仍未通过。

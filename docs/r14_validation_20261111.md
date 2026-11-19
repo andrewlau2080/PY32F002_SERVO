@@ -37,3 +37,9 @@ R01–R13 未通过项留待后续统一复核，本轮未重跑。
 - 保存函数除调用者`qualified_and_stationary`外，现在还拒绝model identity、calibration fingerprint、motor supply、confidence、学习样本和成功运动计数缺失的模型；这是记录自检，不代表完成了运行时资格状态机。
 - 生产双槽mock Flash回归33/33；报告`firmware/evidence/r13_model_save_quality_20261116/report.json`。当前源码TSSOP20生产构建`build/releases/V10.6_TSSOP20_R13_R15_20261116/`通过，但Save仍无生产调用且被链接器裁掉。
 - R14仍未通过：安全静止窗口、保存节流/变化门槛、生产调用和实体掉电注入尚未实现/验证。
+
+## 2026-11-19 离板调用资格复核
+
+- 生产启动上下文把预期电机供电传入0，且默认model/profile ID均为0；这会让旧模型加载保持fail-closed。当前VREFINT不能替代已确认的电机供电身份。
+- `Servo_ModelStore_Save()`没有生产调用；仅传入布尔`qualified_and_stationary`并不足以形成可审计的资格证明。自动调用前还缺稳定静止时间、控制/ADC/VDD健康状态、模型置信度与变化门槛、最小保存间隔，以及有界的维护窗口。未启用自动保存，也未写Flash。
+- 代码可继续实现fail-closed的资格状态机和节流逻辑；完成后仍需实板备份、写入/回读、复位及故障注入。Flash操作期间的真实控制时序不可由主机模拟替代。
