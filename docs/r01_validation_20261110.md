@@ -480,3 +480,10 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 用户要求立即再次往返测试。首次重触发被SWD脚本拒绝：固件用`arm_request=2`标记上次单次动作已完成，脚本原先将任何非零值都当作正在运行。修改`tools/monitor_r01_swd.py`：仅在`active=0`且arm状态为0或已完成值2时允许触发；运行中及其它状态仍拒绝。`python3 -m py_compile`通过。该修改不会改写固件，只复用其显式arm入口。
 - 重触发后核心起始状态`RUNNING`；脚本明确输出1/10至10/10各次1510µs和回1500µs，固件执行20秒往返后自动回到1500µs并coast。测试后核心仍`RUNNING`。SWD批量读取得64个错误，不能据此报告动作期状态或LCD画面；本轮CSV SHA256=`29118452754ff00d686ee2d4ed882eed30dbb429f55e7a26c61bdfbcc0c5e2ae`，在`firmware/evidence/r01_prod_lcdm_1500_1510_repeat2_20261119.csv`。
 - 本轮仅确认固件命令序列已运行并安全结束；用户尚未回报LCDM是否可见1500/1510变化、机构是否往返。R01仍未通过实物验收。板上仍是R4诊断镜像，当前已coast；每次显式触发仍是20秒/十轮，非无限循环。
+
+## 2026-11-19 LCDM直接绘图诊断（R2，H桥强制coast）
+
+- 用户观察到上一版LCDM无显示变化、机构无可见动作，并反馈按复位无效。根因确认：R4是需SWD显式arm的一次性动作固件，复位不会自动开始动作；其LCDM通过控件变量更新，UART软件发送计数不能证明屏幕收到了命令。另40/1000（4%）测试占空可能不足以克服机构静摩擦，不能据此验收马达。
+- 为先排除显示链路，构建LCDM runtime直接绘图诊断，H桥强制coast；保留现场PA7 TX / PB2 RX、230400bps和TSSOP20 H桥脚映射，不含动作触发。首构建因Flash超200B、栈余量RAM超8B失败，未下载；裁掉此显示测试不需要的触摸RX后重建通过：`build/releases/V10.6_TSSOP20_LCDM_DISPLAY_DIAG_FORCE_COAST_20261119_R2/`，BIN 19,420B，SHA256=`ff23b26b2851d64c27f85301f8732f1be4334c44be61306464483b52d997e6be`；`text/data/bss=18724/696/2336`。显示测试页由PA7 UART直接绘制。
+- 用2MHz under-reset下载并复位运行。全片读回20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，应用19,420B逐字节匹配BIN，核心`RUNNING`，尾区1060B全`FF`。读回文件`build/board_readback/20261119_lcdm_display_diag_r2.bin`。本诊断强制H桥滑行，不会驱动马达。
+- 当前先等用户目视确认LCDM是否画出测试页；若仍无显示，下一步改查PA7实际串口波形、LCDM电源/地线和屏端波特率，不进入马达动作测试。若显示恢复，再将动态1500/1510µs数据接入同一可见页面并推进H桥小步验证。R01显示及马达驱动仍未通过实物验收。

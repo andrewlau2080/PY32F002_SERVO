@@ -24,6 +24,8 @@
 
 **2026-11-19 R01即时复测续记**：完成后再次显式arm，生产LCDM闭环再次发出十轮1500↔1510µs往返，约20秒后回中coast，核心Running；本轮SWD批量读数64项失败，无动作期软件反馈。为允许仅在上轮已完成(`active=0, arm=2`)后重新arm，更新`tools/monitor_r01_swd.py`并通过Python语法检查。用户尚未确认屏幕实际显示及机构是否可见往返，R01未通过；CSV SHA256=`29118452754ff00d686ee2d4ed882eed30dbb429f55e7a26c61bdfbcc0c5e2ae`，见`firmware/evidence/r01_prod_lcdm_1500_1510_repeat2_20261119.csv`。
 
+**2026-11-19 LCDM显示诊断板况**：用户确认R4测试中LCDM和机构均无可见变化；复位不会重新启动R4的一次性显式arm测试。现已下载H桥强制coast的LCDM runtime直接绘图诊断版，PA7/PB2、230400bps，BIN 19,420B SHA256=`ff23b26b2851d64c27f85301f8732f1be4334c44be61306464483b52d997e6be`；全片读回SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，应用匹配、核心Running。现待用户目视确认测试页；屏幕通过前不做马达驱动判定。证据`build/board_readback/20261119_lcdm_display_diag_r2.bin`，详见R01记录。
+
 **2026-11-19 调度超时源码增量**：LCDM runtime scheduler发现丢弃tick后现立即coast、使adaptive样本无效并重置速度/轨迹基准及未完成customer profile。尚未完成Ubuntu构建；本机缺HAL SDK，未运行测试或下载。此修正只覆盖该scheduler分支，R04/R15仍未通过，见对应记录。
 
 **2026-11-19 构建修正续记**：首次Ubuntu force-coast链接发现非诊断构建误调用仅在内部步进宏下定义的`lcdm_r01_stage_record()`，已补同宏保护。首次链接还报告RAM超16B、Flash超244B；修正后重建尚待执行，空间问题状态未定。没有下载或触发动作。
