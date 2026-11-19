@@ -4,6 +4,13 @@
 #include "hbridge.h"
 #include "pwm_input.h"
 #include "servo_params.h"
+
+#ifndef SERVO_R01_PRODUCTION_LOOP_TEST
+#define SERVO_R01_PRODUCTION_LOOP_TEST 0
+#endif
+#ifndef SERVO_R01_TEST_MAX_DUTY
+#define SERVO_R01_TEST_MAX_DUTY 40
+#endif
 #include "servo_stability_timer.h"
 #include "py32f0xx_hal.h"
 
@@ -567,6 +574,16 @@ void Servo_Control_Update1ms(void)
   }
   s_last_feedback = feedback;
 
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+  if (duty > SERVO_R01_TEST_MAX_DUTY)
+  {
+    duty = SERVO_R01_TEST_MAX_DUTY;
+  }
+  else if (duty < -SERVO_R01_TEST_MAX_DUTY)
+  {
+    duty = -SERVO_R01_TEST_MAX_DUTY;
+  }
+#endif
   HBridge_SetSignedDuty(duty);
   s_last_drive_dir = new_dir;
   s_status.state = SERVO_STATE_DRIVE;

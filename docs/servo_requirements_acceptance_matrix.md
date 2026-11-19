@@ -20,6 +20,8 @@
 
 **2026-11-19 最新H桥基线与候选**：用户指定以已下载的V7.10h H桥为最新驱动基础。源码核对确认当前`src/hbridge.c`正常生产配置保留相同TSSOP20桥脚组合（正向PA6+PB0、反向PA1+PA2）、20µs软件PWM节拍及约1ms周期；新增诊断/force-coast宏在正常构建关闭。本轮已成功构建生产LCDM候选`build/releases/V10.6_TSSOP20_V710H_HBRIDGE_BASE_20261119/`，BIN SHA256=`8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`，未下载。板上仍为`P50 V7.10h`。构建不等于新控制闭环实测；R01仍未通过整项验收。详细对照及限制见`docs/r01_validation_20261110.md`。
 
+**2026-11-19 最新板况及R01往复核验**：前一重复动作镜像没有启用生产TJC LCDM路径，用户观察LCDM未变化；已更正构建，使1500/1510µs输入经合成输入接口进入生产`PWM_Input_GetCommandUs()`与`Servo_Control_Update1ms()`，生产LCDM启用、H桥占空限40/1000、SWD显式arm后十轮往复并自动coast。候选`build/releases/V10.6_TSSOP20_PROD_LCDM_R01_1500_1510_20261119_R4/`已下载，BIN SHA256=`e0f19bdb94aa00c2a82ab5304a8b0f03d2902e676c02d6197c373be141013c01`，读回应用逐字节匹配，整片SHA256=`d4b8bf4b4336e2def62603a073ecdd501db05e44dcb617b7a07eaf51ab052b11`，核心Running；测试结束active=0、arm=2、输入1500µs、HBridge占空0（coast），LCD UART命令计数371、错误0。SWD批量采样63行均失败，故没有动作期反馈曲线；物理LCD可见更新、马达位移及桥脚PWM仍未证实，R01仍未整项通过。细节与证据见`docs/r01_validation_20261110.md`最新小节。
+
 **2026-11-19 调度超时源码增量**：LCDM runtime scheduler发现丢弃tick后现立即coast、使adaptive样本无效并重置速度/轨迹基准及未完成customer profile。尚未完成Ubuntu构建；本机缺HAL SDK，未运行测试或下载。此修正只覆盖该scheduler分支，R04/R15仍未通过，见对应记录。
 
 **2026-11-19 构建修正续记**：首次Ubuntu force-coast链接发现非诊断构建误调用仅在内部步进宏下定义的`lcdm_r01_stage_record()`，已补同宏保护。首次链接还报告RAM超16B、Flash超244B；修正后重建尚待执行，空间问题状态未定。没有下载或触发动作。

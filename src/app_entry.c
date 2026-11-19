@@ -36,6 +36,9 @@
 #ifndef SERVO_R01_EXPLICIT_ARM
 #define SERVO_R01_EXPLICIT_ARM 0
 #endif
+#ifndef SERVO_R01_PRODUCTION_LOOP_TEST
+#define SERVO_R01_PRODUCTION_LOOP_TEST 0
+#endif
 #ifndef SERVO_HBRIDGE_FORCE_COAST
 #define SERVO_HBRIDGE_FORCE_COAST 0
 #endif
@@ -61,15 +64,24 @@
 #endif
 #if SERVO_R01_EXPLICIT_ARM
 #define LCDM_SERVO_INTERNAL_TEST_CENTER_US 1500U
+#define LCDM_SERVO_R01_STEP_END_MS 50000U
+#define LCDM_SERVO_R01_COAST_MS 52000U
 #else
 #define LCDM_SERVO_INTERNAL_TEST_CENTER_US 1503U
+#define LCDM_SERVO_R01_STEP_END_MS 36000U
+#define LCDM_SERVO_R01_COAST_MS 38000U
 #endif
 
 volatile uint8_t g_servo_model_record_valid;
 #if SERVO_PA6_SINGLE_PULSE_TEST
 __attribute__((used)) volatile const char g_servo_firmware_version[] = "P50 V10.6SIMB2PA6P";
 #endif
-#if defined(SERVO_PRODUCTION_LCDM) && (SERVO_PRODUCTION_LCDM != 0)
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+__attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6PRODSTEP";
+volatile uint8_t g_r01_production_test_active;
+volatile uint16_t g_r01_production_test_pulse_us = 1500U;
+static uint32_t s_r01_production_test_start_ms;
+#elif defined(SERVO_PRODUCTION_LCDM) && (SERVO_PRODUCTION_LCDM != 0)
 __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6";
 #endif
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
@@ -2064,19 +2076,17 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   {
     pulse = LCDM_SERVO_INTERNAL_TEST_CENTER_US;
   }
-  else if (elapsed < (baseline_ms + 6U * step_ms))
+  else if (elapsed < LCDM_SERVO_R01_STEP_END_MS)
   {
 #if SERVO_R01_EXPLICIT_ARM
-    static const uint16_t steps[6] = {LCDM_SERVO_INTERNAL_TEST_CENTER_US + SERVO_R01_TEST_STEP_US,
-                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US,
-                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US + SERVO_R01_TEST_STEP_US,
-                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US,
-                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US + SERVO_R01_TEST_STEP_US,
+    static const uint16_t steps[2] = {LCDM_SERVO_INTERNAL_TEST_CENTER_US + SERVO_R01_TEST_STEP_US,
                                       LCDM_SERVO_INTERNAL_TEST_CENTER_US};
+    uint32_t step_index = ((elapsed - baseline_ms) / step_ms) % 2U;
+    pulse = steps[step_index];
 #else
     static const uint16_t steps[6] = {1504U, 1505U, 1506U, 1505U, 1504U, 1503U};
-#endif
     pulse = steps[(elapsed - baseline_ms) / step_ms];
+#endif
   }
   else
   {
@@ -2885,7 +2895,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
 
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
   /* Hard stop the motion diagnostic after its short center-only command cycle. */
-  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 38000U)
+  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= LCDM_SERVO_R01_COAST_MS)
   {
     return lcdm_servo_stop_publish(sample.pulse_us, raw_adc,
                                    s_lcdm_servo_cmd_target_adc, feedback, 0,
@@ -3075,7 +3085,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   abs_error = (error < 0) ? (uint16_t)(-error) : (uint16_t)error;
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
   /* The one-shot center diagnostic must stay coasted after its 38 s window. */
-  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 38000U)
+  if ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= LCDM_SERVO_R01_COAST_MS)
   {
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc,
                                    s_lcdm_servo_cmd_target_adc, feedback, error,
@@ -3085,7 +3095,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && !SERVO_HBRIDGE_FORCE_COAST
   {
     uint32_t test_elapsed = (uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms);
-    if (s_lcdm_internal_active_started != 0U && test_elapsed < 38000U)
+    if (s_lcdm_internal_active_started != 0U && test_elapsed < LCDM_SERVO_R01_COAST_MS)
     {
       int16_t displacement = (int16_t)((int32_t)feedback - (int32_t)s_lcdm_internal_motion_anchor_adc);
       uint16_t abs_displacement = (displacement < 0) ? (uint16_t)(-displacement) : (uint16_t)displacement;
@@ -3591,7 +3601,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
   {
     uint32_t test_elapsed = (uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms);
-    if ((test_elapsed >= 30000U) && (test_elapsed < 36000U) &&
+    if ((test_elapsed >= 30000U) && (test_elapsed < LCDM_SERVO_R01_STEP_END_MS) &&
         (control_pulse_us != LCDM_SERVO_INTERNAL_TEST_CENTER_US))
     {
       uint16_t test_abs_duty = (uint16_t)(16U + (abs_error * 8U));
@@ -4038,13 +4048,13 @@ static void lcdm_update_pwm_live_values(void)
       stage = 1U;
       stage_text = "ARMED";
     }
-    else if (test_elapsed < 36000U)
+    else if (test_elapsed < LCDM_SERVO_R01_STEP_END_MS)
     {
       uint8_t step_index = (uint8_t)((test_elapsed - 30000U) / 1000U);
       stage = ((step_index & 1U) == 0U) ? 2U : 3U;
       stage_text = ((step_index & 1U) == 0U) ? "+10us" : "CENTER";
     }
-    else if (test_elapsed < 38000U)
+    else if (test_elapsed < LCDM_SERVO_R01_COAST_MS)
     {
       stage = 3U;
       stage_text = "CENTER";
@@ -4708,11 +4718,47 @@ int entry(void)
   while (1)
   {
     uint32_t now_ms = HAL_GetTick();
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+    uint16_t test_pulse_us = 1500U;
+    if ((g_r01_production_test_active == 0U) &&
+        (g_r01_active_test_arm_request == 0x52303141UL))
+    {
+      g_r01_active_test_arm_request = 1U;
+      g_r01_production_test_active = 1U;
+      s_r01_production_test_start_ms = now_ms;
+    }
+    if (g_r01_production_test_active != 0U)
+    {
+      uint32_t elapsed_ms = (uint32_t)(now_ms - s_r01_production_test_start_ms);
+      if (elapsed_ms < 20000U)
+      {
+        test_pulse_us = (((elapsed_ms / 1000U) & 1U) == 0U) ? 1510U : 1500U;
+      }
+      else if (elapsed_ms >= 22000U)
+      {
+        g_r01_production_test_active = 0U;
+        g_r01_active_test_arm_request = 2U;
+      }
+    }
+    g_r01_production_test_pulse_us = test_pulse_us;
+    PWM_Input_SetTestPulse(test_pulse_us, now_ms);
+#endif
     /* 控制循环固定 1ms 调用一次，避免主循环快慢影响舵机响应。 */
     if ((uint32_t)(now_ms - last_control_ms) >= SERVO_CONTROL_PERIOD_MS)
     {
       last_control_ms = now_ms;
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+      if (g_r01_production_test_active != 0U)
+      {
+        Servo_Control_Update1ms();
+      }
+      else
+      {
+        HBridge_Coast();
+      }
+#else
       Servo_Control_Update1ms();
+#endif
     }
 
     TJC_LCDM_Process();

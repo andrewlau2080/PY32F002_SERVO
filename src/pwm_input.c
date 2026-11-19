@@ -9,6 +9,33 @@
 
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
 
+#if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && (SERVO_R01_PRODUCTION_LOOP_TEST != 0)
+static volatile uint16_t s_test_pulse_us = SERVO_INPUT_FAILSAFE_US;
+static volatile uint32_t s_test_last_edge_ms;
+static volatile uint32_t s_test_edge_count;
+static volatile uint32_t s_test_pulse_count;
+static volatile uint8_t s_test_valid;
+
+void PWM_Input_SetTestPulse(uint16_t pulse_us, uint32_t now_ms)
+{
+  if ((pulse_us < SERVO_INPUT_RANGE_MIN_US) || (pulse_us > SERVO_INPUT_RANGE_MAX_US))
+  {
+    pulse_us = SERVO_INPUT_FAILSAFE_US;
+  }
+  __disable_irq();
+  if ((s_test_valid == 0U) || (pulse_us != s_test_pulse_us) ||
+      ((uint32_t)(now_ms - s_test_last_edge_ms) >= 20U))
+  {
+    s_test_edge_count++;
+    s_test_pulse_count++;
+  }
+  s_test_pulse_us = pulse_us;
+  s_test_last_edge_ms = now_ms;
+  s_test_valid = 1U;
+  __enable_irq();
+}
+#endif
+
 void PWM_Input_Init(void)
 {
 }
@@ -20,11 +47,24 @@ void PWM_Input_EdgeISR(void)
 PWM_InputSample PWM_Input_GetSample(void)
 {
   PWM_InputSample sample = {0};
+#if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && (SERVO_R01_PRODUCTION_LOOP_TEST != 0)
+  __disable_irq();
+  sample.pulse_us = s_test_pulse_us;
+  sample.raw_pulse_us = s_test_pulse_us;
+  sample.candidate_pulse_us = s_test_pulse_us;
+  sample.period_us = 20000UL;
+  sample.last_edge_ms = s_test_last_edge_ms;
+  sample.edge_count = s_test_edge_count;
+  sample.pulse_count = s_test_pulse_count;
+  sample.valid = (s_test_valid != 0U);
+  __enable_irq();
+#else
   sample.pulse_us = SERVO_INPUT_FAILSAFE_US;
   sample.raw_pulse_us = SERVO_INPUT_FAILSAFE_US;
   sample.candidate_pulse_us = SERVO_INPUT_FAILSAFE_US;
   sample.period_us = 20000UL;
   sample.valid = true;
+#endif
   return sample;
 }
 
@@ -35,7 +75,11 @@ uint16_t PWM_Input_TakeRawWindowUs(void)
 
 uint16_t PWM_Input_GetCommandUs(void)
 {
+#if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && (SERVO_R01_PRODUCTION_LOOP_TEST != 0)
+  return PWM_Input_GetSample().pulse_us;
+#else
   return SERVO_INPUT_FAILSAFE_US;
+#endif
 }
 
 bool PWM_Input_IsFresh(void)

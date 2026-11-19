@@ -24,5 +24,8 @@ PWM_InputSample PWM_Input_GetSample(void);
 uint16_t PWM_Input_GetCommandUs(void);
 bool PWM_Input_IsFresh(void);
 uint16_t PWM_Input_TakeRawWindowUs(void);
+#if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && (SERVO_R01_PRODUCTION_LOOP_TEST != 0)
+void PWM_Input_SetTestPulse(uint16_t pulse_us, uint32_t now_ms);
+#endif
 
 #endif

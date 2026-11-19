@@ -67,6 +67,8 @@ SYMBOLS = {
     "r01_diag_lock_displacement": ("g_r01_diag_lock_displacement", 2, True),
     "r01_active_test_arm_request": ("g_r01_active_test_arm_request", 4, False),
     "r01_internal_active_started": ("s_lcdm_internal_active_started", 1, False),
+    "r01_production_test_active": ("g_r01_production_test_active", 1, False),
+    "r01_production_test_pulse_us": ("g_r01_production_test_pulse_us", 2, False),
     "r01_stage_stats": ("g_r01_stage_stats", 64, False),
     "adc_diag_sample0": ("g_adc_diag_sample0", 2, False),
     "adc_diag_sample1": ("g_adc_diag_sample1", 2, False),
@@ -132,7 +134,9 @@ def read_symbols(elf):
         parts = line.split()
         if len(parts) >= 3 and parts[-1] in wanted:
             found[parts[-1]] = int(parts[0], 16)
-    required = {"uwTick", "g_servo_curve_frame"}
+    production_loop_test = b"P50 V10.6PRODSTEP" in Path(elf).read_bytes()
+    required = ({"uwTick", "g_r01_active_test_arm_request", "g_r01_production_test_active"}
+                if production_loop_test else {"uwTick", "g_servo_curve_frame"})
     missing = sorted(required - found.keys())
     if missing:
         raise SystemExit("Missing required telemetry symbols in the selected ELF: " + ", ".join(missing))
@@ -182,17 +186,20 @@ def main():
         p.error("--arm-center-sweep requires --expect-center-sweep")
     if args.arm_r01_motion and args.seconds < 15.0:
         p.error("--arm-r01-motion requires at least 15 seconds of capture")
-    if args.arm_r01_motion and b"P50 V10.6SIMB2R30D" not in args.elf.read_bytes():
-        p.error("--arm-r01-motion requires the explicitly armed R30D active diagnostic ELF")
+    if args.arm_r01_motion and not any(tag in args.elf.read_bytes()
+                                       for tag in (b"P50 V10.6SIMB2R30D", b"P50 V10.6PRODSTEP")):
+        p.error("--arm-r01-motion requires an explicitly armed R01 step-test ELF")
     if args.arm_r04_sweep and not args.expect_pwm_sweep:
         p.error("--arm-r04-sweep requires --expect-pwm-sweep")
     if (args.expect_center_sweep or args.expect_pwm_sweep) and b"P50 V10.6SIMB2" not in args.elf.read_bytes():
         p.error("PWM sweep checks require the V10.6SIMB2 diagnostic ELF")
     addresses = read_symbols(args.elf)
+    armed_active_symbol = ("g_r01_production_test_active" if b"P50 V10.6PRODSTEP" in args.elf.read_bytes()
+                           else "s_lcdm_internal_active_started")
     if args.arm_r01_motion and any(
-        name not in addresses for name in ("g_r01_active_test_arm_request", "s_lcdm_internal_active_started")
+        name not in addresses for name in ("g_r01_active_test_arm_request", armed_active_symbol)
     ):
-        raise SystemExit("Explicit-arm symbols are missing from the selected R30D ELF")
+        raise SystemExit("Explicit-arm symbols are missing from the selected R01 test ELF")
     active = [label for label, (name, _size, _signed) in SYMBOLS.items() if name in addresses]
     if args.announce_before_sweep_ms and "runtime_pwm_start_ms" not in active:
         raise SystemExit("Selected ELF lacks the runtime PWM start timestamp needed for an advance warning")
@@ -242,7 +249,7 @@ def main():
         raise SystemExit("Target is not running: " + core_start)
     if args.arm_r01_motion:
         arm_addr = addresses[SYMBOLS["r01_active_test_arm_request"][0]]
-        started_addr = addresses[SYMBOLS["r01_internal_active_started"][0]]
+        started_addr = addresses[armed_active_symbol]
         if int(target.read8(started_addr)) != 0 or int(target.read32(arm_addr)) != 0:
             session.close()
             raise SystemExit("R01 test is already armed or started; refusing a second trigger")
@@ -270,6 +277,7 @@ def main():
     swd_read_errors = 0
     last_stage_stats = 0
     core_end = "unknown"
+    core_end_error = None
     first_frame_pwm_us = None
     max_frame_pwm_us = 0
     saw_sweep_peak = False
@@ -293,10 +301,10 @@ def main():
                 print(f"SWD attached; target {core_start}; capture file is open. R01 microstep will arm in 8 seconds. Observe the actuator now; duty cap is 40/1000.", flush=True)
                 time.sleep(8.0)
                 target.write32(arm_addr, 0x52303141)
-                for cycle in range(3):
-                    print(f"R01 ACTION {cycle + 1}/3: 1510 us (+10 us) now; LCDM shows +10us.", flush=True)
+                for cycle in range(10):
+                    print(f"R01 ACTION {cycle + 1}/10: board command 1510 us (+10 us); observe LCDM and actuator.", flush=True)
                     time.sleep(1.0)
-                    print(f"R01 ACTION {cycle + 1}/3: return 1500 us now; LCDM shows CENTER.", flush=True)
+                    print(f"R01 ACTION {cycle + 1}/10: board command returns to 1500 us.", flush=True)
                     time.sleep(1.0)
                 time.sleep(2.5)
                 print("R01 ACTION WINDOW ended; coast margin elapsed. Resuming SWD capture.", flush=True)
@@ -335,7 +343,8 @@ def main():
                      "r01_diag_max_vdd_when_request", "r01_diag_lock_reason",
                      "r01_diag_lock_feedback", "r01_diag_lock_error",
                      "r01_diag_lock_displacement", "r01_diag_control_adc"),
-                    ("r01_active_test_arm_request", "r01_internal_active_started"),
+                    ("r01_active_test_arm_request", "r01_internal_active_started",
+                     "r01_production_test_active", "r01_production_test_pulse_us"),
                     ("r01_stage_stats",),
                     ("adc_raw_last", "adc_vdd_compensated_last", "adc_filtered", "vrefint_raw", "vdd_mv", "vdd_sample_valid", "vdd_sample_ms",
                      "vdd_sample_us_q4", "adc_raw_sample_ms", "adc_raw_sample_us_q4"),
@@ -395,13 +404,14 @@ def main():
                     time.sleep(max(0.0, args.interval_ms / 1000.0 - (time.monotonic() - sample_start)))
                     continue
                 last_stage_stats = row.get("r01_stage_stats", last_stage_stats)
-                frame_address = addresses[SYMBOLS["frame"][0]]
-                for _attempt in range(3):
-                    data = bytes(target.read_memory_block8(frame_address, SYMBOLS["frame"][1]))
-                    for label, (off, size, signed) in FRAME.items():
-                        row[label] = value(data, off, size, signed)
-                    if row["seq_head"] == row["seq_tail"] and not (row["seq_head"] & 1):
-                        break
+                if "frame" in active:
+                    frame_address = addresses[SYMBOLS["frame"][0]]
+                    for _attempt in range(3):
+                        data = bytes(target.read_memory_block8(frame_address, SYMBOLS["frame"][1]))
+                        for label, (off, size, signed) in FRAME.items():
+                            row[label] = value(data, off, size, signed)
+                        if row["seq_head"] == row["seq_tail"] and not (row["seq_head"] & 1):
+                            break
                 # Tick must be sampled after last_edge_ms; otherwise an edge
                 # arriving during the SWD read can appear as a 32-bit underflow.
                 row["tick_after"] = int(target.read32(addresses["uwTick"]))
@@ -446,13 +456,14 @@ def main():
                     row["vdd_to_adc_age_q4"] = age_q4
                 else:
                     row["vdd_to_adc_age_q4"] = ""
-                row["frame_seq_consistent"] = int(row["seq_head"] == row["seq_tail"] and not (row["seq_head"] & 1))
-                row["error_consistent"] = int(abs(row["error_adc"] - (row["target_adc"] - row["feedback_adc"])) <= 2)
+                if "frame" in active:
+                    row["frame_seq_consistent"] = int(row["seq_head"] == row["seq_tail"] and not (row["seq_head"] & 1))
+                    row["error_consistent"] = int(abs(row["error_adc"] - (row["target_adc"] - row["feedback_adc"])) <= 2)
                 # Pair the latest live ADC with the most recent VDD in the same
                 # SWD memory-block read; frame.raw_adc may be an older publish.
                 # Diagnostic only: never feed this normalized value to control
                 # until the potentiometer excitation/reference is confirmed.
-                vdd_adc = row.get("adc_raw_last", row["raw_adc"])
+                vdd_adc = row.get("adc_raw_last", row.get("raw_adc", 0))
                 row["vdd_compensation_input_adc"] = vdd_adc
                 row["feedback_mv_est"] = round(vdd_adc * row.get("vdd_mv", 0) / 4095.0, 3)
                 row["feedback_norm_adc_3300"] = round(vdd_adc * row.get("vdd_mv", 0) / 3300.0, 3)
@@ -477,17 +488,22 @@ def main():
                     row["adc_diag_batch_fresh"] = int(count_value > 0 and row["adc_diag_batch_consistent"])
                     adc_diag_consistent_rows += row["adc_diag_batch_consistent"]
                     adc_diag_torn_rows += 1 - row["adc_diag_batch_consistent"]
-                if first_frame_pwm_us is None:
-                    first_frame_pwm_us = row["frame_pwm_us"]
-                max_frame_pwm_us = max(max_frame_pwm_us, row["frame_pwm_us"])
-                saw_sweep_peak = saw_sweep_peak or (row["frame_pwm_us"] >= 1506)
-                if saw_sweep_peak and row["frame_pwm_us"] <= 1504:
-                    saw_center_return = True
+                if "frame_pwm_us" in row:
+                    if first_frame_pwm_us is None:
+                        first_frame_pwm_us = row["frame_pwm_us"]
+                    max_frame_pwm_us = max(max_frame_pwm_us, row["frame_pwm_us"])
+                    saw_sweep_peak = saw_sweep_peak or (row["frame_pwm_us"] >= 1506)
+                    if saw_sweep_peak and row["frame_pwm_us"] <= 1504:
+                        saw_center_return = True
                 writer.writerow(row)
                 f.flush()
                 count += 1
                 time.sleep(max(0.0, args.interval_ms / 1000.0 - (time.monotonic() - sample_start)))
-        core_end = str(target.get_state())
+        try:
+            core_end = str(target.get_state())
+        except Exception as exc:
+            core_end = "unavailable"
+            core_end_error = str(exc)
     finally:
         if diag_snapshot_hold and diag_snapshot_request_addr is not None:
             try:
@@ -531,6 +547,7 @@ def main():
         "elf": str(args.elf), "elf_sha256": hashlib.sha256(args.elf.read_bytes()).hexdigest(),
         "probe_uid": args.uid, "target": "py32f002ax5", "connect_mode": "attach",
         "core_start": core_start, "core_end": core_end, "samples": count,
+        "core_end_error": core_end_error,
         "swd_read_retries": swd_read_retries, "swd_read_errors": swd_read_errors,
         "start_time": wall_start,
         "monitor_sha256": monitor_sha256,
