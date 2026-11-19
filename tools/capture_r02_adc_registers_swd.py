@@ -37,6 +37,7 @@ REGISTERS = {
 SYMBOL_NAMES = {
     "tick": "uwTick",
     "adc_raw_last": "s_last_raw",
+    "vdd_mv": "s_vdd_mv",
     "adc_sample_ms": "s_adc_raw_sample_ms",
     "adc_sample_us_q4": "s_adc_raw_sample_us_q4",
     "feedback_duty": "s_lcdm_servo_current_duty",
@@ -63,6 +64,7 @@ def main():
     p.add_argument("--pack", default="/home/andrew/ARTERY/DQ110_FW/1.2.8.pack")
     p.add_argument("--seconds", type=float, default=10.0)
     p.add_argument("--interval-ms", type=int, default=100)
+    p.add_argument("--stream", action="store_true", help="print a compact CSV row for each live sample")
     p.add_argument("--read-idle-dr", action="store_true",
                    help="read ADC_DR once only while ADC is disabled, channel 4 selected, and EOC clear")
     p.add_argument("--output", type=Path, required=True, help="CSV path; JSON is written beside it")
@@ -101,22 +103,34 @@ def main():
         if not core_start.endswith("RUNNING"):
             raise SystemExit("Target is not running: " + core_start)
         a.output.parent.mkdir(parents=True, exist_ok=True)
-        fields = ["wall_s", "tick", "adc_raw_last", "adc_sample_ms", "adc_sample_us_q4",
+        fields = ["wall_s", "tick", "adc_raw_last", "vdd_mv", "adc_sample_ms", "adc_sample_us_q4",
                   "feedback_duty"] + list(REGISTERS)
         with a.output.open("x", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fields)
             writer.writeheader()
+            if a.stream:
+                print("wall_s,tick,raw_adc,vdd_mv,chselr,adc_cr,adc_isr,pa4_moder,pa4_pupdr", flush=True)
             while time.monotonic() - started < a.seconds:
                 begin = time.monotonic()
                 row = {"wall_s": round(begin - started, 6)}
                 for label, symbol in SYMBOL_NAMES.items():
-                    row[label] = int(target.read32(addr[symbol])) if label != "feedback_duty" else int(
-                        target.read16(addr[symbol], now=True))
+                    if label in ("feedback_duty", "adc_raw_last", "vdd_mv"):
+                        row[label] = int(target.read16(addr[symbol], now=True))
+                    else:
+                        row[label] = int(target.read32(addr[symbol]))
                 for label, address in REGISTERS.items():
                     row[label] = int(target.read32(address))
                 writer.writerow(row)
                 f.flush()
                 rows += 1
+                if a.stream:
+                    print(
+                        f"{row['wall_s']:.3f},{row['tick']},{row['adc_raw_last']},"
+                        f"{row['vdd_mv']},{row['adc_chselr']:#x},{row['adc_cr']:#x},"
+                        f"{row['adc_isr']:#x},{(row['gpioa_moder'] >> 8) & 3},"
+                        f"{(row['gpioa_pupdr'] >> 8) & 3}",
+                        flush=True,
+                    )
                 time.sleep(max(0.0, a.interval_ms / 1000.0 - (time.monotonic() - begin)))
         idle_dr = None
         if a.read_idle_dr:

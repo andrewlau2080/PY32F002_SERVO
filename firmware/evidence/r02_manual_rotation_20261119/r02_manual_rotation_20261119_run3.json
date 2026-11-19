@@ -1,0 +1,38 @@
+{
+  "elf": "/tmp/py32f002_servo.elf",
+  "elf_sha256": "996e43f81f9f0ae567945b38312ded9ea0df0e1821f597175455e54489a3b7f9",
+  "probe_uid": "070000011a5a5cc500000000000c00b6a5a5a5a597969908",
+  "target": "py32f002ax5",
+  "connect_mode": "attach",
+  "core_start": "State.RUNNING",
+  "core_end": "State.RUNNING",
+  "start_time": "2026-11-19T12:11:18.099858+08:00",
+  "samples": 1528,
+  "adc_dr_read": false,
+  "adc_dr_idle_snapshot": null,
+  "cpu_halted": false,
+  "register_addresses": {
+    "adc_isr": "0x40012400",
+    "adc_ier": "0x40012404",
+    "adc_cr": "0x40012408",
+    "adc_cfgr1": "0x4001240c",
+    "adc_cfgr2": "0x40012410",
+    "adc_smpr": "0x40012414",
+    "adc_tr": "0x40012420",
+    "adc_chselr": "0x40012428",
+    "adc_ccr": "0x40012708",
+    "gpioa_moder": "0x50000000",
+    "gpioa_pupdr": "0x5000000c",
+    "gpioa_idr": "0x50000010"
+  },
+  "ram_symbol_addresses": {
+    "tick": "0x200002c8",
+    "adc_raw_last": "0x200003fc",
+    "vdd_mv": "0x200003ee",
+    "adc_sample_ms": "0x20000400",
+    "adc_sample_us_q4": "0x20000404",
+    "feedback_duty": "0x20000414"
+  },
+  "csv_sha256": "be7df6903d42b4215039fa1697641aa4432a8b1ae028c174a621d037fb64aacb",
+  "note": "Live peripheral snapshots; register values may be sampled during an ADC operation. ADC_DR is read only when disabled, channel 4 is selected, and EOC is clear; the script records whether EOC stayed clear."
+}
