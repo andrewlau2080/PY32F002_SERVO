@@ -52,7 +52,24 @@ R01–R14 未通过项留待后续统一复核，本轮未重跑。
 - LCDM customer profile 以固定阶段输出：驱动7ms、反向制动2ms、反向尾段3ms，之后coast。`customer_profile_direct`绕过通用8ms换向死区和slew guard；该路径是为保持参考波形而设计，直接套用8ms死区会吞掉/改变其2ms与3ms阶段，不能当作无影响的安全修补。
 - 当前不修改该时序。离板可做的是抽取profile阶段和异常输入早退条件，核对其状态转移；要决定如何兼顾双路互锁与客户波形，仍需对应客户波形映射及目标板双路输出测量。R15整项仍未通过。
 
+## 2026-11-19 Ubuntu force-coast 构建推进
+
+- 首次链接暴露两个源码问题：非诊断配置误调用只在内部步进宏下定义的`lcdm_r01_stage_record()`，已加宏保护；force-coast版本标签被错误嵌套在内部步进条件中，已修正。`--disable-tjc-rx`诊断选项可裁掉不需要的触摸RX，产品默认配置不变。
+- 无触摸RX版本已成功链接，BIN 19,416B，临时SHA256=`f80c4186a1fcf857ac33c13e909c553a673819ba322d70f699f9d53b933ae137`；静态RAM `_ebss=0x200005d8`，预留1,536B栈后余40B。该次构建因版本字符串门槛拒绝归档；修正标签后新构建待完成。板未下载、未动作，R15仍未通过。
+- 标签调整后构建器本地校验因版本解析正则过窄再次退出；已改为允许`V10.x`后的字母数字诊断后缀。该次在连接Ubuntu前退出，无新构建产物、无板操作；需重新构建确认。
+- 后续Ubuntu编译发现移动版本标签时漏闭合内部步进宏，导致LCDM runtime预处理块未闭合；现已补齐条件层级。该次没有下载或动作，修正待重新构建。
+
 ## 2026-11-19 调度丢周期即时冻结
 
 - `src/app_entry.c`的LCDM runtime scheduler现于丢弃tick时coast、调用`Servo_Adaptive_Update(..., false)`使学习基准失效，并复位速度/轨迹观察基准、清除未完成的customer profile阶段。修正边界仅覆盖该runtime scheduler检测到的丢周期；未加入未经定义的超时阈值，也未宣称已覆盖所有快环入口。
 - 本机尝试用隔离临时目录编译TSSOP20 force-coast + LCDM runtime配置，但本机缺少项目HAL SDK，未能完成编译；无测试运行、无固件下载、无动作验证。R15仍未通过，后续须先在项目Ubuntu工具链构建，再用force-coast板况检查遥测，最后才安排实物故障与双路互锁验证。
+- Ubuntu项目构建已可达链接阶段；首次结果报告RAM超出16B、Flash超出244B，以及非诊断构建误引用`lcdm_r01_stage_record()`。现已修正该条件编译调用；新构建待执行，RAM/Flash余量是否仍超限尚未知。无测试、无下载、无动作，R15保持未通过。
+
+## 2026-11-19 调度丢tick降级候选构建与现板检查
+
+- 上述待构建状态已更新：项目Ubuntu工具链构建通过，产物`build/releases/V10.6_TSSOP20_R04_R15_OVERRUN_FORCE_COAST_20261119/`。BIN 19,420B，SHA256=`ff23b26b2851d64c27f85301f8732f1be4334c44be61306464483b52d997e6be`；force-coast开启、触摸RX关闭、无主动运动诊断；未下载。构建只证明源码可编译链接，不证明硬件降级行为。
+- 新增故障处理仅针对LCDM runtime scheduler已丢弃tick：coast、学习样本失效、状态BAD并清理observer/trajectory/reverse/customer-profile阶段。尚未覆盖堵转、异常速度分类、所有调度入口或customer profile H桥波形；R15仍未通过。
+- 现板只读识别为R25 force-coast，完整20,480B SHA256=`f7c62dd81d97687ff41a93ef1ca51383fbfd9665e8a6d81f09405296a3ac8fa3`，核心Running。与新候选不同，故未把候选写入板上。匹配R25 ELF只读监控52帧：feedback/raw ADC最高4095，四点样本范围分别为3500–4095、3824–4095、4095固定、4095固定；VDD估值3250–3267mV；duty始终0。此数据新增支持R02取值链路调查，不能单独证明同一时刻PA4电压或焊盘状态；详见R02记录及`firmware/evidence/r04_r15_force_coast_readonly_20261119/`。
+- 新候选故障降级路径需在force-coast版本下载后才可板上验证；本轮无下载、无动作。后续要完整验收R15仍需按故障类别注入并核对双路H桥波形，需可控限流供电及示波器/逻辑分析仪；眼下没有需要用户按键或输入信号的事项。
+- **后续板上状态**：force-coast候选已按under-reset下载并读回验证（20KB整片SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，应用匹配、尾384B保持、Running）。30秒只读窗口120帧、duty=0，scheduler丢tick计数28→28；没有触发新的overrun，因此新增的丢tick故障分支尚未实机覆盖。ADC_LOST状态持续，raw最高4095，不能把此静态结果算作R15通过。当前板force-coast诊断固件，电机动作仍被编译时禁用。
+- 后续受控RAM注入：`tools/trigger_r04_dropped_tick_swd.py`只回拨scheduler RAM时间戳20ms；要求force-coast标签、目标Running和初始duty=0，不复位/不写Flash。板上scheduler丢tick由28增至53，单次最大25，overrun上下文由51增至4147；注入后再采5秒/20帧，计数稳定53、duty恒0、核心Running。该项覆盖R04超时分支的执行和零duty软件状态，不证明其他故障路径，也不等于R15整体通过。证据同R04目录。

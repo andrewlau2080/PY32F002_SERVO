@@ -50,6 +50,8 @@ def main():
                         help='repaint the LCDM diagnostic page every 250 ms for R04 load testing')
     parser.add_argument('--force-coast', action='store_true',
                         help='force H-bridge outputs to coast for non-moving diagnostics')
+    parser.add_argument('--disable-tjc-rx', action='store_true',
+                        help='omit LCDM touch UART RX to reduce RAM/Flash for read-only diagnostics')
     parser.add_argument('--direction-probe', action='store_true',
                         help='build explicitly armed hardware single-pulse diagnostic')
     parser.add_argument('--probe-pulse-us', type=int, choices=[80, 120, 160], default=80,
@@ -80,7 +82,7 @@ def main():
     if args.r04_ui_redraw_stress and not (args.internal_step_test and args.profile == 'lcdm'):
         parser.error('--r04-ui-redraw-stress requires --profile lcdm --internal-step-test')
     source = (ROOT / 'src/app_entry.c').read_text()
-    match = re.search(r'#define LCDM_SERVO_FW_TAG " (V10\.[0-9]+)"', source)
+    match = re.search(r'#define LCDM_SERVO_FW_TAG " (V10\.[0-9]+)[A-Za-z0-9]*"', source)
     if not match:
         parser.error('Expected the current V10.x version in src/app_entry.c')
     version = match.group(1)
@@ -93,6 +95,9 @@ def main():
         flags = flags + ['SERVO_TJC_RX_ENABLE=0']
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1',
                          'SERVO_R01_TEST_DUTY_INVERT=1', 'SERVO_R01_TEST_MAX_DUTY=100']
+    if args.disable_tjc_rx:
+        flags = [flag for flag in flags if not flag.startswith('SERVO_TJC_RX_ENABLE=')]
+        flags = flags + ['SERVO_TJC_RX_ENABLE=0']
     if args.r04_ui_redraw_stress:
         flags = flags + ['SERVO_R04_UI_REDRAW_STRESS=1', 'SERVO_R04_TIMING_TRACE=1']
     if args.adc_subsample_diagnostic:

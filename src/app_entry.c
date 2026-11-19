@@ -1231,14 +1231,12 @@ static void run_pa7_tjc_test(void)
 #else
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2P80F"
 #endif
+#define LCDM_SERVO_INTERNAL_TEST_MAX_DUTY SERVO_R01_TEST_MAX_DUTY
+#endif
 #elif SERVO_HBRIDGE_FORCE_COAST
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2C"
 #else
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2"
-#endif
-#define LCDM_SERVO_INTERNAL_TEST_MAX_DUTY SERVO_R01_TEST_MAX_DUTY
-#else
-#define LCDM_SERVO_FW_TAG " V10.6"
 #endif
 #define LCDM_REG_PARAM_VMAX 0U
 #define LCDM_REG_PARAM_ACCEL 1U
@@ -3601,7 +3599,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #endif
   if (duty == 0)
   {
+#if SERVO_ENABLE_INTERNAL_STEP_TEST
     lcdm_r01_stage_record(control_pulse_us, raw_adc, feedback, 0);
+#endif
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
                                    feedback, error, LCDM_SERVO_STATE_BRAKE,
                                    (drive_event == LCDM_SERVO_V3_EVENT_BRAKE) ? drive_event : 3U,

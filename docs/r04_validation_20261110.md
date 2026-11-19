@@ -53,6 +53,20 @@
 - LCDM runtime scheduler在4次补跑后若仍丢弃tick，现立即`HBridge_Coast()`，并以无效样本通知adaptive learner；同时清零当前占空比/速度、observer基准和轨迹速度，取消未完成的customer profile阶段，状态置为BAD。该修正只在检测到实际丢弃tick时执行，不改正常周期或客户profile的7/2/3ms波形参数。
 - 修改范围是`SERVO_ENABLE_LCDM_RUNTIME_UI_TEST`调度路径；它处理“发现丢周期后的即时安全降级”，不代表已完成所有生产控制路径的超时状态机，也不证明硬件输出波形或时序。
 - 本机临时构建因缺少`/opt/py32/PY32F0xx_Firmware` HAL头文件，在编译`src/app_entry.c`时失败；未运行测试、未下载、未触发动作。需在项目规定的Ubuntu工具链环境重建后才能确认编译，再进行force-coast板上诊断。R04仍未通过。
+- **Ubuntu构建续记**：使用项目脚本的首次force-coast构建到达链接阶段，报告RAM超出16B、Flash超出244B，并发现`lcdm_r01_stage_record()`在非内部步进配置下仍被无条件调用、而定义受内部步进宏保护。现已将该调用纳入同一宏保护。此修正尚未重建；首次构建结果仅代表修正前源码，新的Ubuntu构建待继续。板未下载、未动作。
+- 为当前只读R04诊断新增`tools/build_v10_ubuntu.py --disable-tjc-rx`选项，以移除触摸UART接收及其RAM/Flash占用；默认LCDM和产品构建不变。R04监控由SWD读取，不需要触屏输入。该选项尚待force-coast构建确认，非产品固件配置。
+- 加上该选项后Ubuntu已成功完成编译/链接：`text=18,720B, data=696B, bss=2,336B`（linker map显示静态RAM`_ebss=0x200005d8`、栈保留1,536B，剩余40B）；BIN 19,416B，距保留384B后的Flash上限20,096B余680B，临时产物SHA256=`f80c4186a1fcf857ac33c13e909c553a673819ba322d70f699f9d53b933ae137`。但构建脚本的版本字符串门槛未通过：runtime UI页面实际显示`P50 V10.6`，与预期SIMB2C不符。排查发现force-coast标签误被嵌套在`SERVO_ENABLE_INTERNAL_STEP_TEST`内，现已移出该条件；本轮修改后需重新构建、生成完整manifest和哈希。未下载、未运行板上诊断。
+- 标签修正后，本机预构建检查再次拒绝运行：构建器版本解析正则只接受裸`V10.6`，不接受诊断后缀。`tools/build_v10_ubuntu.py`已改为提取版本主体并允许后缀；该工具修正及LCDM标签调整需重新构建确认。此失败发生在SSH/Ubuntu步骤之前，没有创建新构建目录或访问仿真板。
+- 随后的Ubuntu预处理检查报告LCDM runtime区块未闭合；根因是移动force-coast标签分支时未先闭合内部步进/方向诊断条件。现已补齐`#endif`层级；这项条件边界修正尚待下一次force-coast构建确认。
+
+## 2026-11-19 丢tick故障降级候选与现板只读检查
+
+- `src/app_entry.c`：runtime LCDM调度器发现丢弃tick后立即coast，将状态置BAD，清除自适应学习样本种子、速度/轨迹基准、换向等待和customer profile状态，避免丢时后沿用陈旧控制阶段。`tools/build_v10_ubuntu.py`新增仅诊断可选项`--disable-tjc-rx`，移除触摸接收以满足TSSOP20 RAM/Flash余量；默认产品配置不变。非内部步进构建的stage-record调用也已正确受宏保护。
+- Ubuntu工具链force-coast构建成功，标记`P50 V10.6SIMB2C`，未下载：`build/releases/V10.6_TSSOP20_R04_R15_OVERRUN_FORCE_COAST_20261119/`。配置含`SERVO_HBRIDGE_FORCE_COAST=1`、`SERVO_TJC_RX_ENABLE=0`、runtime UI诊断开启；无内部动作序列。BIN 19,420B，SHA256=`ff23b26b2851d64c27f85301f8732f1be4334c44be61306464483b52d997e6be`；ELF SHA256=`996e43f81f9f0ae567945b38312ded9ea0df0e1821f597175455e54489a3b7f9`。Flash保留区384B；构建脚本报告built=true、flashed=false。
+- 2026-11-19先做现板全片只读备份，20,480B SHA256=`f7c62dd81d97687ff41a93ef1ca51383fbfd9665e8a6d81f09405296a3ac8fa3`，应用精确匹配`V10.6_TSSOP20_R01_R02_DIAG_FORCE_COAST_20261117_R25` BIN（19,032B，SHA256=`8a2f1154d1313921ff7f04615c5b1630cf41f59c05b6d5780fd68e6a5f1edc6d`），核心Running。使用匹配ELF只读采集20秒，52帧；状态保持Running，duty全为0，PWM维持1503µs，scheduler累计丢tick=31且最大单次=11，首末值不变，说明该20秒窗口未新增丢tick。无触发、无下载、无电机动作。证据及原始CSV/JSON：`firmware/evidence/r04_r15_force_coast_readonly_20261119/`；读回文件见`build/board_readback/20261119_force_coast_diagnostic_read/`。
+- 新候选尚未运行时，板仍是R25旧镜像；当时已完成下载前备份，候选的丢tick降级行为需在新镜像运行后验证。子毫秒时序精度、真实H桥引脚延迟仍未测，R04未通过。
+- **后续状态更新**：按项目under-reset流程已将该force-coast候选下载。整片读回20,480B，应用19,420B逐字节匹配BIN，384B参数尾区与下载前一致且为全`FF`，整片SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，核心Running。精确ELF attach只读采集30秒/120帧：无触发；PWM恒1500µs、duty恒0；scheduler丢tick累计28、最大单次10，采集窗口首末值不变；核心始终Running。当前帧显示ADC_LOST，raw 3914–4095，错误约−2039…−1964，故这次窗口没有实际制造新的丢tick故障，不能据此验收新降级分支。证据`firmware/evidence/r04_r15_force_coast_readonly_20261119/capture_after.csv[,.json]`，下载读回见`build/board_readback/20261119_overrun_force_coast_after/`。R04仍未通过：逐周期抖动和真实H桥响应未测。
+- 为直接覆盖新分支，新增`tools/trigger_r04_dropped_tick_swd.py`（SHA256=`4ab50dc4b16a5b54c0d3c0eafa6d041b4df157c700bab066d09a23fe0ef3fd73`）：只接受`V10.6SIMB2C`精确ELF，在目标Running且软件duty=0时，将scheduler上次时间戳在RAM中回拨20ms；不复位、不写Flash。工具语法/帮助检查通过。板上注入前计数28、最大丢tick 10；注入后计数53、最大丢tick 25、overrun上下文字节由51变4147；说明强制coast候选在该受控条件下进入了丢周期处理分支。注入前后Running且软件duty=0；随后5秒/20帧计数保持53、最大25、duty仍0、状态ADC_LOST。该RAM注入证明分支被执行和桥输出软件请求维持为零，但不校准真实周期，也不替代真实UI负载诱发的时序测试。证据`firmware/evidence/r04_r15_force_coast_readonly_20261119/fault_injection.json`及`capture_after_injection.csv[,.json]`。
 
 ## 2026-11-15 窗口计数器清零后的复测（R10）
 

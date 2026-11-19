@@ -1,0 +1,28 @@
+{
+  "elf": "py32f002_servo.elf",
+  "elf_sha256": "996e43f81f9f0ae567945b38312ded9ea0df0e1821f597175455e54489a3b7f9",
+  "probe_uid": "070000011a5a5cc500000000000c00b6a5a5a5a597969908",
+  "target": "py32f002ax5",
+  "core_start": "State.RUNNING",
+  "core_end": "State.RUNNING",
+  "lag_ms_written": 20,
+  "initial": {
+    "tick": 852411,
+    "scheduler_last_ms": 852419,
+    "control_duty": 0,
+    "dropped_ticks": 28,
+    "max_dropped_ticks": 10,
+    "overrun_contexts": 51
+  },
+  "final": {
+    "tick": 852509,
+    "scheduler_last_ms": 852517,
+    "control_duty": 0,
+    "dropped_ticks": 53,
+    "max_dropped_ticks": 25,
+    "overrun_contexts": 4147
+  },
+  "scheduler_fault_observed": true,
+  "force_coast": true,
+  "note": "Synthetic RAM timestamp injection; no Flash write or reset. Force-coast build disables H-bridge drive."
+}

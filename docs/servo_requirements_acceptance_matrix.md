@@ -15,6 +15,22 @@
 **2026-11-19 离板改进边界**：R13/R14当前没有安全自动保存调用：model/profile默认0，启动时预期电机供电传0以拒绝加载；VREFINT不是已确认的电机电源身份。保存API布尔资格也不能代替内部状态机。R15 customer profile 7/2/3ms反向波形绕过通用8ms死区，直接套用死区会改变既定客户时序；先做波形映射和双路实测前不改动。具体源码审查见R13/R14/R15记录。
 
 **2026-11-19 调度超时源码增量**：LCDM runtime scheduler发现丢弃tick后现立即coast、使adaptive样本无效并重置速度/轨迹基准及未完成customer profile。尚未完成Ubuntu构建；本机缺HAL SDK，未运行测试或下载。此修正只覆盖该scheduler分支，R04/R15仍未通过，见对应记录。
+
+**2026-11-19 构建修正续记**：首次Ubuntu force-coast链接发现非诊断构建误调用仅在内部步进宏下定义的`lcdm_r01_stage_record()`，已补同宏保护。首次链接还报告RAM超16B、Flash超244B；修正后重建尚待执行，空间问题状态未定。没有下载或触发动作。
+
+**2026-11-19 诊断构建配置**：为只读LCDM force-coast诊断增加`--disable-tjc-rx`可选参数，裁掉无需的触摸接收路径以降低RAM/Flash占用；默认产品构建不变。待Ubuntu重建确认空间余量和产物哈希。
+
+**2026-11-19 当前构建状态**：无触摸RX的force-coast镜像已成功链接，BIN 19,416B，临时SHA256=`f80c4186a1fcf857ac33c13e909c553a673819ba322d70f699f9d53b933ae137`；静态RAM`_ebss=0x200005d8`，预留1,536B栈后40B余量。第一次归档被版本标签校验拒绝；源码现已修正LCDM force-coast标签作用域，需再构建取得正式manifest/哈希。未下载或驱动。
+
+**2026-11-19 构建前检查续记**：标签调整后构建脚本本地版本解析正则不接受`V10.x`后缀，尚未访问Ubuntu；现已修改为提取版本号主体并允许诊断后缀。需重新构建确认。
+
+**2026-11-19 条件编译续记**：诊断后缀宏移动时漏闭合内部步进分支，Ubuntu编译提示LCDM runtime预处理块未闭合；已补齐`#endif`层级，待重新构建验证。
+
+**2026-11-19 构建与板况更新（覆盖本节之前的待构建状态）**：Ubuntu工具链force-coast候选已通过构建，BIN 19,420B，SHA256=`ff23b26b2851d64c27f85301f8732f1be4334c44be61306464483b52d997e6be`，归档`build/releases/V10.6_TSSOP20_R04_R15_OVERRUN_FORCE_COAST_20261119/`，未下载。板上只读识别仍为R25旧force-coast镜像，整片20KB SHA256=`f7c62dd81d97687ff41a93ef1ca51383fbfd9665e8a6d81f09405296a3ac8fa3`；20秒匹配ELF监控52帧，核心Running、duty=0、累计丢tick=31/最大单次11且窗口内不变。R04/R15新降级逻辑尚未板测，R04/R15仍未通过。新观测raw ADC 3842–4095、四点样本后两点固定4095，VDD估算3250–3267mV；R02关键取值矛盾继续未解，详见R02记录。全程未下载、未触发、无电机动作。
+
+**2026-11-19 force-coast候选板测续记（覆盖上一条中“未下载”状态）**：按项目under-reset流程下载force-coast候选并整片回读：20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，应用19,420B逐字节匹配BIN，尾384B全`FF`且与下载前一致，核心Running。精确ELF只读采集30秒120帧：PWM=1500µs、duty=0、丢tick累计28且窗口未增长，核心Running；状态ADC_LOST、raw 3914–4095。未观察到新的调度超限，故新降级分支未被实机触发，R04/R15仍未通过。板当前为force-coast诊断版，不动作；证据见R04/R15记录及`firmware/evidence/r04_r15_force_coast_readonly_20261119/`。
+
+**2026-11-19 受控调度故障注入续记**：新增`tools/trigger_r04_dropped_tick_swd.py`（SHA256=`4ab50dc4b16a5b54c0d3c0eafa6d041b4df157c700bab066d09a23fe0ef3fd73`）并在匹配force-coast ELF上只回拨RAM中的scheduler时间戳20ms。R04累计丢tick 28→53、最大单次10→25、overrun上下文51→4147；注入后5秒只读采集计数稳定53、软件duty=0、核心Running。触发的是调度丢周期降级分支；无Flash/RAM以外写入、无复位、无电机动作。该项证明分支执行，不替代真实UI负载或硬件周期校准；R04/R15仍未通过，证据见对应验证记录。
 用途：逐项核对“需求 → 源码 → 可观测输出”，任何项目不得只凭编译通过判为完成。
 
 ## 状态符号与验证层级（2026-11-15补充）
