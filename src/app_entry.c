@@ -53,6 +53,11 @@
 #if SERVO_R01_EXPLICIT_ARM && (SERVO_R01_TEST_STEP_US != 10)
 #error The R01 visible-action diagnostic must use exactly a 10 us center step.
 #endif
+#if SERVO_R01_EXPLICIT_ARM
+#define LCDM_SERVO_INTERNAL_TEST_CENTER_US 1500U
+#else
+#define LCDM_SERVO_INTERNAL_TEST_CENTER_US 1503U
+#endif
 
 volatile uint8_t g_servo_model_record_valid;
 #if defined(SERVO_PRODUCTION_LCDM) && (SERVO_PRODUCTION_LCDM != 0)
@@ -1253,7 +1258,7 @@ static void run_pa7_tjc_test(void)
 #endif
 #else
 #if SERVO_R01_EXPLICIT_ARM
-#define LCDM_SERVO_FW_TAG " V10.6SIMB2R30A"
+#define LCDM_SERVO_FW_TAG " V10.6SIMB2R30B"
 #else
 #define LCDM_SERVO_FW_TAG " V10.6SIMB2"
 #endif
@@ -1990,7 +1995,7 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
       (g_r01_active_test_arm_request != 1U))
   {
     g_r01_active_test_arm_request = 0U;
-    pulse = 1503U;
+    pulse = LCDM_SERVO_INTERNAL_TEST_CENTER_US;
     goto publish_internal_test_sample;
   }
 #endif
@@ -2002,7 +2007,7 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   {
     if (g_r04_sweep_start_request == 0U)
     {
-      pulse = 1503U;
+      pulse = LCDM_SERVO_INTERNAL_TEST_CENTER_US;
       goto publish_internal_test_sample;
     }
     s_lcdm_runtime_pwm_start_ms = now;
@@ -2036,7 +2041,7 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
     }
     else
     {
-      pulse = 1503U;
+      pulse = LCDM_SERVO_INTERNAL_TEST_CENTER_US;
       goto publish_internal_test_sample;
     }
   }
@@ -2044,15 +2049,20 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   /* Center-only diagnostic: hold each step for one second for clean feedback statistics. */
   /* Give the SWD observer time to attach after the under-reset download. */
   const uint32_t baseline_ms = 30000U;
-  const uint32_t step_ms = 1000U;
+  const uint32_t step_ms = SERVO_R01_EXPLICIT_ARM ? 2000U : 1000U;
   if (elapsed < baseline_ms)
   {
-    pulse = 1503U;
+    pulse = LCDM_SERVO_INTERNAL_TEST_CENTER_US;
   }
   else if (elapsed < (baseline_ms + 6U * step_ms))
   {
 #if SERVO_R01_EXPLICIT_ARM
-    static const uint16_t steps[6] = {1503U + SERVO_R01_TEST_STEP_US, 1503U, 1503U, 1503U, 1503U, 1503U};
+    static const uint16_t steps[6] = {LCDM_SERVO_INTERNAL_TEST_CENTER_US + SERVO_R01_TEST_STEP_US,
+                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US,
+                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US,
+                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US,
+                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US,
+                                      LCDM_SERVO_INTERNAL_TEST_CENTER_US};
 #else
     static const uint16_t steps[6] = {1504U, 1505U, 1506U, 1505U, 1504U, 1503U};
 #endif
@@ -2060,7 +2070,7 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
   }
   else
   {
-    pulse = 1503U;
+    pulse = LCDM_SERVO_INTERNAL_TEST_CENTER_US;
   }
 #else
   phase = (elapsed / 4000UL) % 2UL;
@@ -2948,7 +2958,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
 #endif
       ((uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms) >= 30000U))
   {
-    uint16_t center_target_adc = lcdm_pwm_to_target_adc(1503U);
+    uint16_t center_target_adc = lcdm_pwm_to_target_adc(LCDM_SERVO_INTERNAL_TEST_CENTER_US);
     s_lcdm_internal_target_offset_adc = (int16_t)((int32_t)feedback - (int32_t)center_target_adc);
     s_lcdm_internal_motion_anchor_adc = feedback;
     s_lcdm_internal_last_guard_adc = feedback;
@@ -3000,7 +3010,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   command_step = target_motion_changed;
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
   /* Keep a 1-3 us diagnostic command active for its full generated plateau. */
-  if (control_pulse_us != 1503U)
+  if (control_pulse_us != LCDM_SERVO_INTERNAL_TEST_CENTER_US)
   {
     command_step = true;
   }
@@ -3571,7 +3581,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   {
     uint32_t test_elapsed = (uint32_t)(now_ms - s_lcdm_runtime_pwm_start_ms);
     if ((test_elapsed >= 30000U) && (test_elapsed < 36000U) &&
-        (control_pulse_us != 1503U))
+        (control_pulse_us != LCDM_SERVO_INTERNAL_TEST_CENTER_US))
     {
       uint16_t test_abs_duty = (uint16_t)(16U + (abs_error * 8U));
       if (test_abs_duty > LCDM_SERVO_INTERNAL_TEST_MAX_DUTY)
@@ -3897,9 +3907,14 @@ static void lcdm_update_pwm_live_values(void)
                           ADC_Feedback_GetFiltered();
   uint16_t raw_adc = ADC_Feedback_GetRaw();
   uint16_t adc_window = lcdm_servo_adc_window_take();
+#if SERVO_R01_EXPLICIT_ARM
+  /* Show the generated diagnostic command directly, not the controller's latched value. */
+  uint16_t target_pulse_us = sample.pulse_us;
+#else
   uint16_t target_pulse_us = (s_lcdm_servo_last_control_pulse_us != 0xFFFFU) ?
                              s_lcdm_servo_last_control_pulse_us :
                              sample.pulse_us;
+#endif
   uint16_t target_mv = show_target ? lcdm_pwm_to_target_mv(target_pulse_us) : 0U;
   uint16_t target_adc = show_target ? lcdm_pwm_to_target_adc(target_pulse_us) : 0U;
   int16_t error_adc = show_target ? (int16_t)((int32_t)target_adc - (int32_t)feedback_adc) : 0;
@@ -4012,7 +4027,7 @@ static void lcdm_update_pwm_live_values(void)
       stage = 1U;
       stage_text = "ARMED";
     }
-    else if (test_elapsed < 31000U)
+    else if (test_elapsed < 32000U)
     {
       stage = 2U;
       stage_text = "+10us";

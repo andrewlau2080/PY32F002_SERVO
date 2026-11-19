@@ -414,3 +414,12 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - **动作窗结果**：监视器在打开CSV后等8秒，写入arm；执行22.093秒监视，22行均未能读取RAM分组，重连时报告`State.HALTED`且probe disconnect错误。没有动作期间PWM/ADC数据；无法确认软件是否完成1513/1503命令、H桥波形、实际转臂或LCD显示。CSV SHA256=`6627fe860de86bd62991eafdefc6ccb8582db594b994aca5ec3805b04eb56e80`，JSON SHA256=`1b79b0d5a5a146fbbd185b2892c49966aff8d0b8569b822b728d2621a414594f`，见`firmware/evidence/r01_r30a_10us_lcdm_20261119/`。
 - **安全恢复**：动作后立即2MHz under-reset恢复`V10.6_TSSOP20_R04_R15_OVERRUN_FORCE_COAST_20261119`；恢复读回完整20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本`P50 V10.6SIMB2C`，核心Running。当前force-coast，不会主动驱动。读回报告`build/board_readback/20261119_after_r30a_force_coast_restore/report.json`。
 - **状态/下一步**：R01仍未通过，R30A目前不能继续重试。无论是否暂停SWD轮询，动作窗后目标仍不可读，需先判定MCU复位/锁定、SWD探测异常或供电/电机干扰；当前证据不足以归因。请用户补充刚才是否看见LCDM的`+10us`和`CENTER`，以及转臂是否动、方向/大致幅度；若未看清不必碰机构。之后先做不会驱动的LCD刷新/故障状态检查，再决定是否需要下一轮。
+
+## 2026-11-19 自查LCDM固定1500显示并修正（R30B）
+
+- 用户反馈R30A屏幕一直1500µs、未出现1510/1490。源码复核确认诊断行取的是`s_lcdm_servo_last_control_pulse_us`（控制器锁存值），而内部测试脉宽由`sample.pulse_us`生成；LCD显示与测试源不是同一数据源。另R30A把诊断中立设为1503µs，与LCDM名义中立1500µs不一致。故R30A的“LCDM已同步显示”结论撤回；动作窗无SWD数据，不能确认1513命令实际执行或物理转动。
+- R30B修正为：显式arm诊断中心1500µs，1510µs保持2秒后回1500；控制锚点也使用1500。P行直接显示内部测试`sample.pulse_us`，阶段行显示WAIT/ARMED/+10us/CENTER/COAST。活动上限仍40/1000，8秒后coast；非诊断构建和原1503微步序列不变。
+- R30B Ubuntu构建`build/releases/V10.6_TSSOP20_R01_LCDM_DIRECT_10US_R30B_DWELL2_20261119/`通过，BIN 18,736B SHA256=`55ac05f66fa757d67684d9b53f9c78cc94f95720e14e999fd284c091409a6f1f`，ELF SHA256=`e01b3dda97814d7d4c64bddd2cca0a9c2e1c056fc5dbe108fc9b2f1144f30fcc`；`_ebss=0x20000590`，栈余量1648B；编译标志`SERVO_R01_TEST_STEP_US=10`、显式arm、最大duty40。源码回归29/29通过；编译/静态检查不证明LCD实屏。
+- 下载前整片force-coast备份SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`。R30B使用2MHz under-reset下载后读回整片SHA256=`c52e8dd971b5bd0abf0ba74a08f58acb52d1ec221efa39667c0577a283e5d2fb`，版本串匹配、核心Running。正确R30B ELF待机只读14帧：frame PWM=1500、arm=0，核心Running、无SWD读错。
+- 一轮显式arm后，监视器不在8秒活动窗内读SWD，显示命令提示1510并在2秒后提示回1500；动作窗结束后继续读SWD仍有30组全部失败，断开提示probe error，core_end=HALTED。没有动作期PWM/ADC/核心变量，不能确认LCD实屏是否真的显示1510或机械是否动作。捕获CSV SHA256=`8aafdacaadc1d1e6336655f0e773e3e6879104a20b49a6d1bdaa22dc3f543202`，JSON SHA256=`7f51efc0023ddde0d736d08ce908db902293fabf775f651a1716c89477d0d5ba`，位于`firmware/evidence/r01_r30b_direct_display_20261119/`。
+- 已立即2MHz under-reset恢复force-coast；读回20,480B SHA256=`f44ef9b3d69ab55286b8f60c27a5d463e53f4ab75fea2cef3c586a82062c5e7d`，版本SIMB2C、核心Running。当前板force-coast。R01仍未通过；重复动作停止，下一步查复位/停机与SWD同时失联原因，LCD显示和动作期反馈仍无实证。用户尚未报告R30B屏幕是否变化及转臂是否移动。
