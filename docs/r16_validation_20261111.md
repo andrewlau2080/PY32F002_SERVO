@@ -7,6 +7,7 @@
 ## 已核对证据
 
 - 历史解析只使用用户指定的 `CUSTOMER.logicdata`，未将 `2026/PA7串口*.logicdata` 混入客户参考。
+- Saleae官方说明：旧`.logicdata`需Logic 1.x打开，Logic 2使用不同的`.sal`格式；`.logicdata`由复杂Boost序列化生成，官方建议通过软件导出功能取数。[打开旧`.logicdata`文件](https://www.saleae.com/support/logic-software/saving-and-exporting-data/open-logicdata-files)、[`.logicdata`格式说明](https://www.saleae.com/support/logic-software/saving-and-exporting-data/can-i-create-or-edit-logicdata-files)。
 - 重新检查原始二进制的Boost序列化元数据，除 `Channel 2` 外还明确含 `Channel 3`、`Channel 6`、`Channel 7`、`Edge Finder` 和 `State 1` 标签。旧 `customer_blocks()` 只搜索32字节格式的Edge Finder事件记录并将其解释为Channel 2时间戳，**没有解出其它数字通道的逻辑值**。因此此前“原档只有一个通道”的说法错误，现撤回。
 - 从 CUSTOMER 文件 Channel 2 恢复约 49.89–49.91 kHz 重复边沿标记；4 个动作窗口跨度约 11.2–13.3 ms。最清晰末组时间段为 7.195、2.006、3.166 ms，活动边沿数分别 360、101、159。
 - 这些结果仍只给出Edge Finder事件时标。文件使用Saleae Logic 1 `.logicdata`格式，内部Boost二进制序列化；Mac的`/Applications`/PATH及Ubuntu构建机的PATH、`/opt`、`/usr/local`与用户目录均未找到Logic 1导出程序。需在有Logic 1的电脑打开既有文件并导出数字通道CSV或VCD，才能逐路计算边沿极性、高低电平脉宽、占空比和方向对应关系。原文件SHA256=`d9fd4d9b12a5e90310a55cef58a3b5bb369e9c5b84befa89f976c1585db59c2c`。7/2/3ms只是当前事件分组结果；930/360/220及制动机理不能由这些事件计数推出。已新增`tools/analyze_customer_vcd.py`：收到VCD后自动生成边沿CSV、脉宽汇总CSV和manifest，manifest保留输入哈希、timescale及时间范围，并明确VCD未必含采样率/触发偏移。语法、CLI和临时VCD端到端检查通过；验证多行timescale、带空格通道名、初始电平标记、边沿计数、完整脉宽µs换算及未知电平间断不跨段计宽；捕获开头的局部脉宽也不计入统计。没有真实VCD输入，尚无客户数字逻辑解码结论。
