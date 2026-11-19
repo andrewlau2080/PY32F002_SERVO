@@ -5,11 +5,14 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+import re
 import statistics
 import struct
 import time
 from collections import Counter
 from pathlib import Path
+
+from analyze_customer_vcd import parse_vcd
 
 TICK_HZ = 250_000_000
 MOVES = [("1000 → 1500", "low", "mid"), ("1500 → 2000", "mid", "high"),
@@ -52,6 +55,52 @@ def customer_blocks(path: Path) -> list[list[int]]:
             clusters[-1].append(b)
     # The final captured customer action is the clearest 7.195/2.006/3.166ms group.
     return clusters[-1] if clusters else []
+
+
+def customer_vcd_tracks(path: Path):
+    timescale, seconds_per_tick, signals, changes = parse_vcd(path)
+    if seconds_per_tick is None:
+        raise SystemExit(f"Unsupported or missing VCD timescale: {timescale}")
+    selected = []
+    for code, sig in signals.items():
+        match = re.search(r"Channel\s*([2367])\b", sig.name, re.IGNORECASE)
+        if match and sig.width == 1 and changes.get(code):
+            selected.append((int(match.group(1)), sig, changes[code]))
+    selected.sort(key=lambda item: item[0])
+    if not selected:
+        raise SystemExit("VCD has no single-bit Channel 2/3/6/7 signals")
+
+    activity = sorted({tick for _, _, seq in selected for tick, value in seq
+                       if value[-1:].lower() in ("0", "1")})
+    if not activity:
+        raise SystemExit("VCD channels contain no known digital levels")
+    max_gap = max(1, int(0.015 / seconds_per_tick))
+    clusters: list[list[int]] = []
+    for tick in activity:
+        if not clusters or tick - clusters[-1][-1] > max_gap:
+            clusters.append([tick])
+        else:
+            clusters[-1].append(tick)
+    start_tick, end_tick = clusters[-1][0], clusters[-1][-1]
+    tracks = []
+    for channel, sig, seq in selected:
+        prior = [(t, v[-1:].lower()) for t, v in seq if t < start_tick and v[-1:].lower() in ("0", "1")]
+        current = prior[-1][1] if prior else None
+        points = [(start_tick, current)] if current is not None else []
+        for tick, value in seq:
+            value = value[-1:].lower()
+            if tick < start_tick or tick > end_tick:
+                continue
+            if value in ("x", "z"):
+                points.append((tick, "x"))
+                current = None
+            elif value in ("0", "1"):
+                if (current != value) or (not points):
+                    points.append((tick, value))
+                current = value
+        tracks.append((channel, sig.name, points))
+    duration_ms = max(0.001, (end_tick - start_tick) * seconds_per_tick * 1000.0)
+    return timescale, seconds_per_tick, start_tick, end_tick, duration_ms, tracks
 
 
 def level(pwm: int) -> str:
@@ -100,7 +149,8 @@ def locate_moves(rows: list[dict[str, str]]) -> dict[tuple[str, str], tuple[int,
     return found
 
 
-def render_svg(customer: list[list[int]], rows: list[dict[str, str]], limit_ms: float) -> str:
+def render_svg(customer: list[list[int]], rows: list[dict[str, str]], limit_ms: float,
+               vcd_data=None) -> str:
     w, left, right = 1480, 190, 45
     plotw = w - left - right
     move_h = 112
@@ -109,33 +159,66 @@ def render_svg(customer: list[list[int]], rows: list[dict[str, str]], limit_ms: 
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{height}" viewBox="0 0 {w} {height}">',
              '<rect width="100%" height="100%" fill="#fff"/>',
              '<text x="24" y="34" font-size="23" font-weight="700">CUSTOMER 原始波形 vs 我们的双向对称 PWM</text>',
-             '<text x="24" y="58" font-size="13" fill="#444">只使用 CUSTOMER.logicdata；客户边沿在上，我们的正向/反向两路逻辑输出在下，按动作起点 t=0 对齐</text>']
-    # Original customer edge train. Draw each recorded edge marker without inventing polarity or pulse width.
-    y0 = 95
+             '<text x="24" y="58" font-size="13" fill="#444">客户采集与VSG曲线分别按各自动作起点归零；两组数据不是同一时钟的同步实测</text>']
     parts.append('<text x="24" y="88" font-size="16" font-weight="700">客户标准原始通道</text>')
-    parts.append('<text x="24" y="111" font-size="12" fill="#555">Channel 2 · 250 MHz 时间戳 · 边沿标记；当前提取未解码电平极性/脉宽</text>')
-    start_tick = customer[0][0] if customer else 0
-    cust_ms = max(15.0, max(((b[-1] - start_tick) / TICK_HZ * 1000 for b in customer), default=15.0) + 0.5)
+    if vcd_data:
+        timescale, seconds_per_tick, start_tick, end_tick, cust_ms, tracks = vcd_data
+        parts.append(f'<text x="24" y="108" font-size="12" fill="#555">VCD Channel 2/3/6/7 数字电平 · 最后活动段起点为 t=0 · timescale {html.escape(timescale)}</text>')
+    else:
+        parts.append('<text x="24" y="111" font-size="12" fill="#555">Channel 2 · 250 MHz 时间戳 · Edge Finder标记；未解码电平极性/脉宽</text>')
+        start_tick = customer[0][0] if customer else 0
+        cust_ms = max(15.0, max(((b[-1] - start_tick) / TICK_HZ * 1000 for b in customer), default=15.0) + 0.5)
     def cx(ms: float) -> float: return left + max(0, min(cust_ms, ms)) / cust_ms * plotw
     base_y = 188
-    parts.append(f'<line x1="{left}" y1="{base_y}" x2="{left+plotw}" y2="{base_y}" stroke="#777"/>')
     colors = ["#187a3c", "#c43b33", "#df8a19", "#1f77b4"]
-    for tick in range(0, int(cust_ms) + 1, 1 if cust_ms < 22 else 2):
-        xx = cx(tick)
-        parts.append(f'<line x1="{xx:.1f}" y1="118" x2="{xx:.1f}" y2="{base_y+5}" stroke="#eee"/>')
-        parts.append(f'<text x="{xx-8:.1f}" y="211" font-size="10" fill="#666">{tick}</text>')
-    for bi, block in enumerate(customer):
-        c = colors[bi % len(colors)]
-        first = block[0]
-        last = block[-1]
-        s = (first - start_tick) / TICK_HZ * 1000
-        e = (last - start_tick) / TICK_HZ * 1000
-        parts.append(f'<rect x="{cx(s):.1f}" y="119" width="{max(1,cx(e)-cx(s)):.1f}" height="69" fill="{c}" opacity=".08"/>')
-        # Accurate edge-time raster from the native file; marks are not synthetic PWM high/low levels.
-        marks = " ".join(f'{cx((t-start_tick)/TICK_HZ*1000):.1f},{base_y-34} {cx((t-start_tick)/TICK_HZ*1000):.1f},{base_y}' for t in block)
-        parts.append(f'<polyline points="{marks}" fill="none" stroke="{c}" stroke-width="1.15"/>')
-        dur = (last-first)/TICK_HZ*1000
-        parts.append(f'<text x="{cx((s+e)/2):.1f}" y="132" text-anchor="middle" font-size="11" fill="{c}">{dur:.3f} ms / {len(block)} edges</text>')
+    if vcd_data:
+        lane_y = [125, 147, 169, 191]
+        for tick_ms in range(0, int(cust_ms) + 1, 1 if cust_ms < 22 else 2):
+            xx = cx(tick_ms)
+            parts.append(f'<line x1="{xx:.1f}" y1="116" x2="{xx:.1f}" y2="199" stroke="#eee"/>')
+            parts.append(f'<text x="{xx-8:.1f}" y="214" font-size="10" fill="#666">{tick_ms}</text>')
+        for i, (channel, name, points) in enumerate(tracks):
+            y = lane_y[i]
+            color = colors[i % len(colors)]
+            parts.append(f'<text x="24" y="{y+4}" font-size="12" fill="{color}">Channel {channel}</text>')
+            parts.append(f'<line x1="{left}" y1="{y}" x2="{left+plotw}" y2="{y}" stroke="#ddd"/>')
+            d_parts = []
+            state = None
+            prev_x = left
+            for tick, value in points:
+                x = cx((tick - start_tick) * seconds_per_tick * 1000.0)
+                if value == "x":
+                    state = None
+                    continue
+                level_y = y - 7 if value == "1" else y + 7
+                if state is None:
+                    d_parts.append(f'M {x:.1f} {level_y:.1f}')
+                else:
+                    old_y = y - 7 if state == "1" else y + 7
+                    d_parts.append(f'M {prev_x:.1f} {old_y:.1f} H {x:.1f} V {level_y:.1f}')
+                state = value
+                prev_x = x
+            if state is not None:
+                final_y = y - 7 if state == "1" else y + 7
+                d_parts.append(f'M {prev_x:.1f} {final_y:.1f} H {left+plotw:.1f}')
+            if d_parts:
+                parts.append(f'<path d="{" ".join(d_parts)}" fill="none" stroke="{color}" stroke-width="1.5"/>')
+    else:
+        parts.append(f'<line x1="{left}" y1="{base_y}" x2="{left+plotw}" y2="{base_y}" stroke="#777"/>')
+        for tick in range(0, int(cust_ms) + 1, 1 if cust_ms < 22 else 2):
+            xx = cx(tick)
+            parts.append(f'<line x1="{xx:.1f}" y1="118" x2="{xx:.1f}" y2="{base_y+5}" stroke="#eee"/>')
+            parts.append(f'<text x="{xx-8:.1f}" y="211" font-size="10" fill="#666">{tick}</text>')
+        for bi, block in enumerate(customer):
+            c = colors[bi % len(colors)]
+            first, last = block[0], block[-1]
+            s = (first - start_tick) / TICK_HZ * 1000
+            e = (last - start_tick) / TICK_HZ * 1000
+            parts.append(f'<rect x="{cx(s):.1f}" y="119" width="{max(1,cx(e)-cx(s)):.1f}" height="69" fill="{c}" opacity=".08"/>')
+            marks = " ".join(f'{cx((t-start_tick)/TICK_HZ*1000):.1f},{base_y-34} {cx((t-start_tick)/TICK_HZ*1000):.1f},{base_y}' for t in block)
+            parts.append(f'<polyline points="{marks}" fill="none" stroke="{c}" stroke-width="1.15"/>')
+            dur = (last-first)/TICK_HZ*1000
+            parts.append(f'<text x="{cx((s+e)/2):.1f}" y="132" text-anchor="middle" font-size="11" fill="{c}">{dur:.3f} ms / {len(block)} edges</text>')
     # Six user-selected command transitions below, all from the current live VSG file.
     parts.append('<text x="24" y="248" font-size="16" font-weight="700">我们的双向对称 PWM 输出逻辑（六个动作）</text>')
     parts.append(f'<text x="24" y="268" font-size="12" fill="#555">正 duty 映射正向通道，负 duty 映射反向通道；两路对称且互斥。曲线是 VSG duty 占空比包络，SWD 采样无法解析约 50 kHz 载波</text>')
@@ -198,11 +281,13 @@ def render_svg(customer: list[list[int]], rows: list[dict[str, str]], limit_ms: 
 
 def write_page(args: argparse.Namespace) -> None:
     rows=read_vsg(args.ours)
-    blocks=customer_blocks(args.customer)
+    blocks=[] if args.customer_vcd else customer_blocks(args.customer)
+    vcd_data = customer_vcd_tracks(args.customer_vcd) if args.customer_vcd else None
     args.out_dir.mkdir(parents=True,exist_ok=True)
     svgname='customer_logic_compare.svg'
-    (args.out_dir/svgname).write_text(render_svg(blocks,rows,args.window_ms),encoding='utf-8')
-    html_text=f'''<!doctype html><html><head><meta charset="utf-8"><title>CUSTOMER 与双向 PWM 对照</title><style>body{{margin:0;background:#f5f5f5;font:14px Arial,"PingFang SC",sans-serif;color:#222}}header{{position:sticky;top:0;background:#fff;padding:10px 14px;border-bottom:1px solid #ddd;z-index:2}}main{{max-width:1480px;margin:auto}}img{{width:100%;height:auto;background:white;display:block}}</style></head><body><header>CUSTOMER.logicdata 原始波形在上｜我们的正反向对称 PWM 逻辑在下｜实时更新 <span id="stamp"></span></header><main><img id="cmp" src="{svgname}" alt="客户与双向 PWM 对照"></main><script>function refresh(){{let n=Date.now();document.getElementById('cmp').src='{svgname}?t='+n;document.getElementById('stamp').textContent=new Date(n).toLocaleTimeString()}}setInterval(refresh,1000);refresh();</script></body></html>'''
+    (args.out_dir/svgname).write_text(render_svg(blocks,rows,args.window_ms,vcd_data),encoding='utf-8')
+    source_label = 'VCD 导出的客户数字通道' if args.customer_vcd else 'CUSTOMER.logicdata 客户边沿'
+    html_text=f'''<!doctype html><html><head><meta charset="utf-8"><title>客户波形与双向 PWM 对照</title><style>body{{margin:0;background:#f5f5f5;font:14px Arial,"PingFang SC",sans-serif;color:#222}}header{{position:sticky;top:0;background:#fff;padding:10px 14px;border-bottom:1px solid #ddd;z-index:2}}main{{max-width:1480px;margin:auto}}img{{width:100%;height:auto;background:white;display:block}}</style></head><body><header>{source_label}在上｜VSG 正反向占空比包络在下（非同步实测）｜实时更新 <span id="stamp"></span></header><main><img id="cmp" src="{svgname}" alt="客户与双向 PWM 对照"></main><script>function refresh(){{let n=Date.now();document.getElementById('cmp').src='{svgname}?t='+n;document.getElementById('stamp').textContent=new Date(n).toLocaleTimeString()}}setInterval(refresh,1000);refresh();</script></body></html>'''
     (args.out_dir/'customer_logic_compare.html').write_text(html_text,encoding='utf-8')
     print(f"updated rows={len(rows)} customer_blocks={len(blocks)} page={args.out_dir/'customer_logic_compare.html'}",flush=True)
 
@@ -210,6 +295,7 @@ def write_page(args: argparse.Namespace) -> None:
 def main() -> None:
     p=argparse.ArgumentParser()
     p.add_argument('--customer',type=Path,default=Path('../PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata'))
+    p.add_argument('--customer-vcd',type=Path,help='optional Logic 1 VCD export; plots digital Channel 2/3/6/7 levels')
     p.add_argument('--ours',type=Path,default=Path('build/servo_curve_live/servo_curve_live.csv'))
     p.add_argument('--out-dir',type=Path,default=Path('build/customer_logic_compare'))
     p.add_argument('--window-ms',type=float,default=1200.0)
