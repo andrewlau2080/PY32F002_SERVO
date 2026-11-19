@@ -18,6 +18,8 @@
 
 **2026-11-19 离板改进边界**：R13/R14当前没有安全自动保存调用：model/profile默认0，启动时预期电机供电传0以拒绝加载；VREFINT不是已确认的电机电源身份。保存API布尔资格也不能代替内部状态机。R15 customer profile 7/2/3ms反向波形绕过通用8ms死区，直接套用死区会改变既定客户时序；先做波形映射和双路实测前不改动。具体源码审查见R13/R14/R15记录。
 
+**2026-11-19 最新H桥基线与候选**：用户指定以已下载的V7.10h H桥为最新驱动基础。源码核对确认当前`src/hbridge.c`正常生产配置保留相同TSSOP20桥脚组合（正向PA6+PB0、反向PA1+PA2）、20µs软件PWM节拍及约1ms周期；新增诊断/force-coast宏在正常构建关闭。本轮已成功构建生产LCDM候选`build/releases/V10.6_TSSOP20_V710H_HBRIDGE_BASE_20261119/`，BIN SHA256=`8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`，未下载。板上仍为`P50 V7.10h`。构建不等于新控制闭环实测；R01仍未通过整项验收。详细对照及限制见`docs/r01_validation_20261110.md`。
+
 **2026-11-19 调度超时源码增量**：LCDM runtime scheduler发现丢弃tick后现立即coast、使adaptive样本无效并重置速度/轨迹基准及未完成customer profile。尚未完成Ubuntu构建；本机缺HAL SDK，未运行测试或下载。此修正只覆盖该scheduler分支，R04/R15仍未通过，见对应记录。
 
 **2026-11-19 构建修正续记**：首次Ubuntu force-coast链接发现非诊断构建误调用仅在内部步进宏下定义的`lcdm_r01_stage_record()`，已补同宏保护。首次链接还报告RAM超16B、Flash超244B；修正后重建尚待执行，空间问题状态未定。没有下载或触发动作。

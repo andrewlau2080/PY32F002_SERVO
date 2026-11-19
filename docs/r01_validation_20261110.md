@@ -455,3 +455,10 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 用户报告首个V9.5重建版无马达响应、LCDM空白。复查后确认该版漏配LCDM当前所用的230400波特率及PA0电位器供电。使用同一V9.5 tag/TSSOP20源码修正选项`TJC_LCDM_BAUD_OVERRIDE=230400`、`SERVO_ENABLE_PA0_POT_POWER=1`后重建并下载。新产物`build/releases/V9.5_TSSOP20_TAG_REBUILD_230400_PA0_20261119/`：BIN 14,580B SHA256=`364b8a2b65e22319055d138263b16499ae99dfac23e0ae01f134476df77d7393`，ELF SHA256=`adc676e2af2d9e4698e59404f26c1718855331d0ce3ddc06af96c9ee27cd50d4`。写后全片SHA256=`b1025dcdd95e934f2d5101a39e3b2ba75b61f3f2716ac58764496109efaf02fd`，应用14,580B逐字节匹配，核心Running。读回旧版本串仍是残留数据，不用于判版。当前板为修正配置的V9.5 TSSOP20重建版；LCDM是否恢复显示及马达行为等待用户确认。
 - 用户要求改用更早旧版、只验证H桥。V9.0标签（commit `30ba8555d1091ed5c9216b40696a05536df50cba`）按相同TSSOP20/LCDM/PA0选项构建后，BIN SHA256与修正V9.5完全相同（`364b8a…77d7393`），不构成不同固件测试；不要将它报告为已验证的旧版。
 - 已改用仓库现有预编译`v7.10h-recovered-20260621`镜像。该旧版反汇编确认HBridge coast清四个TSSOP20输出PA1/PA2/PA6/PB0。标签记录为内测暂时可行但端点偶有摆动；当前仅做小范围H桥响应，不扫端点。BIN 20,120B SHA256=`762d06c4c209bc1319e4139e3751cc7772e4e3320b34d5b1163cd73868aec79e`，ELF SHA256=`2f1f3660567a5f9f83a8f92fc5968121a1fee5e3d6f0eb5c5171f26ccdee7fd7`。2MHz under-reset下载后全片SHA256=`4c0f8d7d219c5644b529acce821ae848d4a800f8d04aee0928ca2a43133a74f9`，读回版本`P50 V7.10h`，应用20,120B逐字节匹配，核心Running。当前板保持V7.10h，H桥实际动作结果待用户报告。
+
+## 2026-11-19 采用V7.10h H桥基线构建最新LCDM候选
+
+- 用户明确指定：V7.10h的H桥工作正常，后续最新驱动按该程序的H桥实现为基准；不再把H桥本身作为当前反复排查对象。
+- 源码对照：V7.10h和当前`src/hbridge.c`均使用正向PA6+PB0、反向PA1+PA2，20µs软件PWM节拍及约1ms周期；`HBridge_SetSignedDuty()`采用有符号占空请求并限制到±1000，`HBridge_Coast()`清零四输出。当前源码多出诊断/force-coast编译选项及初始化前预置低电平，正常生产构建关闭这些诊断项，保留上述H桥映射和PWM核心。故本次不重写桥层；驱动问题优先检查上游闭环是否调用非零请求及启动/保护门控。
+- Ubuntu正常LCDM构建已通过：`build/releases/V10.6_TSSOP20_V710H_HBRIDGE_BASE_20261119/`；TSSOP20、生产LCDM、PA0电位器供电、230400波特率，未启用force-coast/诊断。BIN 16,228B SHA256=`8271acf54e4e42937a91e45511a567ce0ed542c2e7d2f24fe5c6dadf4bdba0b9`，ELF SHA256=`c3fa85497d1953f581ebb6c568398d6cf7b50a8e237ecf76a8d209d0233fc2e2`；构建器报告`flashed=false`。这份候选沿用最新闭环源码，尚未实板验证。
+- **板上状态**：保持已下载的`P50 V7.10h`，没有刷入新候选。最新候选构建成功不等于H桥波形或整机通过；下一次按用户安排决定是否下载运行。R01仍未通过整项验收，需后续依据实际驱动动作验证最新闭环；已知V7.10h H桥基线不要求重复验证。
