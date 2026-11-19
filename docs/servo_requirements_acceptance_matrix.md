@@ -22,6 +22,8 @@
 
 **2026-11-19 最新板况及R01往复核验**：前一重复动作镜像没有启用生产TJC LCDM路径，用户观察LCDM未变化；已更正构建，使1500/1510µs输入经合成输入接口进入生产`PWM_Input_GetCommandUs()`与`Servo_Control_Update1ms()`，生产LCDM启用、H桥占空限40/1000、SWD显式arm后十轮往复并自动coast。候选`build/releases/V10.6_TSSOP20_PROD_LCDM_R01_1500_1510_20261119_R4/`已下载，BIN SHA256=`e0f19bdb94aa00c2a82ab5304a8b0f03d2902e676c02d6197c373be141013c01`，读回应用逐字节匹配，整片SHA256=`d4b8bf4b4336e2def62603a073ecdd501db05e44dcb617b7a07eaf51ab052b11`，核心Running；测试结束active=0、arm=2、输入1500µs、HBridge占空0（coast），LCD UART命令计数371、错误0。SWD批量采样63行均失败，故没有动作期反馈曲线；物理LCD可见更新、马达位移及桥脚PWM仍未证实，R01仍未整项通过。细节与证据见`docs/r01_validation_20261110.md`最新小节。
 
+**2026-11-19 R01即时复测续记**：完成后再次显式arm，生产LCDM闭环再次发出十轮1500↔1510µs往返，约20秒后回中coast，核心Running；本轮SWD批量读数64项失败，无动作期软件反馈。为允许仅在上轮已完成(`active=0, arm=2`)后重新arm，更新`tools/monitor_r01_swd.py`并通过Python语法检查。用户尚未确认屏幕实际显示及机构是否可见往返，R01未通过；CSV SHA256=`29118452754ff00d686ee2d4ed882eed30dbb429f55e7a26c61bdfbcc0c5e2ae`，见`firmware/evidence/r01_prod_lcdm_1500_1510_repeat2_20261119.csv`。
+
 **2026-11-19 调度超时源码增量**：LCDM runtime scheduler发现丢弃tick后现立即coast、使adaptive样本无效并重置速度/轨迹基准及未完成customer profile。尚未完成Ubuntu构建；本机缺HAL SDK，未运行测试或下载。此修正只覆盖该scheduler分支，R04/R15仍未通过，见对应记录。
 
 **2026-11-19 构建修正续记**：首次Ubuntu force-coast链接发现非诊断构建误调用仅在内部步进宏下定义的`lcdm_r01_stage_record()`，已补同宏保护。首次链接还报告RAM超16B、Flash超244B；修正后重建尚待执行，空间问题状态未定。没有下载或触发动作。

@@ -250,7 +250,11 @@ def main():
     if args.arm_r01_motion:
         arm_addr = addresses[SYMBOLS["r01_active_test_arm_request"][0]]
         started_addr = addresses[armed_active_symbol]
-        if int(target.read8(started_addr)) != 0 or int(target.read32(arm_addr)) != 0:
+        active_now = int(target.read8(started_addr))
+        arm_state = int(target.read32(arm_addr))
+        # 2 marks a completed one-shot. It is safe to re-arm only after the
+        # production loop has returned to coast (active == 0).
+        if active_now != 0 or arm_state not in (0, 2):
             session.close()
             raise SystemExit("R01 test is already armed or started; refusing a second trigger")
     else:
