@@ -63,10 +63,23 @@ static uint32_t s_recover_until_ms;
 extern volatile uint8_t g_r01_production_test_active;
 static int16_t s_r01_prod_center_offset_adc;
 static uint16_t s_r01_prod_anchor_feedback_adc;
+static uint16_t s_r01_prod_anchor_raw_adc;
 static uint8_t s_r01_prod_anchor_seeded;
+static uint8_t s_r01_prod_lock_telemetry_captured;
 volatile uint8_t g_r01_prod_motion_locked;
+volatile uint8_t g_r01_prod_motion_lock_reason;
 volatile uint16_t g_r01_prod_max_displacement_adc;
 volatile int16_t g_r01_prod_signed_displacement_adc;
+volatile uint16_t g_r01_prod_anchor_raw_adc;
+volatile uint16_t g_r01_prod_max_raw_displacement_adc;
+volatile int16_t g_r01_prod_raw_displacement_adc;
+volatile uint32_t g_r01_prod_lock_time_ms;
+volatile uint16_t g_r01_prod_lock_input_us;
+volatile uint16_t g_r01_prod_lock_feedback_adc;
+volatile uint16_t g_r01_prod_lock_raw_adc;
+volatile uint16_t g_r01_prod_lock_target_adc;
+volatile int16_t g_r01_prod_lock_error_adc;
+volatile int16_t g_r01_prod_lock_bridge_duty;
 volatile uint16_t g_r01_prod_anchor_adc;
 volatile int16_t g_r01_prod_center_offset_adc;
 volatile uint32_t g_r01_prod_nonzero_duty_count;
@@ -419,26 +432,58 @@ void Servo_Control_Update1ms(void)
       s_r01_prod_center_offset_adc = (int16_t)((int32_t)feedback -
           (int32_t)Servo_Control_MapPulseToAdc(SERVO_R01_TEST_ANCHOR_PULSE_US));
       s_r01_prod_anchor_feedback_adc = feedback;
+      s_r01_prod_anchor_raw_adc = ADC_Feedback_GetRaw();
       g_r01_prod_anchor_adc = feedback;
+      g_r01_prod_anchor_raw_adc = s_r01_prod_anchor_raw_adc;
       g_r01_prod_center_offset_adc = s_r01_prod_center_offset_adc;
       s_r01_prod_anchor_seeded = 1U;
       g_r01_prod_motion_locked = 0U;
+      g_r01_prod_motion_lock_reason = 0U;
+      s_r01_prod_lock_telemetry_captured = 0U;
       g_r01_prod_max_displacement_adc = 0U;
       g_r01_prod_signed_displacement_adc = 0;
+      g_r01_prod_max_raw_displacement_adc = 0U;
+      g_r01_prod_raw_displacement_adc = 0;
     }
     int32_t displacement = (int32_t)feedback - (int32_t)s_r01_prod_anchor_feedback_adc;
+    int32_t raw_displacement = (int32_t)ADC_Feedback_GetRaw() -
+                               (int32_t)s_r01_prod_anchor_raw_adc;
     g_r01_prod_signed_displacement_adc = (int16_t)displacement;
+    g_r01_prod_raw_displacement_adc = (int16_t)raw_displacement;
     if (displacement < 0) displacement = -displacement;
+    int32_t raw_abs_displacement = raw_displacement;
+    if (raw_abs_displacement < 0) raw_abs_displacement = -raw_abs_displacement;
     if (displacement > g_r01_prod_max_displacement_adc)
       g_r01_prod_max_displacement_adc = (uint16_t)displacement;
+    if (raw_abs_displacement > g_r01_prod_max_raw_displacement_adc)
+      g_r01_prod_max_raw_displacement_adc = (uint16_t)raw_abs_displacement;
     if ((uint32_t)displacement >= SERVO_R01_TEST_POSITION_LIMIT_ADC)
+    {
       g_r01_prod_motion_locked = 1U;
+      g_r01_prod_motion_lock_reason |= 1U;
+    }
+    if ((uint32_t)raw_abs_displacement >= SERVO_R01_TEST_POSITION_LIMIT_ADC)
+    {
+      g_r01_prod_motion_locked = 1U;
+      g_r01_prod_motion_lock_reason |= 2U;
+    }
     int32_t anchored_target = (int32_t)target + s_r01_prod_center_offset_adc;
     if (anchored_target < 0) anchored_target = 0;
     if (anchored_target > 4095) anchored_target = 4095;
     target = (uint16_t)anchored_target;
     if (g_r01_prod_motion_locked != 0U)
     {
+      if (s_r01_prod_lock_telemetry_captured == 0U)
+      {
+        g_r01_prod_lock_time_ms = HAL_GetTick();
+        g_r01_prod_lock_input_us = input_us;
+        g_r01_prod_lock_feedback_adc = feedback;
+        g_r01_prod_lock_raw_adc = ADC_Feedback_GetRaw();
+        g_r01_prod_lock_target_adc = target;
+        g_r01_prod_lock_error_adc = (int16_t)((int32_t)target - feedback);
+        g_r01_prod_lock_bridge_duty = HBridge_GetDuty();
+        s_r01_prod_lock_telemetry_captured = 1U;
+      }
       HBridge_Coast();
       s_status.state = SERVO_STATE_HOLD;
       s_status.target_adc = target;
@@ -491,6 +536,23 @@ void Servo_Control_Update1ms(void)
   s_status.target_adc = effective_target;
   s_status.error_adc = error;
   uint16_t abs_error = abs_i16(error);
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+  /* The guarded R01 diagnostic deliberately parks at its anchor before the
+   * command step.  The production boost_duty is a minimum drive once the
+   * normal closed loop is active, so without this diagnostic-only deadband
+   * gate it applies PWM even at the anchor (error near zero).  That unwanted
+   * anchor drive obscures the requested direction test and can trip the raw
+   * ADC displacement guard before the pulse step begins. */
+  if ((g_r01_production_test_active != 0U) && (abs_error <= deadband_count))
+  {
+    HBridge_Coast();
+    s_status.state = SERVO_STATE_HOLD;
+    s_status.motor_duty = 0;
+    s_stall_ms = 0U;
+    s_last_feedback = feedback;
+    return;
+  }
+#endif
   hold_limit = (s_hold_active != 0U) ? params->hold_exit_band_count : deadband_count;
   if (hold_limit < deadband_count)
   {

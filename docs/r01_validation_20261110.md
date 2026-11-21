@@ -533,6 +533,21 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - **停机后只读快照**：core Running；arm=2、active=0、输入有效且为1500µs，目标/反馈均2256 ADC、误差0、HOLD；位置报警锁存=0、堵转计时=0。累计生产非零duty请求28,404次、峰值350，反馈范围2252–2257 ADC。内部输入、目标和控制请求均已进入闭环，未见锁定/报警阻断；这些计数不等于实际马达位移。板保持coast。
 - 用户报告本轮LCDM和马达均无可见变化；测试已coast。LCD此前已验证，本轮不重复检查。
 
+### 2026-11-21 反向命令配对ADC诊断复核
+
+- **构建/下载**：Ubuntu候选`build/releases/V10.6_TSSOP20_R01_GUARDED_ADC_PAIR_REVERSE_20261121_R3/`，step=50µs、dwell=1000ms、signed duty上限160‰、锚点命令1550µs、raw或filtered相对锚点达到8 count锁存coast、5秒总超时；启用每批4个ADC子样本及同批VDD采样。BIN 15,676B SHA256=`d60c0acb1251724570083c88175940e3f3b73757b070d5b3c2100f01bc1b9f56`，`flashed=false`仅指构建器manifest默认字段；本轮随后确实经2MHz under-reset下载。下载前全片SHA256=`531ebfe856a2e1892ac1e3deb46e108548df0017805085d66bb4be2715300187`；下载后整片20,480B SHA256=`a3b9869f4ba0519be65e6bac131bdbe8f48f7ac05ec47ff84ab8756dce3aa45a`，应用15,676B逐字节匹配BIN，下载前后未写区域4,804B一致，核心Running。读回见`build/board_readback/20261121_pre_guarded_adc_pair_reverse_r3/`与`post_guarded_adc_pair_reverse_r3/`。
+- **动作与结果**：arm前3帧反馈raw/filtered均2526、VDD=3237mV、duty与桥计数均为0。显式arm后40帧、SWD采集耗时25.593秒；命令记录含1500/1550µs，目标方向设计为1550→1500µs。位置锁存原因仅raw位（reason=2），anchor filtered=2525、anchor raw=2522，锁存时raw相对锚点+8，filtered相对锚点−1、filtered最大位移2；有效duty峰值60‰，正桥tick增加63、反桥tick为0，VDD=3235mV。锁存后active=0、arm=2、HBridge当前duty=0、核心Running。锁存时四个ADC子样本为2524/2523/2536/2536，VDD=3235mV；单批内跨度13 count，滤波反馈没有相应的反向变化。
+- **判定/下一步**：本轮**未验证反向驱动**：软件在到达1500µs反向阶段前已因raw锚点变化锁停；只记录到短暂正桥计数，不能判断实际机械位移、ADC瞬态来源或反向PWM方向。静止基线四样本与运动期间子样本不一致且同批VDD估值稳定，说明不能把偏移归为持续VDD下降，也不能排除快速地弹/输入采样瞬态。此次raw guard对单次聚合值立即锁存，可能被短时采样变化触发；保留其保护行为，不再用该镜像重复arm。后续先增加锁存瞬间的命令/误差/duty/原始子样本遥测，并审查arm进入时序及ADC子样本跨度；在原因可解释前不重复主动动作、不放宽保护阈值。
+- **R4锁存遥测版**：在`src/servo_control.c`加入一次性锁停快照（锁存时间、输入脉宽、反馈raw/filtered、目标、误差、锁停前桥占空）；`tools/read_r01_symbols_swd.py`增加这些字段和摘要。`tools/build_v10_ubuntu.py`同步保留ADC子样本/VDD诊断编译选项并校验实际gcc宏。`py_compile`与`git diff --check`通过，Ubuntu构建BIN 15,732B SHA256=`796b16593864a9eaa4f9acad131b5bb6af0f328df048a89f1834d8f38dfdce04`，归档`build/releases/V10.6_TSSOP20_R01_GUARDED_ADC_PAIR_REVERSE_20261121_R4/`。下载前全片SHA256=`a3b9869f4ba0519be65e6bac131bdbe8f48f7ac05ec47ff84ab8756dce3aa45a`；2MHz under-reset下载后整片SHA256=`4bc7ee6d066af5e697ec8cde370c0fab4dbd4b8c93a8ccb57e3a05881e5d1262`，应用与BIN逐字节匹配，应用区后4,748B保持不变，核心Running。启动后只读确认active=0、arm=0、duty=0、raw/filtered约2524、VDD=3237mV；没有arm，锁停快照为零（待下一轮受限触发时读取）。R4默认不动作；当前板况已由R4替换R3。
+
+### 2026-11-21 R01锚点、ADC采样及屏幕诊断修正
+
+- **确认错误原因**：R4/R5配对采样显示，测试停在1550µs锚点、误差仅0–2 ADC时仍记录约60‰输出。源码原因为闭环在HOLD稳定确认之前把`boost_duty`作为最低输出，即使误差已在死区附近；raw反馈随输出偏移并先触发保护。R6在`src/servo_control.c`加入R01诊断专用死区coast。R6以标准41.5周期采样下载后，首次读取仍显示反向PWM计数增加、ADC raw短时变化达到23、filtered变化约3，raw保护停机；四样本子通道变化较大，不能将raw跳变直接认作机械位移。
+- **ADC对照**：R5/R7使用239.5周期长采样、每批VREFINT/VDD配对；R7仍出现raw阈值触发，未证明长采样单独解决问题。各批VDD估值范围存在随时间变化，R02仍未通过。R6、R7两版的测试命令仍会按1秒周期往返，因此桥计数可能混入来回动作；不得将这两版数据用作单向定位结论。
+- **一次单向序列**：R8将非阶梯测试改为锚点coast 250ms后只切换一次命令，并保持至8-count锁存或5秒超时；采用239.5周期采样、signed duty上限160‰。构建BIN 15,744B SHA256=`f1b12f5d48bf5b7b4a76e72103a3800cc6027acfbb307c155103cd035734f176`。下载前整片SHA256=`2ca908e24f40a9961335abd1ef5524210fd261d8bbb1790fda4d88e5156aeb63`；下载后整片SHA256=`da36879d71c7bd5e976189a365d572a45dab86a5baaf62ef22dff260e49fbd6b`，应用匹配且尾384B保持。arm后1500µs单次命令目标2454、反馈2522、误差−68，软件signed duty峰值−160、反桥ticks增加36,688；raw/filtered相对锚点最大位移5/4 ADC，未触发位移锁，5秒超时后active=0、arm=2、HBridge duty=0。ADC没有达到目标，且用户现场未见明显动作/显示差异；本轮只能确认软件命令→负duty请求→反向桥软件计数，不能确认PA端波形或机械位移。超时快照中的`ServoStatus.motor_duty`仍保留−160，但实际HBridge duty已归零；此状态字段不能当作当前输出。
+- **LCD同步显示改进**：R9将测试行改为单行`P/T/A/E/D`（命令、目标、反馈、误差、当前HBridge duty），仅命令改变或每秒刷新以控制UART阻塞。构建BIN 15,812B SHA256=`50489293ea4547fc94f4e5e00ccd12250bb9bcf53c5db5fdbe0394fb4a09baa3`；下载前整片SHA256=`da36879d71c7bd5e976189a365d572a45dab86a5baaf62ef22dff260e49fbd6b`，下载后整片SHA256=`8d428113104e48fc7099817c46cab8a23d5f4bcd5507fd0831d7324edd6451df`，应用匹配、尾384B保持、核心Running。板上只读为active=0、arm=0、HBridge duty=0、反馈2526、VDD=3235mV；R9未arm。屏幕新行尚未由人眼确认，R01仍未通过。
+- 涉及文件：`src/servo_control.c`、`src/app_entry.c`、`src/tjc_lcdm.c`、`inc/tjc_lcdm.h`、`tools/build_v10_ubuntu.py`、`tools/read_r01_symbols_swd.py`及本记录/需求矩阵。`py_compile`、`git diff --check`、Ubuntu R4–R9构建和写后整片读回通过；没有通过项被升级为整机验收。
+
 ### 2026-11-19 离板准备：定点1500µs回中候选
 
 - 审查发现显式R01构建器将步进默认传为1µs，但Makefile要求显式arm诊断步进至少10µs；修正为仅显式/production-loop诊断默认10µs，普通内部步进维持1µs。Makefile中duty上限报错文案由150更正为与检查一致的500 permille。

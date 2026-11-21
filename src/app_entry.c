@@ -65,6 +65,9 @@
 #ifndef SERVO_R01_TEST_DWELL_MS
 #define SERVO_R01_TEST_DWELL_MS 1000U
 #endif
+#ifndef SERVO_R01_TEST_ANCHOR_PULSE_US
+#define SERVO_R01_TEST_ANCHOR_PULSE_US 1500U
+#endif
 #ifndef SERVO_R01_TEST_STAIRCASE
 #define SERVO_R01_TEST_STAIRCASE 0
 #endif
@@ -4862,8 +4865,20 @@ int entry(void)
         }
       }
 #else
-      test_pulse_us = (((elapsed_ms / SERVO_R01_TEST_DWELL_MS) & 1U) == 0U) ?
-                      (uint16_t)(1500U + SERVO_R01_TEST_STEP_US) : 1500U;
+      /* One controlled step only: settle/coast at the selected anchor, then
+       * hold the opposite command until the ADC guard or global timeout. */
+      if (elapsed_ms < 250U)
+      {
+        test_pulse_us = SERVO_R01_TEST_ANCHOR_PULSE_US;
+      }
+      else if (SERVO_R01_TEST_ANCHOR_PULSE_US == 1550U)
+      {
+        test_pulse_us = 1500U;
+      }
+      else
+      {
+        test_pulse_us = (uint16_t)(1500U + SERVO_R01_TEST_STEP_US);
+      }
 #endif
       if ((g_r01_prod_motion_locked != 0U) || (elapsed_ms >= 5000U))
       {
@@ -4981,13 +4996,15 @@ int entry(void)
       uint16_t feedback = ADC_Feedback_GetRaw();
       uint16_t target = Servo_Control_MapPulseToAdc(test_pulse_us);
       int16_t error = (int16_t)((int32_t)target - (int32_t)feedback);
-      TJC_LCDM_ShowR01Status(test_pulse_us, feedback, target, error);
+      TJC_LCDM_ShowR01Status(test_pulse_us, feedback, target, error,
+                             HBridge_GetDuty());
     }
 #else
     {
       ServoStatus status = Servo_Control_GetStatus();
       TJC_LCDM_ShowR01Status(test_pulse_us, status.feedback_adc,
-                             status.target_adc, status.error_adc);
+                             status.target_adc, status.error_adc,
+                             HBridge_GetDuty());
     }
 #endif /* SERVO_R01_LCD_ONLY_TEST */
 #endif

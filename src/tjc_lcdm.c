@@ -200,20 +200,14 @@ static void r01_draw_row(uint8_t row, const char *name, const char *value,
   r01_draw_text(286U, y, 152U, 36U, value_color, bg, 0U, value);
 }
 
-static void r01_draw_value(uint8_t row, const char *value, uint16_t color)
-{
-  static const uint16_t row_y[] = {42U, 80U, 118U, 156U, 194U};
-  uint16_t bg = (row & 1U) ? 65535U : 61374U;
-  r01_draw_text(286U, row_y[row], 152U, 36U, color, bg, 0U, value);
-}
-
 void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
-                            uint16_t target_adc, int16_t error_adc)
+                            uint16_t target_adc, int16_t error_adc,
+                            int16_t bridge_duty)
 {
   static bool page_drawn;
   static uint16_t last_pulse_us = 0U;
   static uint32_t last_draw_ms;
-  char value[24];
+  char value[48];
   uint32_t now = HAL_GetTick();
   /* UART rendering is synchronous; 100 ms full-page redraws can starve the
      production 1 ms control loop. Refresh on command change, otherwise at 1 Hz. */
@@ -241,10 +235,12 @@ void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
 
   last_pulse_us = pulse_us;
   last_draw_ms = now;
-  (void)snprintf(value, sizeof(value), "P%u A%u", (unsigned)pulse_us,
-                 (unsigned)feedback_adc);
-  r01_draw_value(4U, value, (error_adc < 0) ? 65504U : 31U);
-  (void)target_adc;
+  (void)snprintf(value, sizeof(value), "P%u T%u A%u E%+d D%+d",
+                 (unsigned)pulse_us, (unsigned)target_adc,
+                 (unsigned)feedback_adc, (int)error_adc, (int)bridge_duty);
+  r01_draw_text(26U, 194U, 430U, 36U,
+                (bridge_duty != 0) ? 2016U : ((error_adc < 0) ? 65504U : 31U),
+                61374U, 0U, value);
 }
 #endif
 

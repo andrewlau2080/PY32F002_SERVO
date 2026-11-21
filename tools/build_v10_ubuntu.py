@@ -122,12 +122,14 @@ def main():
         parser.error('--production-lcdm cannot be combined with diagnostic test modes')
     if args.production_loop_r01_test and (args.profile != 'lcdm' or args.internal_step_test or args.production_lcdm or args.r04_ui_redraw_stress):
         parser.error('--production-loop-r01-test selects its own production LCDM and internal step flags')
-    if args.adc_subsample_diagnostic and not args.internal_step_test:
-        parser.error('--adc-subsample-diagnostic requires --internal-step-test')
+    if args.adc_subsample_diagnostic and not (args.internal_step_test or args.production_loop_r01_test):
+        parser.error('--adc-subsample-diagnostic requires --internal-step-test or a guarded R01 production-loop test')
     if args.adc_vdd_each_batch and not args.adc_subsample_diagnostic:
         parser.error('--adc-vdd-each-batch requires --adc-subsample-diagnostic')
-    if args.adc_long_sample_diagnostic and not (args.adc_subsample_diagnostic and args.force_coast):
-        parser.error('--adc-long-sample-diagnostic requires --adc-subsample-diagnostic --force-coast')
+    if args.adc_long_sample_diagnostic and not (
+            args.adc_subsample_diagnostic and
+            (args.force_coast or args.production_loop_r01_test)):
+        parser.error('--adc-long-sample-diagnostic requires paired ADC diagnostics and either force-coast or guarded production-loop R01 test')
     if args.r04_ui_redraw_stress and not (args.internal_step_test and args.profile == 'lcdm'):
         parser.error('--r04-ui-redraw-stress requires --profile lcdm --internal-step-test')
     source = (ROOT / 'src/app_entry.c').read_text()
@@ -254,6 +256,10 @@ def main():
     if args.adc_vdd_each_batch:
         if '-DSERVO_ADC_VDD_EACH_DIAG_BATCH=1' not in build_log:
             raise SystemExit('Requested VDD-per-batch macro is absent from the compiler command; candidate rejected')
+    if args.adc_subsample_diagnostic and '-DSERVO_ADC_SUBSAMPLE_DIAGNOSTIC=1' not in build_log:
+        raise SystemExit('Requested ADC sub-sample diagnostic macro is absent from the compiler command; candidate rejected')
+    if args.adc_long_sample_diagnostic and '-DSERVO_ADC_LONG_SAMPLE_DIAGNOSTIC=1' not in build_log:
+        raise SystemExit('Requested long ADC sample-time diagnostic macro is absent from the compiler command; candidate rejected')
     artifacts = {}
     for ext in ['elf', 'bin', 'hex', 'map']:
         name = 'py32f002_servo.' + ext
