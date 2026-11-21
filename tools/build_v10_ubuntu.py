@@ -64,6 +64,8 @@ def main():
                         help='time to hold each internal R01 pulse width before switching')
     parser.add_argument('--r01-test-staircase', action='store_true',
                         help='armed 1500..1550 us visible staircase; return to 1500 after feedback confirmation, otherwise coast')
+    parser.add_argument('--r01-touch-jog', action='store_true',
+                        help='add LCDM FWD/REV momentary jog controls with position and time limits')
     parser.add_argument('--r01-lcd-only-test', action='store_true',
                         help='show 1500/1550 us on the V9.x P50 LCD layout with the H-bridge held coast')
     parser.add_argument('--r04-ui-redraw-stress', action='store_true',
@@ -101,17 +103,17 @@ def main():
         parser.error('--r01-center-return-test requires --production-loop-r01-test')
     if args.r01_test_staircase and (not args.production_loop_r01_test or args.r01_center_return_test):
         parser.error('--r01-test-staircase requires --production-loop-r01-test and excludes --r01-center-return-test')
-    if args.r01_lcd_only_test and (not args.production_loop_r01_test or not args.tjc_soft_tx):
-        parser.error('--r01-lcd-only-test requires --production-loop-r01-test --tjc-soft-tx')
+    if args.r01_lcd_only_test and not args.production_loop_r01_test:
+        parser.error('--r01-lcd-only-test requires --production-loop-r01-test')
     if args.internal_step_test and args.profile != 'lcdm':
         parser.error('--internal-step-test requires --profile lcdm')
     if args.pa6_single_pulse and (args.direction_probe or args.internal_step_test or args.force_coast or args.r04_ui_redraw_stress):
         parser.error('--pa6-single-pulse is an isolated GPIO test; do not combine with other diagnostics')
     if not 1 <= args.r01_test_step_us <= 50:
         parser.error('--r01-test-step-us must be in 1..50 us')
-    if not 1 <= args.r01_position_limit_adc <= 32:
-        parser.error('--r01-position-limit-adc must be in 1..32 ADC counts')
-    if args.r01_explicit_arm and (not args.internal_step_test or args.force_coast or
+    if not 1 <= args.r01_position_limit_adc <= 128:
+        parser.error('--r01-position-limit-adc must be in 1..128 ADC counts')
+    if args.r01_explicit_arm and (not args.internal_step_test or (args.force_coast and not args.r01_lcd_only_test) or
                                   args.direction_probe or args.r04_ui_redraw_stress or
                                   args.adc_subsample_diagnostic or args.r01_test_max_duty > 150 or
                                   not 10 <= args.r01_test_step_us <= 50):
@@ -122,6 +124,8 @@ def main():
         parser.error('--production-lcdm cannot be combined with diagnostic test modes')
     if args.production_loop_r01_test and (args.profile != 'lcdm' or args.internal_step_test or args.production_lcdm or args.r04_ui_redraw_stress):
         parser.error('--production-loop-r01-test selects its own production LCDM and internal step flags')
+    if args.r01_touch_jog and not args.production_loop_r01_test:
+        parser.error('--r01-touch-jog requires --production-loop-r01-test')
     if args.adc_subsample_diagnostic and not (args.internal_step_test or args.production_loop_r01_test):
         parser.error('--adc-subsample-diagnostic requires --internal-step-test or a guarded R01 production-loop test')
     if args.adc_vdd_each_batch and not args.adc_subsample_diagnostic:
@@ -151,6 +155,8 @@ def main():
                          f'SERVO_R01_TEST_MAX_DUTY={args.r01_test_max_duty}',
                          f'SERVO_R01_TEST_STEP_US={args.r01_test_step_us}',
                          f'SERVO_R01_TEST_DWELL_MS={args.r01_test_dwell_ms}U']
+        if args.r01_touch_jog:
+            flags.append('SERVO_R01_TOUCH_JOG_TEST=1')
         if args.r01_test_staircase:
             flags.append('SERVO_R01_TEST_STAIRCASE=1')
         if args.r01_lcd_only_test:

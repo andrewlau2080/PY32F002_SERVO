@@ -605,3 +605,106 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 用户要求先恢复显示。R12/R13的主页控件路径均失败；R14B改用现存`run_lcdm_runtime_ui_test()`与`lcdm_draw_p50()`整页绘制（标题、P/T/A/E/H五行、底栏）及PA7软发送。`SERVO_HBRIDGE_FORCE_COAST=1`，不驱动马达。
 - Ubuntu构建`build/releases/V10.6_TSSOP20_R01_P50_RUNTIME_UI_COAST_20261121_R14B/`通过；BIN 19,036B SHA256=`6e9b060737f02440abbb51d2d0925d9f14e2334f828cf5456bc62ccde1b19671`。首次构建RAM超16B；关闭此路径未使用的USART RX后构建通过。R14B经2MHz under-reset下载，整片20,480B SHA256=`82ec502ff5b8dd18eed8762619d3355689709659465e4f845531fe7772c0b621`，应用逐字节匹配、尾384B保持、核心Running。
 - 目前验证到旧整页绘制入口已经运行且H桥强制coast；实体屏幕显示仍以用户目视为准，尚未记为通过。
+
+### 2026-11-21 R15修复PA7软发送与UART复用冲突
+
+- R14B仍无屏幕显示。源码追查发现：旧整页绘制确实走PA7 GPIO软串口，但波特率切换辅助函数随后调用`HAL_UART_Init()`，把PA7重新复用为硬件UART，导致后续GPIO位操作无法到达屏幕。
+- R15只在`SERVO_TJC_SOFT_TX=1`时跳过这两处硬件UART重初始化，保留原有P50整页绘制和PA7软发送；硬件UART模式行为不变。无电机动作：`SERVO_HBRIDGE_FORCE_COAST=1`，测试不arm电机。
+- Ubuntu构建通过，BIN 18,204B，SHA256=`fc625b0395da03e3106793a1edb9ecd011d4a0299e2863f8f6bf9cebc6fc8882`；manifest `build/releases/V10.6_TSSOP20_R01_P50_RUNTIME_UI_COAST_20261121_R15/manifest.json`。2MHz under-reset下载成功，目标复位后Running。整片20,480B读回SHA256=`89d81f26c775ee4ced2815ef67a743cfb311a33c1738c8ea605977c1632ebc29`；应用逐字节匹配BIN，尾384B与R14B下载前镜像相同，版本字符串`P50 V10.6SIMB2C`。读回证据 `build/board_readback/20261121_post_r15_display_fix/`。
+- **屏幕是否恢复尚未通过**：软件/镜像链路已核实，最终画面需用户目视确认；此前R14B“没有显示”仍记录为失败，不以下载成功代替显示验收。
+
+### 2026-11-21 R33恢复已显示过的LCDM直绘路径
+
+- 更正前条：R15跳过UART初始化后，用户仍确认屏幕完全无显示，因此“PA7被UART重映射”不是已证实的显示根因，不能再据此宣称修好。
+- 对照已确认有显示的R5源码，发现`TJC_LCDM_ShowR01Status()`原先直接发送`page/cls/fill/xstr`绘制P50页面；后续改成只更新缓存，依赖主页控件刷新。R33恢复R5直接绘制实现，继续用PA7 GPIO软发送，波特率保持230400；初始化不再把面板改成9600。页面每秒交替1500/1550及ADC/目标/误差。H桥强制coast。
+- R33构建通过：BIN 12,236B，SHA256=`bebe2c6566095bd93139d42a719d825da45dd810145b79dc80103cd608c6dd19`，manifest `build/releases/V10.6_TSSOP20_R01_P50_DIRECT_DRAW_SOFTTX_COAST_20261121_R33/manifest.json`。已调用2MHz under-reset下载，下载器报告目标Running；随后Ubuntu SWD整片读回失败（DAPLink报告`open failed`，本轮无法确认写后镜像/哈希）。下载期间无电机动作指令；候选编译含H桥强制coast。
+- **显示仍待用户目视确认，R33尚不能记为通过。** 当前显示差异已收敛为R5直接绘图代码与运行时P00控件缓存路径的区别；若R33仍无显示，下一步需查PA7实体线上波形/面板接收状态，不能再只靠软件发送计数下结论。
+
+### 2026-11-21 R33无屏幕响应；R34切回R5硬件USART
+
+- 用户确认R33上屏幕完全没有反应。R33采用PA7 GPIO软发送，不能作为有效通讯方案；撤销其“已恢复可见路径”的判断。
+- R5已目视显示成功的构建清单明确为`SERVO_TJC_SOFT_TX`未启用、`SERVO_TJC_UART_ALT_PINS=1`、230400 baud；因此本次复用R5硬件USART1 TX（PA7 AF8）及直接`page/cls/fill/xstr`绘制，不再用软发送。纯显示循环每秒切换1500/1550，H桥强制coast。
+- R34 Ubuntu构建通过，BIN 13,076B，SHA256=`d10b9386385ccda7e636c39ebe4a7750c6fe09eb37f7146b3b86033583d012cf`；输出目录`build/releases/V10.6_TSSOP20_R01_P50_DIRECT_DRAW_USART_COAST_20261121_R34/`。2MHz under-reset下载器报告目标复位后Running；本次SWD写后整片读回未完成（DAPLink曾报`open failed`）。
+- **用户目视确认R34屏幕现在有显示，显示链路通过。**电机保持强制coast；R01整项及本次写后读回校验仍未完成。
+
+### 2026-11-21 R35输入到H桥占空单次诊断
+
+- R34为显示恢复专用版，H桥被强制coast，因此它不可能产生马达PWM；此前把它当作输入到PWM诊断是错误的。R35保留R34已确认的USART1/PA7 AF8/230400直绘方式，LCD新增`PWM DUTY`行读取`HBridge_GetDuty()`；控制模式改为一次受SWD arm触发的1500→1550µs诊断，最大占空200/1000，位移阈值8 raw ADC count，1秒超时，不做往返/端点扫描。
+- R35 Ubuntu构建及下载成功：BIN 16,116B，SHA256=`9033ec7c966607db3aa445777a151d4ce3b2cf1046e654a65547e454544c4fc9`，目录`build/releases/V10.6_TSSOP20_R01_INPUT_TO_PWM_LIMIT200_20261121_R35/`；下载器报告复位后Running。SWD触发成功，运行后arm=2、active=0、HBridge当前`duty=0/state=coast`、核心Running。
+- 运行遥测：命令到1550µs，目标2514、反馈2446、误差+68；峰值HBridge duty=+200/1000，非零duty计数68，正向桥ISR导通计数1093、反向0。raw ADC相对锚点最大位移23 count触发保护（原因位2），滤波反馈最大位移4 count；未证明该raw跳变是实体转动。VDD估值3237mV。动作自动结束并coast。
+- 结论：**输入脉宽→控制目标→软件HBridge duty/正向桥PWM调制计数已观察到变化**。这些软件计数不等于PA6/PB0物理焊盘波形；尚无示波器记录，故物理输出波形与马达是否实际动作仍待确认。LCD `PWM DUTY`行实屏显示待用户确认。
+
+### 2026-11-21 R36反向输入到H桥占空诊断
+
+- 用户指出不能只检查一个方向，并确认H桥既有映射继续沿用：正向PA6+PB0，反向PA1+PA2；不重复怀疑或要求用户重测已验证的H桥硬件。
+- R36保持USART1/PA7 AF8/230400及P50直绘，使用已确认的R35 `PWM DUTY`实时字段；一次SWD arm后先锚定1550µs，再切换到1500µs，最大duty 200/1000、raw位移阈值8、1秒超时。BIN 16,112B，SHA256=`628634d8e64160673b0172aaeff09c942047d613a7e1ef3a898bd11b90283cf9`，目录`build/releases/V10.6_TSSOP20_R01_INPUT_TO_PWM_REVERSE_LIMIT200_20261121_R36/`。下载器报告复位后Running。
+- 反向遥测：输入1500µs、目标2420、反馈2486、误差−66；HBridge duty达到−200/1000，反向桥导通计数997、正向0。raw位移−26触发保护（原因位2），滤波位移最大6；自动结束后active=0、arm=2、当前HBridge duty=0/state=coast、核心Running，LCD UART发送错误0。
+- **结论：**R35/R36分别观察到输入变化后软件HBridge duty正向+200与反向−200，且仅对应的正/反桥ISR计数增加。两轮均已自动coast；该软件链路检查不取代实体PWM焊盘波形读数，也不能据计数推断马达实际转动。R01整项仍未通过。
+
+### 2026-11-21 放宽诊断保护及LCDM四路H桥PWM显示（R37–R41）
+
+- 用户要求先放宽位移保护使响应可观察，再逐步收紧。R37/R38正向保护32/64 count时，滤波反馈分别+24/+52；R39反向64-count时反馈−60。raw门限分别触发后均自动coast。
+- R40将保护上限放至128 count，仍为duty≤200/1000、单次1秒。1500→1550µs运行到超时：滤波反馈位移+88、raw峰值99，非零控制更新484次；正向桥导通1437 ticks，目标附近反向修正1980 ticks。结束active=0、HBridge duty=0/state=coast、核心Running。BIN 16,116B SHA256=`98e53285b294003bfda6c9e1a64e70107c73e083471da697a9306ca603c8f4e9`。
+- 按用户要求，R41新增LCDM四路占空显示，映射到PA6、PB0、PA1、PA2，单位permille；正向时PA6/PB0显示同一duty，反向时PA1/PA2显示同一duty，其余两路为0，coast四路全0。实现通过`HBridge_GetInputDutyPermille()`读取状态/duty并映射，屏幕分两行显示`PA6/PB0`、`PA1/PA2`。构建BIN 16,244B SHA256=`627e7ba2e7df0082b555959b87c0b3fd4c30147cf91556ddc9faa25b1ba77c74`；2MHz under-reset下载，核心Running。待机SWD读数duty=0、桥正反计数0、LCD UART错误0；一次arm测试后反馈位移+83、正向计数1559、反向修正1926，自动1秒超时coast，当前HBridge duty=0/state=coast、active=0、核心Running。
+- **当前待确认**：用户尚未反馈R41 LCDM是否实际看到四路数值切换。LCD数值是按固件HBridge状态映射的请求duty，不是外部引脚电压采样；R01整项仍未通过。
+
+- **R41四路PWM显示重试**：按用户现场观察请求，通过SWD重新arm现有R41（未下载/复位）；沿用1500↔1550µs、duty≤200/1000、128 ADC位移保护、约1秒动作窗。读板确认命令到1550µs，控制器峰值请求200/1000，累计正桥计数3426、反桥计数4787；反馈锚点2598 ADC，监测最大滤波位移110、raw位移114。抓取时仍在动作，随后自动停止：active=0、arm=2、HBridge duty=0/state=coast，核心Running，LCD UART错误0。TX无错误不证明屏幕实际刷新；**本次R41屏幕四路数值是否可见仍待用户目视反馈**。测试后反馈相对锚点约+70 ADC，建议下一轮前先确认机构位置/安全余量。
+
+- **R41第二次触发未执行**：首次 SWD attach 在配置探针时钟处返回空响应，未写 arm；随后只读重连成功并确认板仍active=0、coast。不可把这次失败记为电机/显示测试结果。
+- **R42四路PWM峰值保持显示**：因用户反馈瞬时值太快看不清，`src/tjc_lcdm.c`增加本轮四路duty峰值锁存，运动结束后继续显示至下一次动作；标题标注`PWM PEAK/1000`，正反四路仍分别按PA6/PB0、PA1/PA2呈现。`src/app_entry.c`把诊断活动标志传给显示函数，仅在新一轮上升沿清峰值。Ubuntu构建目录`build/releases/V10.6_TSSOP20_R01_FOUR_HBRIDGE_PWM_PEAK_LCD_20261121_R42/`，BIN 17,616B SHA256=`e0209fcde23cf2cc477b7dad32eb0953bf8e9d01aa4066c19ee5e767d165b05a`。下载前整片SHA256=`ca426ab12541b2d58be46031c043090079b793a50f63503fb2d8de1ab14ca90a`；2MHz under-reset下载后整片SHA256=`3d50f8afaaef6d3455173bc4bd894a19de04b574fa99e0cd1a13e1d28d868bd0`，应用逐字节匹配BIN，尾384B保持、核心Running。R42仍是显式arm的一次性1500↔1550µs测试，duty≤200/1000、位移保护128ADC、单轮约1秒，不因显示修改扩大运动量。
+- **R42峰值显示动作结果**：arm成功，启动锚点raw ADC 2672；1500→1550µs后反馈范围2672–2757，最大滤波位移85、raw位移87；生产控制峰值duty 200/1000，反向桥导通计数55→1983、正向保持1346，随后自动coast（active=0、arm=2、duty=0、核心Running），LCD UART错误0。用户目视确认四路峰值是否可读仍待反馈；R01整项未通过。
+
+- **R43分路显示与LCDM手动点动键**：按用户要求把四路峰值拆成PA6、PB0、PA1、PA2独立行；右侧加FWD/REV触摸区。LCDM 0x67坐标帧开启`sendxy=1`并由USART1 RX取出；按下开始对应 signed-duty 点动，松开coast，另有400ms自动停机及相对单次起点±32 raw ADC停机，duty上限200/1000。仅用于当前TSSOP20仿真板诊断。
+- 构建目录`build/releases/V10.6_TSSOP20_R01_LCD_TOUCH_JOG_SEPARATE_PWM_20261121_R43/`，BIN 14,384B SHA256=`a7545a67e3303e5ba349f78de9552f82bb130fb958e65a2f78dd28942d4f679e`。第一次误用attach写入失败并擦除启动向量；已立即按历史记录要求改用`tools/download_py32_ubuntu.sh`的2MHz under-reset恢复R42（全片回读恢复哈希与原一致），再以同一under-reset流程下载R43。R43应用区逐字节匹配BIN，整片20,480B SHA256=`4c5d113324e169b9bfa8d8c530f4b6daaf2aef3d940a849e4a673c65ea5a6685`，尾384B与下载前一致；核心Running。启动只读状态active=0、HBridge duty=0/state=coast，反馈raw约2759，UART错误0。
+- **待实板触摸核对**：R43/R44尚未收到按钮触摸；屏幕按钮位置/坐标事件/按下与松开点动/四路读数均未通过实机操作确认。下一步可先按住FWD约0.2秒再松开，观察PA6、PB0是否出现峰值及马达方向；每次受400ms/32ADC保护自动停止。之后独立试REV，期间我可通过SWD读回ADC、signed duty和正反桥计数。触摸键未现场验证前，不把按钮动作或R01整项记为通过。
+- **R44 LCD刷新冲突修复**：检查发现production-loop页面会被通用`TJC_LCDM_Process()`主页刷新覆盖；该诊断构建现在只用自定义状态页刷新，通用主页刷新已跳过。R44 Ubuntu构建目录`build/releases/V10.6_TSSOP20_R01_LCD_TOUCH_JOG_SEPARATE_PWM_20261121_R44/`，BIN 13,080B SHA256=`30df0747df0c06e7ceae0751ddab19a09ed60c0eef89c3b9fdc41722b85e9952`。2MHz under-reset下载，整片读回SHA256=`f3513df19119aa16c4b2de0f1f969a52c0df438d976e4611045dd00422cb16c2`，应用匹配、尾384B保持，核心Running；只读状态active=0、HBridge duty=0/state=coast、raw ADC=2758、LCD UART错误0。**当前板为R44；屏幕显示及触摸坐标仍需用户现场核验，未触发电机。**
+- **R45屏幕刷新/触摸回读诊断**：用户报告R44显示无法刷新。页面初始化现在显式发送`tsw 255,1`和`sendxy=1`；右上角增加每秒变化的`UI nnn`计数，用于直接判断屏幕重绘。`tools/read_r01_symbols_swd.py`增加LCD RX字节/帧、末包及触摸坐标的只读遥测。Ubuntu构建目录`build/releases/V10.6_TSSOP20_R01_LCD_TOUCH_JOG_REFRESH_PROOF_20261121_R45/`，BIN 13,196B SHA256=`3f8d4af6944b4e3fab9d89b1a0dcb5a0b359514fa15a60b1ddfdd53f11f942c9`。2MHz under-reset下载；整片20,480B读回SHA256=`84c38b7e4475f0892fd7196b849be44215091201cafd9ce334aa90eaae87a381`，应用匹配、尾384B保持、核心Running。只读状态duty=0/state=coast、raw ADC=2757、UART错误0；LCD RX累计19字节/2帧，最新触摸坐标(229,151)、event=0（释放），落在FWD/REV按钮区域外，因此没有点动。**UI计数屏幕上是否可见/递增仍待用户确认，R01及触摸控制未验收。**
+- **R46绘屏时序修复**：R5已确认页面路径在`page 0`后等待250ms、`cls 65535`后等待30ms；R44/R45的直接绘屏将这两段长等待误缩为每条命令2ms。R46恢复R5的切页/清屏等待，再绘制R45四路显示和FWD/REV键。构建目录`build/releases/V10.6_TSSOP20_R01_LCD_R5_TIMING_RESTORE_20261121_R46/`，BIN 13,256B SHA256=`f0ce15f4e2151cce89dabbe46d9ffec6a5f0ed55bb6db305a1cfbf6bb8f079d6`。2MHz under-reset下载后整片SHA256=`deaa2e8c8051f366ea5af366caf6e8a2c5f2ddb4b68d87b1a8bbd8ef405e2936`，应用逐字节匹配、尾384B保持。SWD只读确认核心Running、active=0、HBridge duty=0/state=coast、raw ADC=2758、UART TX错误0。**尚未收到R46屏幕可见结果；不能据写入计数或成功读回宣称屏幕恢复。**
+
+### 2026-11-21 R47恢复R34已验证的LCDM刷新调用
+
+- 用户要求每次改动后先严格自查再执行。对照R34（用户确认有显示）与R46完整归档源码后，发现R44引入的`#if !SERVO_R01_PRODUCTION_LOOP_TEST`跳过`TJC_LCDM_Process()`是两版之间唯一的`app_entry.c`差异；R34实际顺序为先调用通用LCDM刷新、随后调用自定义状态绘屏。此前“通用刷新会覆盖诊断页”的说法没有R34证据，已纠正，不再作为事实。
+- R47仅恢复该调用，未改绘屏命令、USART1/PA7 AF8、230400bps或触摸点动逻辑。逐行diff核实`app_entry.c`相对R46只有移除该条件编译的两行差异；R34/R47调用位置一致。Ubuntu构建通过，BIN 14,548B，SHA256=`9254b7b0f096ecfa5e7b234a5090a9ab6d106ddd00e0990d41efb74e12888283`，manifest的源码与BIN哈希复核一致，标记`flashed=false`。宏复核：触摸点动启用、duty上限200/1000、ADC位移限值128、USART RX启用；非force-coast，动作仍需触摸按键触发。`py_compile`通过。
+- 下载前整片只读备份与R46记录一致：20,480B，SHA256=`deaa2e8c8051f366ea5af366caf6e8a2c5f2ddb4b68d87b1a8bbd8ef405e2936`。R47用2MHz under-reset流程下载；写后整片读回20,480B、SHA256=`fdce634ff09903c82021e0fba48c6402ea861fa64850ebe54e6c197a7e065a01`，前14,548B与R47 BIN逐字节一致，尾384B与下载前相同，核心Running。证据位于`build/board_readback/20261121_r47_preflash/`和`build/board_readback/20261121_r47_postflash/`。板上宏配置下点动仍须触摸FWD/REV才会触发；本次没有触摸或触发马达。一次后续遥测重连未找到DAPLink，故本轮未取得RAM状态采样。
+- **当前板为R47**；屏幕最终是否可见仍需用户目视确认，尚未记为通过。若仍无显示，下一步只读检查PA7实际发送波形/屏幕接线，不以UART发送计数代替目视验收。
+
+### 2026-11-21 R47显示仍失败；恢复已目视确认的R34作基线
+
+- 用户反馈R47仍完全无显示，因此R47显示修复判失败；恢复`TJC_LCDM_Process()`本身不足以修复。本次进一步精确对比发现R34/R47在LCD布局、初始化等待、触摸RX/`sendxy`及FWD/REV点动配置均有差异，不能把R47概括为只差刷新调用。此前宣称“R47已修好”的结论撤回。
+- 为隔离面板/线路与新增固件功能，恢复已由用户确认显示的R34 force-coast基线。下载前R47整片备份SHA256=`fdce634ff09903c82021e0fba48c6402ea861fa64850ebe54e6c197a7e065a01`已留存。R34按2MHz under-reset下载后，整片读回20,480B SHA256=`b23a346b25ae6cca7fc9d8a8223939ef8a72c0793609c0b76e7a1505640c12de`；13,076B应用与R34 BIN SHA256=`d10b9386385ccda7e636c39ebe4a7750c6fe09eb37f7146b3b86033583d012cf`逐字节一致，尾384B保留、核心Running。读回证据`build/board_readback/20261121_r34_baseline_after_r47/`。
+- **当前板为R34显示基线，强制coast，无马达动作。**现需用户只观察屏幕是否重新显示：若R34显示，问题在R47新增/变更LCD功能；若R34仍空白，优先查PA7波形、屏幕供电/串口接线或面板状态。未得到目视结果前不宣称显示恢复。
+
+### 2026-11-21 R48 LCD自动上电等待与四路PWM/点动界面（待下载）
+
+- 用户反馈需手动复位后R34才显示，说明R34绘屏命令路径本身可用，但上电时序未适配面板启动。R48在硬件UART初始化前等待1,000ms，保证首次LCDM命令晚于面板上电启动；不再要求用户手动按复位。此延时基于“手动复位后恢复显示”的实测现象，仍需本板验证。
+- R48保留四路H桥值及FWD/REV触摸页：正向signed duty映射PA6+PB0，反向映射PA1+PA2，另两路显示0；数值读自`HBridge_GetInputDutyPermille()`。触摸点动仅按键触发，±200/1000 duty，松手coast，400ms自动停止或相对起点位移达到32 raw ADC即停止。未自动触发动作。
+- Ubuntu构建通过，目录`build/releases/V10.6_TSSOP20_R01_LCD_AUTO_READY_JOG_20261121_R48/`，BIN 14,556B，SHA256=`64b905f5aebcce73685e1223f01f2ba511f1a542e1109a0cf1121f5e3da049e`，manifest源码/BIN哈希、230400bps/PA7 AF8和触摸保护宏复核通过。R34下载前整片备份见`build/board_readback/20261121_r34_baseline_after_r47/`。R48按2MHz under-reset下载后，整片读回20,480B SHA256=`b4be64a4489c86ca3b0a325fb86ac0931d0cb1a26d35094d68535af5e1b2f355`；应用与BIN逐字节一致，尾384B保持，核心Running。没有自动点动。**当前板为R48，正在等待用户目视确认自动上电后是否显示四路PWM和按键；显示及触摸尚未验收。**实板动作需用户主动按键。
+
+- **R48现场失败**：用户反馈按复位后画面只闪现一次后消失。检查确认诊断主循环每100ms仍执行通用`TJC_LCDM_Process()`，向主页组件`n0..n5/j0..j2/t0..t1`发送覆盖更新；自定义页会被主页刷新盖住。之前恢复此调用的假设错误。
+- **R49修复**：保留R48首次LCD命令前1,000ms启动等待，只在R01诊断模式跳过通用主页绘制；USART RX中断和触摸事件读取仍启用，不影响FWD/REV键。相对R48的功能差异仅为该诊断模式绘制调用条件。Ubuntu构建通过，目录`build/releases/V10.6_TSSOP20_R01_LCD_AUTO_READY_JOG_NO_OVERLAY_20261121_R49/`，BIN 13,268B SHA256=`734037ae36222a045383e6a86f8babce9f0a1122983988effee622c941305c9f`；波特率、PA7 AF8、duty≤200/1000、位移限值128及触摸点动配置复核通过，未自动触发动作。2MHz under-reset下载后整片读回20,480B SHA256=`9b4c4bb6c384a395243cd648c9288c6a70302bbefe70e9cac2bf1aa47888974b`；13,268B应用与BIN逐字节匹配，尾384B与R48下载前一致，核心Running。证据`build/board_readback/20261121_r49_postflash/`。
+- **当前板R49**：本次没有触摸按键或触发马达。请目视确认页面是否不再闪退，四路显示及按键是否可见；未经屏幕和后续按钮实际确认，不记为通过。
+
+- **R49实测仍只闪现**：用户复位后仍报告画面闪现。只读SWD三次采样核心均Running，TJC发送命令计数227→357、TX错误0、UART错误0，H桥duty=0、正反计数0；RX字节0。发送计数只证实固件执行发送，不证实PA7电气波形/屏幕接收。检查显示初始化顺序时发现更具体问题：R49在`page 0`之前发`ref_stop`，而换页会恢复TJC屏幕刷新；绘制后又发`ref_star`恢复刷新，故原页面控件可在画面短暂出现后覆盖直绘。协议说明`ref_stop`只暂停当前页刷新，换页后要重新停止；触摸等其他指令仍可工作（[TJC指令说明](https://forum.arduino.ir/attachments/3083d1477725352-nmaishgrhaaye-hmi-nextion-instruction-set-itead-wiki.pdf)）。
+- **R50刷新状态修复**：将`ref_stop`移至`page 0`及250ms切页等待之后，移除绘制结束的`ref_star`，保持面板页刷新停止；R01模式已跳过MCU主页控件刷新。触摸RX及FWD/REV保留。Ubuntu构建通过，目录`build/releases/V10.6_TSSOP20_R01_LCD_REFRESH_HOLD_JOG_20261121_R50/`，BIN 13,248B SHA256=`37bf08d2584533ee4e79bc48180e2b310c7a95f681b1cf743d4c56141d89dd4b`；核实`page→等待→ref_stop→直绘`顺序、无`ref_star`、USART 230400/触摸保护宏及manifest哈希。R49下载前整片镜像已留存。R50按2MHz under-reset下载后，整片读回20,480B SHA256=`c14fd4f1a455a916544b068452628bd1df4f277899db7618bfe276874dd9a2be`，13,248B应用与BIN逐字节匹配，尾384B与R49下载前一致，核心Running；证据`build/board_readback/20261121_r50_postflash/`。本次未触发马达。
+- **当前板R50**：需现场目视确认页面是否保持可见，再确认四路占空值和按键；尚未取得新屏幕观察结果，不把软件/读回结果当作显示通过。
+- **R50用户反馈失败及原因**：R50将`ref_stop`移到切页之后，却删掉绘制结束的`ref_star`。切页会短暂刷新旧页面；随后停刷使面板保持最后一帧，后续`cls/fill/xstr`未提交到显示，因此呈闪现后消失。此前我误以为停止后直接图形命令会立即显示，判断错误。R49失败是停刷发生在换页前而被换页恢复；R50失败则是恢复刷新指令缺失。
+- **R51刷新提交修复**：依次执行`page 0→等待250ms→ref_stop→清屏和自绘→ref_star`，绘制结束只恢复一次刷新；R01诊断模式仍跳过MCU主页控件刷新，保留触摸RX。Ubuntu构建通过，目录`build/releases/V10.6_TSSOP20_R01_LCD_REFRESH_COMMIT_JOG_20261121_R51/`，BIN 13,268B，SHA256=`b572f8568d1494654ce52af3bd7d96ab1b0728fa697a1d45cfaedba5b2bfe7bd`。对比R50仅增加绘制后的`ref_star`；page/ref顺序、touch jog配置、230400bps与manifest哈希核验通过。R50下载前备份已保留；R51按2MHz under-reset下载后整片读回20,480B SHA256=`6ef1668e7154e93303cd9045cad9ab6ce81134837b146c54ccf06c2e89c53ad2`，13,268B应用逐字节匹配，尾384B保持，核心Running。证据`build/board_readback/20261121_r51_postflash/`。
+- **当前板R51**：没有自动触发马达。需用户确认画面是否稳定显示；确认后再目视核验四路PWM与FWD/REV按键，未确认前不算显示通过。
+
+### 2026-11-21 R51点屏花屏与局部变化刷新R52
+
+- 用户反馈触摸屏幕后画面花屏。对照`docs/lcdm_screen_layout_plan.md`的2026-06-16 LCDM参数页历史修复：过去错误是在每次参数触摸都重画整页，正确原则是切页才全画、触摸只刷新受影响行。R51启动时整页只画一次，但随后每100ms无条件发送8个动态值`xstr`，即使未变化；并每秒刷新标题，复现了过密且无差别的刷新行为。
+- R52将动态状态最小间隔从100ms增至250ms，缓存每行数值和颜色，仅变化的行发送`xstr`；取消每秒变化的UI标题。整页和按钮仅在初始化时绘制；HBridge、触摸按键和限位逻辑未改。Ubuntu构建通过，目录`build/releases/V10.6_TSSOP20_R01_LCD_DELTA_REFRESH_JOG_20261121_R52/`，BIN 13,188B SHA256=`269fca2dd1400457a59759687eea0d32b65ccdb9720ff7a90b14daf52540681a`。manifest与BIN一致；与R51比较，`app_entry.c`、`hbridge.c`、`app_hal_msp.c`及触摸/波特率宏不变，局部刷新静态核对通过。R51下载前读回已留存；R52 under-reset下载后整片20,480B SHA256=`53dfd0c4ea645d2bed45b47ff86fb0795f28dd45cd3871279fcdf85c14addedc`，13,188B应用逐字节匹配BIN，尾384B保留，核心Running。读回`build/board_readback/20261121_r52_postflash/`。没有自动触发马达。**当前板R52；等待用户再次点屏确认不再花屏，触摸显示尚未验收。**
+
+- **用户指出的历史根因**：不能只停 MCU 的原主页绘制；屏端原页面控件/背景刷新也必须屏蔽。R49仅跳过`TJC_LCDM_Process()`，R51/R52自绘后执行`ref_star`重新启用屏端背景刷新，因此旧页面可再次覆盖诊断UI。2026-06-16记录的“触摸只重画变化行”适用于runtime参数页，不能代替屏端背景遮盖。
+- **R53背景刷新修正**：保留“切页→等待→`ref_stop`→清屏/自绘→`ref_star`提交”，提交后立即再次`ref_stop`，避免屏端原背景重绘；后续变化值仍用串口直绘。仅修改`src/tjc_lcdm.c`绘制末尾刷新状态及`tjc_lcdm_integration.md`规则说明；点动/桥输出参数不变。Ubuntu构建目录`build/releases/V10.6_TSSOP20_R01_LCD_BACKGROUND_MASK_JOG_20261121_R53/`，BIN 13,200B SHA256=`3b209580fd0a8da8de7416fdfb0d212f4ed8e3be404445cad236fa623ccb3edc`。使用2MHz under-reset下载；回读整片20,480B SHA256=`1b8f12a35f737e6052e4508591fc1c9d05612e3670f6700cc9cecf729093e35d`，应用前13,200B逐字节匹配，尾384B与R52相同，核心Running。证据`build/board_readback/20261121_r53_postflash/`。没有自动触发马达。**当前板R53；屏幕稳定性及触摸后的显示尚待用户现场观察，故未判通过。**
+- **R53实测失败**：用户反馈仍是“点一下屏就花”。因此单纯停止原页刷新不足以解决触摸时的重绘；上一版“原背景刷新是唯一根因”的判断不成立。
+- R54下载后只读SWD 2帧：核心Running，active=0、H桥duty=0、正反桥tick=0，ADC 2335稳定、VDD估值3230mV；无自动动作。证据与固件在同一R54 release/readback目录。
+- **R54实屏确认通过**：用户确认“可以了”，即触摸后画面不再花。将“先隐藏屏端原控件并关闭其触摸，再启用`sendxy=1`；直绘提交后继续屏蔽原页刷新”列为所有LCDM直绘/复用旧页面时的强制检查项。以后开始任何LCDM改动前先核对此规则；若改了页面切换、触摸或刷新初始化，必须确认没有恢复旧控件/背景覆盖。R54是当前已目视确认版本；本确认仅针对显示/触摸不花屏，不代表马达或R01通过。
+
+### 2026-11-21 FWD/REV点动时P脉宽随反馈位置变化（R55）
+
+- 用户指出FWD/REV触发点动后，P显示仍固定1500µs，应随位置反馈同步变化。根因是R54点动支路将常数`test_pulse_us=1500`传入显示；A虽然实时读ADC，P却未和反馈映射关联。
+- 新增`Servo_Control_MapAdcToPulse()`，按当前参数的左右独立线性映射、中心偏置和方向反转选项，将实时raw ADC反算为等效输入脉宽；R01点动显示支路使用该值作为P，A仍显示raw ADC，T为起始锚点，E为当前位置与锚点差。没有改PWM映射、H桥输出、点动占空上限或保护阈值。
+- 修改`inc/servo_control.h`、`src/servo_control.c`、`src/app_entry.c`及本验证记录。Ubuntu构建通过：`build/releases/V10.6_TSSOP20_R01_JOG_FEEDBACK_PULSE_20261121_R55/`，BIN 14,020B，SHA256=`3297a7e364954cbc71b1e6b6dcfe00022cef603017629525a7e2b88c056f26c5`。2MHz under-reset下载后整片20,480B读回SHA256=`bcef495e80264ae53897d59a30ad506b001c6a13233a37da16b629352a6a9fbc`，应用与BIN逐字节匹配、尾384B与R54相同、核心Running；证据`build/board_readback/20261121_r55_postflash/`。
+- 下载后只读SWD 2帧：反馈ADC=2626、active=0、duty=0、正反桥ticks=0、VDD估值3226mV；未触发动作。软件映射及读回已核，**P随实际点动变化仍需短按FWD/REV实机目视确认，R01未因此通过**。

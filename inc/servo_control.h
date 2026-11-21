@@ -28,5 +28,6 @@ void Servo_Control_Init(void);
 void Servo_Control_Update1ms(void);
 ServoStatus Servo_Control_GetStatus(void);
 uint16_t Servo_Control_MapPulseToAdc(uint16_t pulse_us);
+uint16_t Servo_Control_MapAdcToPulse(uint16_t adc_count);
 
 #endif

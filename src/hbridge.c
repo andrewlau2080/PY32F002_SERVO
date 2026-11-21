@@ -1,6 +1,7 @@
 #include "hbridge.h"
 #include "board.h"
 #include "servo_config.h"
+#include <stddef.h>
 
 #ifndef SERVO_HBRIDGE_FORCE_HIZ
 #define SERVO_HBRIDGE_FORCE_HIZ 0
@@ -407,4 +408,42 @@ int16_t HBridge_GetDuty(void)
 HBridgeState HBridge_GetState(void)
 {
   return s_state;
+}
+
+void HBridge_GetInputDutyPermille(uint16_t *in1, uint16_t *in2,
+                                  uint16_t *in3, uint16_t *in4)
+{
+  uint32_t primask = __get_PRIMASK();
+  int16_t duty;
+  HBridgeState state;
+  uint16_t magnitude;
+  uint16_t d1 = 0U;
+  uint16_t d2 = 0U;
+  uint16_t d3 = 0U;
+  uint16_t d4 = 0U;
+
+  __disable_irq();
+  duty = s_duty;
+  state = s_state;
+  if (primask == 0U)
+  {
+    __enable_irq();
+  }
+
+  magnitude = (duty < 0) ? (uint16_t)(-duty) : (uint16_t)duty;
+  if ((state == HBRIDGE_FORWARD) && (duty > 0))
+  {
+    d3 = magnitude;
+    d4 = magnitude;
+  }
+  else if ((state == HBRIDGE_REVERSE) && (duty < 0))
+  {
+    d1 = magnitude;
+    d2 = magnitude;
+  }
+
+  if (in1 != NULL) *in1 = d1;
+  if (in2 != NULL) *in2 = d2;
+  if (in3 != NULL) *in3 = d3;
+  if (in4 != NULL) *in4 = d4;
 }

@@ -39,6 +39,9 @@
 #ifndef SERVO_R01_PRODUCTION_LOOP_TEST
 #define SERVO_R01_PRODUCTION_LOOP_TEST 0
 #endif
+#ifndef SERVO_R01_TOUCH_JOG_TEST
+#define SERVO_R01_TOUCH_JOG_TEST 0
+#endif
 #ifndef SERVO_R01_LCD_ONLY_TEST
 #define SERVO_R01_LCD_ONLY_TEST 0
 #endif
@@ -81,7 +84,7 @@ extern volatile uint16_t g_r01_prod_max_displacement_adc;
 #if SERVO_R01_TEST_STAIRCASE
 extern volatile uint16_t g_r01_prod_anchor_adc;
 #endif
-#if SERVO_R01_EXPLICIT_ARM && (!SERVO_ENABLE_INTERNAL_STEP_TEST || SERVO_HBRIDGE_FORCE_COAST || SERVO_R01_TEST_MAX_DUTY > 500)
+#if SERVO_R01_EXPLICIT_ARM && (!SERVO_ENABLE_INTERNAL_STEP_TEST || (SERVO_HBRIDGE_FORCE_COAST && !SERVO_R01_LCD_ONLY_TEST) || SERVO_R01_TEST_MAX_DUTY > 500)
 #error Explicit R01 motion arm requires an active center test capped at 500 permille or lower.
 #endif
 #if SERVO_R01_EXPLICIT_ARM && (SERVO_R01_TEST_STEP_US < 10 || SERVO_R01_TEST_STEP_US > 50)
@@ -118,6 +121,12 @@ volatile uint16_t g_r01_test_sweep_peak_delta_adc;
 volatile uint8_t g_r01_test_sweep_confirm_count;
 static uint8_t s_r01_test_sweep_return_confirm;
 static uint32_t s_r01_production_test_start_ms;
+#if SERVO_R01_TOUCH_JOG_TEST
+static int8_t s_r01_touch_jog_direction;
+static uint32_t s_r01_touch_jog_start_ms;
+static uint16_t s_r01_touch_jog_anchor_adc;
+static uint16_t s_r01_touch_jog_live_adc;
+#endif
 #if SERVO_R01_CENTER_RETURN_TEST
 volatile uint16_t g_r01_center_live_adc;
 volatile uint16_t g_r01_center_start_adc;
@@ -894,7 +903,7 @@ static void pa7_tjc_send_baud_cmds(uint32_t source_baud, uint32_t target_baud)
   char cmd[24];
 
   s_pa7_tjc_baud = source_baud;
-#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
+#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST && !SERVO_TJC_SOFT_TX
   lcdm_runtime_uart_set_baud(source_baud);
 #endif
   pa7_tjc_write_cmd("bkcmd=0");
@@ -924,7 +933,7 @@ static void pa7_tjc_force_default_baud(void)
   pa7_tjc_send_baud_cmds(LCDM_TJC_BAUD, LCDM_TJC_BAUD);
 
   s_pa7_tjc_baud = LCDM_TJC_BAUD;
-#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST
+#if SERVO_ENABLE_LCDM_RUNTIME_UI_TEST && !SERVO_TJC_SOFT_TX
   lcdm_runtime_uart_set_baud(LCDM_TJC_BAUD);
 #endif
   pa7_tjc_write_cmd("bkcmd=0");
@@ -4772,6 +4781,64 @@ int entry(void)
     PWM_Input_SetTestPulse(test_pulse_us, now_ms);
     HBridge_Coast();
 #else
+#if SERVO_R01_TOUCH_JOG_TEST
+    {
+      TJC_LCDMTouchEvent touch;
+      while (TJC_LCDM_ReadTouchEvent(&touch))
+      {
+        if (touch.event == 1U)
+        {
+          if ((touch.x >= 342U) && (touch.x <= 470U) &&
+              (touch.y >= 58U) && (touch.y <= 104U))
+            s_r01_touch_jog_direction = 1;
+          else if ((touch.x >= 342U) && (touch.x <= 470U) &&
+                   (touch.y >= 112U) && (touch.y <= 158U))
+            s_r01_touch_jog_direction = -1;
+          else
+            continue;
+          s_r01_touch_jog_anchor_adc = ADC_Feedback_ReadRaw();
+          s_r01_touch_jog_live_adc = s_r01_touch_jog_anchor_adc;
+          s_r01_touch_jog_start_ms = now_ms;
+          g_r01_production_test_active = 1U;
+          g_r01_active_test_arm_request = 1U;
+        }
+        else
+        {
+          s_r01_touch_jog_direction = 0;
+          g_r01_production_test_active = 0U;
+          g_r01_active_test_arm_request = 2U;
+          HBridge_Coast();
+        }
+      }
+
+      if (g_r01_production_test_active != 0U)
+      {
+        int32_t delta;
+        s_r01_touch_jog_live_adc = ADC_Feedback_ReadRaw();
+        delta = (int32_t)s_r01_touch_jog_live_adc - (int32_t)s_r01_touch_jog_anchor_adc;
+        if (((delta < 0) ? -delta : delta) >= 32 ||
+            ((uint32_t)(now_ms - s_r01_touch_jog_start_ms) >= 400U))
+        {
+          s_r01_touch_jog_direction = 0;
+          g_r01_production_test_active = 0U;
+          g_r01_active_test_arm_request = 2U;
+          HBridge_Coast();
+        }
+        else
+        {
+          HBridge_SetSignedDuty((int16_t)(s_r01_touch_jog_direction * 200));
+        }
+      }
+      else
+      {
+        HBridge_Coast();
+      }
+      test_pulse_us = (s_r01_touch_jog_direction > 0) ? 1550U :
+                      ((s_r01_touch_jog_direction < 0) ? 1450U : 1500U);
+      g_r01_production_test_pulse_us = test_pulse_us;
+      PWM_Input_SetTestPulse(test_pulse_us, now_ms);
+    }
+#else
 #if SERVO_R01_CENTER_RETURN_TEST
     if ((uint32_t)(now_ms - last_center_adc_ms) >= 20U)
     {
@@ -4895,6 +4962,7 @@ int entry(void)
     }
     g_r01_production_test_pulse_us = test_pulse_us;
     PWM_Input_SetTestPulse(test_pulse_us, now_ms);
+#endif /* SERVO_R01_TOUCH_JOG_TEST */
 #endif /* SERVO_R01_LCD_ONLY_TEST */
 #endif
     /* 控制循环固定 1ms 调用一次，避免主循环快慢影响舵机响应。 */
@@ -4904,6 +4972,16 @@ int entry(void)
 #if SERVO_R01_PRODUCTION_LOOP_TEST
 #if SERVO_R01_LCD_ONLY_TEST
       HBridge_Coast();
+#else
+#if SERVO_R01_TOUCH_JOG_TEST
+      if (g_r01_production_test_active != 0U)
+      {
+        HBridge_SetSignedDuty((int16_t)(s_r01_touch_jog_direction * 200));
+      }
+      else
+      {
+        HBridge_Coast();
+      }
 #else
       if (g_r01_production_test_active != 0U)
       {
@@ -4985,26 +5063,49 @@ int entry(void)
       {
         HBridge_Coast();
       }
+#endif /* SERVO_R01_TOUCH_JOG_TEST */
 #endif /* SERVO_R01_LCD_ONLY_TEST */
 #else
       Servo_Control_Update1ms();
 #endif
     }
 
+#if !SERVO_R01_PRODUCTION_LOOP_TEST
     TJC_LCDM_Process();
+#endif
 #if SERVO_R01_PRODUCTION_LOOP_TEST
 #if SERVO_R01_LCD_ONLY_TEST
     {
       uint16_t feedback = ADC_Feedback_GetRaw();
       uint16_t target = Servo_Control_MapPulseToAdc(test_pulse_us);
       int16_t error = (int16_t)((int32_t)target - (int32_t)feedback);
-      TJC_LCDM_ShowR01Status(test_pulse_us, feedback, target, error);
+      uint16_t in1, in2, in3, in4;
+      HBridge_GetInputDutyPermille(&in1, &in2, &in3, &in4);
+      TJC_LCDM_ShowR01Status(test_pulse_us, feedback, target, error,
+                             in3, in4, in1, in2,
+                             g_r01_production_test_active);
     }
 #else
     {
+#if SERVO_R01_TOUCH_JOG_TEST
+      uint16_t feedback = ADC_Feedback_GetRaw();
+      uint16_t target = s_r01_touch_jog_anchor_adc;
+      int16_t error = (int16_t)((int32_t)feedback - (int32_t)target);
+      uint16_t in1, in2, in3, in4;
+      HBridge_GetInputDutyPermille(&in1, &in2, &in3, &in4);
+      TJC_LCDM_ShowR01Status(Servo_Control_MapAdcToPulse(feedback),
+                             feedback, target, error,
+                             in3, in4, in1, in2,
+                             g_r01_production_test_active);
+#else
       ServoStatus status = Servo_Control_GetStatus();
+      uint16_t in1, in2, in3, in4;
+      HBridge_GetInputDutyPermille(&in1, &in2, &in3, &in4);
       TJC_LCDM_ShowR01Status(test_pulse_us, status.feedback_adc,
-                             status.target_adc, status.error_adc);
+                             status.target_adc, status.error_adc,
+                             in3, in4, in1, in2,
+                             g_r01_production_test_active);
+#endif
     }
 #endif
 #endif

@@ -23,8 +23,8 @@
 #if SERVO_R01_TEST_ANCHOR_PULSE_US != 1500U && SERVO_R01_TEST_ANCHOR_PULSE_US != 1550U
 #error R01 diagnostic anchor pulse must be 1500 or 1550 us
 #endif
-#if SERVO_R01_TEST_POSITION_LIMIT_ADC == 0U || SERVO_R01_TEST_POSITION_LIMIT_ADC > 32U
-#error R01 test displacement limit must be 1..32 ADC counts
+#if SERVO_R01_TEST_POSITION_LIMIT_ADC == 0U || SERVO_R01_TEST_POSITION_LIMIT_ADC > 128U
+#error R01 test displacement limit must be 1..128 ADC counts
 #endif
 #include "servo_stability_timer.h"
 #include "py32f0xx_hal.h"
@@ -241,6 +241,62 @@ uint16_t Servo_Control_MapPulseToAdc(uint16_t pulse_us)
   }
 
   return (uint16_t)clamp_i16(target, 0, 4095);
+}
+
+uint16_t Servo_Control_MapAdcToPulse(uint16_t adc_count)
+{
+  const ServoParams *params = Servo_Params_Get();
+  uint16_t adc_low = Servo_Control_MapPulseToAdc(params->pulse_lower_us);
+  uint16_t adc_mid = Servo_Control_MapPulseToAdc(params->pulse_center_us);
+  uint16_t adc_high = Servo_Control_MapPulseToAdc(params->pulse_high_us);
+  bool increasing = (adc_high >= adc_low);
+  int32_t pulse_start;
+  int32_t pulse_end;
+  int32_t adc_start;
+  int32_t adc_end;
+  int32_t mapped_pulse;
+
+  if (increasing)
+  {
+    if (adc_count < adc_low) adc_count = adc_low;
+    if (adc_count > adc_high) adc_count = adc_high;
+  }
+  else
+  {
+    if (adc_count > adc_low) adc_count = adc_low;
+    if (adc_count < adc_high) adc_count = adc_high;
+  }
+
+  if ((increasing && (adc_count <= adc_mid)) ||
+      (!increasing && (adc_count >= adc_mid)))
+  {
+    pulse_start = params->pulse_lower_us;
+    pulse_end = params->pulse_center_us;
+    adc_start = adc_low;
+    adc_end = adc_mid;
+  }
+  else
+  {
+    pulse_start = params->pulse_center_us;
+    pulse_end = params->pulse_high_us;
+    adc_start = adc_mid;
+    adc_end = adc_high;
+  }
+
+  if (adc_end == adc_start)
+  {
+    return params->pulse_center_us;
+  }
+
+  mapped_pulse = pulse_start +
+                 (((int32_t)adc_count - adc_start) *
+                  (pulse_end - pulse_start)) /
+                 (adc_end - adc_start);
+  if (mapped_pulse < params->pulse_lower_us)
+    mapped_pulse = params->pulse_lower_us;
+  if (mapped_pulse > params->pulse_high_us)
+    mapped_pulse = params->pulse_high_us;
+  return (uint16_t)mapped_pulse;
 }
 
 void Servo_Control_Init(void)

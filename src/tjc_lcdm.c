@@ -28,12 +28,21 @@
 #define TJC_LCDM_VISUAL_TEST_MS 1000U
 #endif
 
+#ifndef TJC_LCDM_STARTUP_DELAY_MS
+#define TJC_LCDM_STARTUP_DELAY_MS 1000U
+#endif
+
 UART_HandleTypeDef g_tjc_lcdm_uart;
 
 static uint8_t s_rx_byte;
 static uint8_t s_rx_packet[64];
 static uint8_t s_rx_len;
 static uint8_t s_rx_ff_count;
+static volatile uint16_t s_touch_x;
+static volatile uint16_t s_touch_y;
+static volatile uint8_t s_touch_event;
+static volatile uint8_t s_touch_seq;
+static uint8_t s_touch_consumed_seq;
 static uint8_t s_page;
 static bool s_refresh_requested;
 static bool s_home_num_valid[9];
@@ -58,11 +67,159 @@ static volatile uint16_t s_r01_status_pulse_us;
 static volatile uint16_t s_r01_status_feedback_adc;
 static volatile uint16_t s_r01_status_target_adc;
 static volatile int16_t s_r01_status_error_adc;
+static void send_cmd(const char *cmd);
+
+static void r01_draw_cmd(const char *cmd)
+{
+  send_cmd(cmd);
+  HAL_Delay(2U);
+}
+
+static void r01_draw_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                          uint16_t color)
+{
+  char cmd[48];
+  (void)snprintf(cmd, sizeof(cmd), "fill %u,%u,%u,%u,%u",
+                 (unsigned)x, (unsigned)y, (unsigned)w, (unsigned)h,
+                 (unsigned)color);
+  r01_draw_cmd(cmd);
+}
+
+static void r01_draw_text(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                          uint16_t fg, uint16_t bg, uint8_t align,
+                          const char *text)
+{
+  char cmd[128];
+  (void)snprintf(cmd, sizeof(cmd),
+                 "xstr %u,%u,%u,%u,0,%u,%u,%u,1,1,\"%s\"",
+                 (unsigned)x, (unsigned)y, (unsigned)w, (unsigned)h,
+                 (unsigned)fg, (unsigned)bg, (unsigned)align, text);
+  r01_draw_cmd(cmd);
+}
+
+static void r01_draw_row(uint8_t row, const char *name, const char *value,
+                         uint16_t value_color)
+{
+  static const uint16_t row_y[] = {35U, 62U, 89U, 116U, 145U, 173U, 201U, 229U};
+  uint16_t bg = (row & 1U) ? 65535U : 61374U;
+  uint16_t y = row_y[row];
+
+  r01_draw_fill(12U, (uint16_t)(y - 2U), 300U, 26U, bg);
+  r01_draw_text(20U, y, 135U, 24U, 31U, bg, 0U, name);
+  r01_draw_text(165U, y, 140U, 24U, value_color, bg, 0U, value);
+}
+
+static void r01_draw_status_value(uint8_t row, int32_t number, uint16_t color)
+{
+  static int32_t last_number[8];
+  static uint16_t last_color[8];
+  static uint8_t valid_mask;
+  static const uint16_t row_y[] = {35U, 62U, 89U, 116U, 145U, 173U, 201U, 229U};
+  uint16_t bg = (row & 1U) ? 65535U : 61374U;
+  uint8_t bit = (uint8_t)(1U << row);
+  char value[24];
+
+  if (((valid_mask & bit) != 0U) && (last_number[row] == number) &&
+      (last_color[row] == color))
+  {
+    return;
+  }
+
+  last_number[row] = number;
+  last_color[row] = color;
+  valid_mask |= bit;
+  if (row == 0U)
+    (void)snprintf(value, sizeof(value), "%ld us", (long)number);
+  else
+    (void)snprintf(value, sizeof(value), "%ld", (long)number);
+  r01_draw_text(165U, row_y[row], 140U, 24U, color, bg, 0U, value);
+}
+
+static void r01_draw_button(uint16_t y, const char *label, uint16_t color)
+{
+  r01_draw_fill(342U, y, 128U, 46U, color);
+  r01_draw_text(350U, (uint16_t)(y + 8U), 112U, 30U, 65535U, color, 1U, label);
+}
 
 void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
-                            uint16_t target_adc, int16_t error_adc)
+                            uint16_t target_adc, int16_t error_adc,
+                            uint16_t pa6_duty, uint16_t pb0_duty,
+                            uint16_t pa1_duty, uint16_t pa2_duty,
+                            uint8_t motion_active)
 {
-  /* Feed the existing P00 telemetry page; do not paint a one-line overlay. */
+  static bool page_drawn;
+  static uint16_t last_pulse_us;
+  static uint32_t last_draw_ms;
+  static uint8_t previous_motion_active;
+  static uint16_t peak_pa6_duty;
+  static uint16_t peak_pb0_duty;
+  static uint16_t peak_pa1_duty;
+  static uint16_t peak_pa2_duty;
+  uint32_t now = HAL_GetTick();
+
+  if ((motion_active != 0U) && (previous_motion_active == 0U))
+  {
+    peak_pa6_duty = 0U;
+    peak_pb0_duty = 0U;
+    peak_pa1_duty = 0U;
+    peak_pa2_duty = 0U;
+  }
+  previous_motion_active = motion_active;
+  if (pa6_duty > peak_pa6_duty) peak_pa6_duty = pa6_duty;
+  if (pb0_duty > peak_pb0_duty) peak_pb0_duty = pb0_duty;
+  if (pa1_duty > peak_pa1_duty) peak_pa1_duty = pa1_duty;
+  if (pa2_duty > peak_pa2_duty) peak_pa2_duty = pa2_duty;
+
+  if ((pulse_us == last_pulse_us) && ((uint32_t)(now - last_draw_ms) < 250U))
+  {
+    return;
+  }
+  if (!page_drawn)
+  {
+    r01_draw_cmd("bkcmd=0");
+    r01_draw_cmd("dim=100");
+    r01_draw_cmd("page 0");
+    HAL_Delay(250U);
+    /* A page switch resumes refresh; stop it only after entering page 0. */
+    r01_draw_cmd("ref_stop");
+    /* Hide the panel's original widgets and disable their press/release
+     * actions. Raw sendxy coordinates still drive our custom hit regions. */
+    r01_draw_cmd("vis 255,0");
+    r01_draw_cmd("tsw 255,0");
+    r01_draw_cmd("sendxy=1");
+    r01_draw_cmd("cls 65535");
+    HAL_Delay(30U);
+    r01_draw_fill(0U, 0U, 480U, 32U, 16U);
+    r01_draw_text(6U, 3U, 340U, 26U, 65535U, 16U, 0U, "P50 PWM JOG");
+    r01_draw_text(342U, 3U, 128U, 26U, 65535U, 16U, 2U, "PWM/1000");
+    r01_draw_row(0U, "P", "-- us", 31U);
+    r01_draw_row(1U, "T", "--", 31U);
+    r01_draw_row(2U, "A", "--", 31U);
+    r01_draw_row(3U, "E", "--", 63488U);
+    r01_draw_row(4U, "PA6", "0", 65504U);
+    r01_draw_row(5U, "PB0", "0", 65504U);
+    r01_draw_row(6U, "PA1", "0", 65504U);
+    r01_draw_row(7U, "PA2", "0", 65504U);
+    r01_draw_button(58U, "FWD", 2016U);
+    r01_draw_button(112U, "REV", 63488U);
+    /* Commit the direct-draw page, then stop the original page widgets from
+     * repainting their background over our runtime diagnostic UI. */
+    r01_draw_cmd("ref_star");
+    r01_draw_cmd("ref_stop");
+    page_drawn = true;
+  }
+
+  last_pulse_us = pulse_us;
+  last_draw_ms = now;
+  r01_draw_status_value(0U, pulse_us, 31U);
+  r01_draw_status_value(1U, target_adc, 31U);
+  r01_draw_status_value(2U, feedback_adc, 31U);
+  r01_draw_status_value(3U, error_adc, (error_adc < 0) ? 63488U : 31U);
+  r01_draw_status_value(4U, peak_pa6_duty, (peak_pa6_duty != 0U) ? 31U : 65504U);
+  r01_draw_status_value(5U, peak_pb0_duty, (peak_pb0_duty != 0U) ? 31U : 65504U);
+  r01_draw_status_value(6U, peak_pa1_duty, (peak_pa1_duty != 0U) ? 63488U : 65504U);
+  r01_draw_status_value(7U, peak_pa2_duty, (peak_pa2_duty != 0U) ? 63488U : 65504U);
+
   s_r01_status_pulse_us = pulse_us;
   s_r01_status_feedback_adc = feedback_adc;
   s_r01_status_target_adc = target_adc;
@@ -168,14 +325,6 @@ static void send_cmd(const char *cmd)
 #endif
   send_end();
 }
-
-#if SERVO_TJC_SOFT_TX
-static void soft_tx_cmd_at_baud(uint32_t baud, const char *cmd)
-{
-  s_soft_tx_baud = baud;
-  send_cmd(cmd);
-}
-#endif
 
 static void set_num(const char *obj, int32_t value)
 {
@@ -339,6 +488,15 @@ static void process_packet(const uint8_t *packet, uint8_t len)
   s_tjc_last_packet1 = (len > 1U) ? packet[1] : 0U;
   s_tjc_last_packet2 = (len > 2U) ? packet[2] : 0U;
 
+  if ((len >= 6U) && (packet[0] == 0x67U))
+  {
+    s_touch_x = (uint16_t)(((uint16_t)packet[1] << 8) | packet[2]);
+    s_touch_y = (uint16_t)(((uint16_t)packet[3] << 8) | packet[4]);
+    s_touch_event = packet[5];
+    s_touch_seq++;
+    return;
+  }
+
   if ((len >= 3U) && (packet[0] == 0x65U))
   {
     if (s_page != packet[1])
@@ -379,38 +537,18 @@ static void start_receive(void)
 void TJC_LCDM_Init(void)
 {
 #if SERVO_TJC_SOFT_TX
-  char cmd[24];
-  static const uint32_t recovery_baud[] = {9600U, 38400U, 115200U};
   soft_tx_init();
-  /* Match the known-good V9.x PA7 display recovery sequence. */
-  for (uint32_t i = 0U; i < (sizeof(recovery_baud) / sizeof(recovery_baud[0])); i++)
-  {
-    soft_tx_cmd_at_baud(recovery_baud[i], "bkcmd=0");
-    (void)snprintf(cmd, sizeof(cmd), "bauds=%u", 9600U);
-    soft_tx_cmd_at_baud(recovery_baud[i], cmd);
-    soft_tx_cmd_at_baud(recovery_baud[i], "baud=9600");
-    HAL_Delay(50U);
-  }
-  soft_tx_cmd_at_baud(9600U, "bkcmd=0");
-  HAL_Delay(80U);
-  soft_tx_cmd_at_baud(9600U, "dim=100");
-  soft_tx_cmd_at_baud(9600U, "ref_stop");
-  soft_tx_cmd_at_baud(9600U, "cls 65535");
-  HAL_Delay(30U);
-  /* Force the panel to rebuild its stored home objects after a diagnostic
-     overlay previously painted directly into the display buffer. */
-  soft_tx_cmd_at_baud(9600U, "page 1");
-  HAL_Delay(100U);
-  soft_tx_cmd_at_baud(9600U, "page 0");
-  HAL_Delay(250U);
-  soft_tx_cmd_at_baud(9600U, "ref_star");
-  soft_tx_cmd_at_baud(9600U, "sendxy=1");
-  s_soft_tx_baud = 9600U;
+  s_soft_tx_baud = TJC_LCDM_DEFAULT_BAUD;
+  /* Keep the panel's established 230400 baud; do not renegotiate it to 9600. */
+  send_cmd("bkcmd=0");
+  send_cmd("dim=100");
   s_page = 0U;
   s_tjc_debug_page = s_page;
   invalidate_page_cache();
   s_refresh_requested = true;
 #else
+  /* Let the panel finish its own power-up before the first UART command. */
+  HAL_Delay(TJC_LCDM_STARTUP_DELAY_MS);
   g_tjc_lcdm_uart.Instance = USART1;
   g_tjc_lcdm_uart.Init.BaudRate = TJC_LCDM_DEFAULT_BAUD;
   g_tjc_lcdm_uart.Init.WordLength = UART_WORDLENGTH_8B;
@@ -424,6 +562,10 @@ void TJC_LCDM_Init(void)
   {
     APP_ErrorHandler();
   }
+
+#if SERVO_TJC_RX_ENABLE
+  send_cmd("sendxy=1");
+#endif
 
   s_page = 0U;
   s_tjc_debug_page = s_page;
@@ -501,6 +643,33 @@ void TJC_LCDM_IRQHandler(void)
 #endif
 }
 
+bool TJC_LCDM_ReadTouchEvent(TJC_LCDMTouchEvent *event)
+{
+#if SERVO_TJC_RX_ENABLE
+  uint32_t primask;
+  if (event == NULL)
+  {
+    return false;
+  }
+  primask = __get_PRIMASK();
+  __disable_irq();
+  if (s_touch_seq == s_touch_consumed_seq)
+  {
+    if (primask == 0U) __enable_irq();
+    return false;
+  }
+  event->x = s_touch_x;
+  event->y = s_touch_y;
+  event->event = s_touch_event;
+  s_touch_consumed_seq = s_touch_seq;
+  if (primask == 0U) __enable_irq();
+  return true;
+#else
+  (void)event;
+  return false;
+#endif
+}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 #if SERVO_TJC_RX_ENABLE
@@ -571,6 +740,12 @@ void TJC_LCDM_ForceRefresh(void)
 
 void TJC_LCDM_IRQHandler(void)
 {
+}
+
+bool TJC_LCDM_ReadTouchEvent(TJC_LCDMTouchEvent *event)
+{
+  (void)event;
+  return false;
 }
 
 #endif

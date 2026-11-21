@@ -2,6 +2,7 @@
 #define TJC_LCDM_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifndef SERVO_ENABLE_TJC_LCDM
 #define SERVO_ENABLE_TJC_LCDM 0
@@ -16,8 +17,18 @@ void TJC_LCDM_Init(void);
 void TJC_LCDM_Process(void);
 void TJC_LCDM_ForceRefresh(void);
 void TJC_LCDM_IRQHandler(void);
+typedef struct
+{
+  uint16_t x;
+  uint16_t y;
+  uint8_t event;
+} TJC_LCDMTouchEvent;
+bool TJC_LCDM_ReadTouchEvent(TJC_LCDMTouchEvent *event);
 #if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && SERVO_R01_PRODUCTION_LOOP_TEST
 void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
-                            uint16_t target_adc, int16_t error_adc);
+                            uint16_t target_adc, int16_t error_adc,
+                            uint16_t pa6_duty, uint16_t pb0_duty,
+                            uint16_t pa1_duty, uint16_t pa2_duty,
+                            uint8_t motion_active);
 #endif
 #endif

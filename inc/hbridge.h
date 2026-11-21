@@ -19,6 +19,8 @@ void HBridge_Brake(void);
 void HBridge_TickISR(void);
 int16_t HBridge_GetDuty(void);
 HBridgeState HBridge_GetState(void);
+void HBridge_GetInputDutyPermille(uint16_t *in1, uint16_t *in2,
+                                  uint16_t *in3, uint16_t *in4);
 
 #if SERVO_DIRECTION_PROBE
 /* Debug build only: one explicitly armed hardware-limited positive pulse. */
