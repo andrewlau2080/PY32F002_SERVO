@@ -39,7 +39,7 @@
       {"elapsed_ms": 134, "raw_adc": 2374, "direction": 0, "active": 0},
       {"elapsed_ms": 198, "raw_adc": 2376, "direction": 0, "active": 0}
     ],
-    "final_read_only": {
+    "final_read_only_after_rev": {
       "core": "State.RUNNING",
       "active": 0,
       "duty": 0,
@@ -51,5 +51,35 @@
       "repeat_frames_stable": true
     },
     "conclusion": "The 8-count position guard stopped the drive before the 60ms ISR deadline, but raw ADC moved about -14 counts from the anchor and coasted about 7 more counts after cutoff. Hard timeout was not the active limiter in this run; allowable final displacement is not yet controlled."
+  },
+  "paired_fwd": {
+    "command_us": 1550,
+    "anchor_raw_adc": 2378,
+    "duty_permille": 185,
+    "position_limit_adc": 8,
+    "hard_coast_ms": 60,
+    "fwd_on_ticks_20us": 590,
+    "stop_cause": "60ms ISR hard deadline observed before position guard",
+    "trace": [
+      {"elapsed_ms": 0, "raw_adc": 2375, "direction": 1, "active": 1},
+      {"elapsed_ms": 42, "raw_adc": 2374, "direction": 1, "active": 1},
+      {"elapsed_ms": 59, "raw_adc": 2378, "direction": 1, "active": 1},
+      {"elapsed_ms": 75, "raw_adc": 2384, "direction": 0, "active": 0},
+      {"elapsed_ms": 91, "raw_adc": 2388, "direction": 0, "active": 0},
+      {"elapsed_ms": 117, "raw_adc": 2390, "direction": 0, "active": 0},
+      {"elapsed_ms": 197, "raw_adc": 2388, "direction": 0, "active": 0}
+    ],
+    "final_read_only": {
+      "core": "State.RUNNING",
+      "active": 0,
+      "duty": 0,
+      "raw_adc": 2388,
+      "filtered_feedback_adc": 2389,
+      "vdd_mv": 3241,
+      "forward_ticks": 590,
+      "reverse_ticks": 330,
+      "repeat_frames_stable": true
+    },
+    "conclusion": "FWD feedback moved +10 counts from its anchor after the ISR hard timeout; combined with the preceding REV result, local opposite-direction response is confirmed but post-cutoff coast exceeds the 8-count position threshold."
   }
 }
