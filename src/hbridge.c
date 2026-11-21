@@ -26,6 +26,8 @@ static volatile int16_t s_duty;
 static volatile HBridgeState s_state = HBRIDGE_COAST;
 static volatile uint16_t s_pwm_phase_us;
 static volatile uint16_t s_pwm_period_us = HBRIDGE_PWM_PERIOD_US;
+static volatile uint32_t s_hard_coast_deadline_ms;
+static volatile uint8_t s_hard_coast_deadline_armed;
 
 #if SERVO_R01_PRODUCTION_LOOP_TEST
 volatile uint32_t g_r01_bridge_forward_on_ticks;
@@ -327,6 +329,14 @@ void HBridge_SetSignedDuty(int16_t duty)
 #endif
 }
 
+void HBridge_SetHardCoastDeadline(uint32_t deadline_ms)
+{
+  __disable_irq();
+  s_hard_coast_deadline_ms = deadline_ms;
+  s_hard_coast_deadline_armed = 1U;
+  __enable_irq();
+}
+
 void HBridge_Coast(void)
 {
   __disable_irq();
@@ -336,6 +346,7 @@ void HBridge_Coast(void)
   s_duty = 0;
   s_state = HBRIDGE_COAST;
   s_pwm_phase_us = 0U;
+  s_hard_coast_deadline_armed = 0U;
   __enable_irq();
 #if !SERVO_HBRIDGE_FORCE_HIZ
   apply_coast();
@@ -359,6 +370,18 @@ void HBridge_TickISR(void)
 #if SERVO_HBRIDGE_FORCE_HIZ
   return;
 #else
+  /* A diagnostic jog must stop on the PWM interrupt even if the LCD/main
+   * loop is delayed by UART or drawing work. Keep the deadline armed until
+   * the application observes the timeout and calls HBridge_Coast(). */
+  if (s_hard_coast_deadline_armed != 0U &&
+      (int32_t)(HAL_GetTick() - s_hard_coast_deadline_ms) >= 0)
+  {
+    s_duty = 0;
+    s_state = HBRIDGE_COAST;
+    s_pwm_phase_us = 0U;
+    apply_coast();
+    return;
+  }
   /* TIM1 每 20us 进入一次，用软件 PWM 方式驱动 H 桥。 */
   int16_t duty = s_duty;
   HBridgeState state = s_state;

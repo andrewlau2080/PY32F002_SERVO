@@ -14,6 +14,7 @@ typedef enum
 void HBridge_Init(void);
 void HBridge_SetFrequency(uint16_t frequency_hz);
 void HBridge_SetSignedDuty(int16_t duty);
+void HBridge_SetHardCoastDeadline(uint32_t deadline_ms);
 void HBridge_Coast(void);
 void HBridge_Brake(void);
 void HBridge_TickISR(void);

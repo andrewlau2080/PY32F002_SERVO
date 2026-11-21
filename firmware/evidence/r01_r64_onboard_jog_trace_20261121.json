@@ -1,0 +1,477 @@
+{
+  "version": "R64",
+  "guard": {
+    "duty_permille": 175,
+    "position_limit_adc": 8,
+    "hard_coast_ms": 80,
+    "trace_window_ms": 200
+  },
+  "build": {
+    "bin_bytes": 14288,
+    "bin_sha256": "36b36bae7f749bfeace1b04e687d745265954ac9ad518fe40790291a942412cc"
+  },
+  "flash": {
+    "pre_flash_sha256": "73966a3cbc16c7e8eeed7b275d660f7faab4fef3298e1c4350cfcd0e64c0c69f",
+    "bytes": 20480,
+    "sha256": "43fe18535579b34f2db7bec408d19b2edb128d0a828cf93d59c8da646f3220a8",
+    "application_matches": true,
+    "tail384_unchanged": true,
+    "core_running": true
+  },
+  "fwd": {
+    "guard": {
+      "duty_permille": 175,
+      "position_limit_adc": 8,
+      "max_ms": 80
+    },
+    "results": [
+      {
+        "direction": "FWD",
+        "coord": [
+          400,
+          80
+        ],
+        "before": {
+          "tag": "before",
+          "dt_ms": 61.4,
+          "raw": 2392,
+          "vdd_mv": 3241,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 0,
+          "active": 0,
+          "arm": 0,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 0,
+          "rev_ticks": 0,
+          "touch_seq": 0,
+          "consumed": 0
+        },
+        "frames": [
+          {
+            "tag": "during",
+            "dt_ms": 161.2,
+            "raw": 2390,
+            "vdd_mv": 3241,
+            "input_us": 1550,
+            "direction": 1,
+            "anchor": 2391,
+            "active": 1,
+            "arm": 1,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 315,
+            "rev_ticks": 0,
+            "touch_seq": 1,
+            "consumed": 1
+          },
+          {
+            "tag": "during",
+            "dt_ms": 224.5,
+            "raw": 2396,
+            "vdd_mv": 3235,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2391,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 710,
+            "rev_ticks": 0,
+            "touch_seq": 1,
+            "consumed": 1
+          },
+          {
+            "tag": "during",
+            "dt_ms": 286.5,
+            "raw": 2410,
+            "vdd_mv": 3239,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2391,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 710,
+            "rev_ticks": 0,
+            "touch_seq": 1,
+            "consumed": 1
+          },
+          {
+            "tag": "during",
+            "dt_ms": 346.5,
+            "raw": 2410,
+            "vdd_mv": 3239,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2391,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 710,
+            "rev_ticks": 0,
+            "touch_seq": 1,
+            "consumed": 1
+          }
+        ],
+        "released": {
+          "tag": "released",
+          "dt_ms": 514.6,
+          "raw": 2410,
+          "vdd_mv": 3239,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2391,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 710,
+          "rev_ticks": 0,
+          "touch_seq": 2,
+          "consumed": 2
+        },
+        "settled": {
+          "tag": "settled",
+          "dt_ms": 653.9,
+          "raw": 2410,
+          "vdd_mv": 3239,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2391,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 710,
+          "rev_ticks": 0,
+          "touch_seq": 2,
+          "consumed": 2
+        },
+        "trace": [
+          {
+            "elapsed_ms": 0,
+            "raw_adc": 2390,
+            "command_us": 1550,
+            "direction": 1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 32,
+            "raw_adc": 2390,
+            "command_us": 1550,
+            "direction": 1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 49,
+            "raw_adc": 2394,
+            "command_us": 1550,
+            "direction": 1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 65,
+            "raw_adc": 2396,
+            "command_us": 1550,
+            "direction": 1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 81,
+            "raw_adc": 2399,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 97,
+            "raw_adc": 2406,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 113,
+            "raw_adc": 2408,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 129,
+            "raw_adc": 2410,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 145,
+            "raw_adc": 2410,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 155,
+            "raw_adc": 2413,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 171,
+            "raw_adc": 2409,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 187,
+            "raw_adc": 2410,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          }
+        ]
+      }
+    ]
+  },
+  "rev": {
+    "guard": {
+      "duty_permille": 175,
+      "position_limit_adc": 8,
+      "max_ms": 80
+    },
+    "results": [
+      {
+        "direction": "REV",
+        "coord": [
+          400,
+          135
+        ],
+        "before": {
+          "tag": "before",
+          "dt_ms": 59.0,
+          "raw": 2410,
+          "vdd_mv": 3239,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2391,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 710,
+          "rev_ticks": 0,
+          "touch_seq": 2,
+          "consumed": 2
+        },
+        "frames": [
+          {
+            "tag": "during",
+            "dt_ms": 151.7,
+            "raw": 2409,
+            "vdd_mv": 3239,
+            "input_us": 1450,
+            "direction": -1,
+            "anchor": 2410,
+            "active": 1,
+            "arm": 1,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 710,
+            "rev_ticks": 297,
+            "touch_seq": 3,
+            "consumed": 3
+          },
+          {
+            "tag": "during",
+            "dt_ms": 213.2,
+            "raw": 2409,
+            "vdd_mv": 3228,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2410,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 710,
+            "rev_ticks": 693,
+            "touch_seq": 3,
+            "consumed": 3
+          },
+          {
+            "tag": "during",
+            "dt_ms": 277.1,
+            "raw": 2395,
+            "vdd_mv": 3247,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2410,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 710,
+            "rev_ticks": 693,
+            "touch_seq": 3,
+            "consumed": 3
+          },
+          {
+            "tag": "during",
+            "dt_ms": 341.7,
+            "raw": 2393,
+            "vdd_mv": 3243,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2410,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 710,
+            "rev_ticks": 693,
+            "touch_seq": 3,
+            "consumed": 3
+          }
+        ],
+        "released": {
+          "tag": "released",
+          "dt_ms": 508.9,
+          "raw": 2393,
+          "vdd_mv": 3243,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2410,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 710,
+          "rev_ticks": 693,
+          "touch_seq": 4,
+          "consumed": 4
+        },
+        "settled": {
+          "tag": "settled",
+          "dt_ms": 654.0,
+          "raw": 2393,
+          "vdd_mv": 3243,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2410,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 710,
+          "rev_ticks": 693,
+          "touch_seq": 4,
+          "consumed": 4
+        },
+        "trace": [
+          {
+            "elapsed_ms": 0,
+            "raw_adc": 2411,
+            "command_us": 1450,
+            "direction": -1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 44,
+            "raw_adc": 2410,
+            "command_us": 1450,
+            "direction": -1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 60,
+            "raw_adc": 2410,
+            "command_us": 1450,
+            "direction": -1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 77,
+            "raw_adc": 2406,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 93,
+            "raw_adc": 2398,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 109,
+            "raw_adc": 2396,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 125,
+            "raw_adc": 2395,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 141,
+            "raw_adc": 2393,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 157,
+            "raw_adc": 2393,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 167,
+            "raw_adc": 2394,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 183,
+            "raw_adc": 2394,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 193,
+            "raw_adc": 2393,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          }
+        ]
+      }
+    ]
+  },
+  "final_read_only": {
+    "core": "State.RUNNING",
+    "active": 0,
+    "duty": 0,
+    "raw_adc": 2393,
+    "filtered_feedback_adc": 2392,
+    "vdd_mv": 3243,
+    "fwd_ticks": 710,
+    "rev_ticks": 693
+  }
+}

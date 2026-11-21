@@ -1,0 +1,55 @@
+{
+  "version": "R66",
+  "guard": {
+    "duty_permille": 185,
+    "position_limit_adc": 8,
+    "hard_coast_ms": 60,
+    "trace_capacity": 20,
+    "trace_period_nominal_ms": 10
+  },
+  "build": {
+    "bin_bytes": 14288,
+    "bin_sha256": "270b91689625b4f01191e1c6a270f58faf3304029fe5b54d42a13fca8c4e0db5"
+  },
+  "flash": {
+    "pre_flash_sha256": "a701e065d211841ae9a9b5ac8e74bf3437c80579e569ac28da5d7889e59cf6bb",
+    "whole_flash_bytes": 20480,
+    "whole_flash_sha256": "e7c4147165c6b115c2fd735a0994c04fe61f86d25b39b3d626633f090cb80429",
+    "application_matches_candidate": true,
+    "tail384_unchanged": true,
+    "core_running": true,
+    "readback_dir": "build/board_readback/20261121_r66_verified/"
+  },
+  "test": {
+    "method": "SWD-injected already-decoded LCDM touch event; does not verify physical LCD touch UART packet or visible display",
+    "direction": "REV",
+    "command_us": 1450,
+    "anchor_raw_adc": 2390,
+    "duty_permille": 185,
+    "position_limit_adc": 8,
+    "rev_on_ticks_20us": 330,
+    "position_guard_tripped_before_60ms_deadline": true,
+    "trace": [
+      {"elapsed_ms": 0, "raw_adc": 2387, "direction": -1, "active": 1},
+      {"elapsed_ms": 34, "raw_adc": 2383, "direction": -1, "active": 1},
+      {"elapsed_ms": 50, "raw_adc": 2379, "direction": 0, "active": 0},
+      {"elapsed_ms": 66, "raw_adc": 2376, "direction": 0, "active": 0},
+      {"elapsed_ms": 82, "raw_adc": 2374, "direction": 0, "active": 0},
+      {"elapsed_ms": 108, "raw_adc": 2376, "direction": 0, "active": 0},
+      {"elapsed_ms": 134, "raw_adc": 2374, "direction": 0, "active": 0},
+      {"elapsed_ms": 198, "raw_adc": 2376, "direction": 0, "active": 0}
+    ],
+    "final_read_only": {
+      "core": "State.RUNNING",
+      "active": 0,
+      "duty": 0,
+      "raw_adc": 2376,
+      "filtered_feedback_adc": 2389,
+      "vdd_mv": 3243,
+      "forward_ticks": 0,
+      "reverse_ticks": 330,
+      "repeat_frames_stable": true
+    },
+    "conclusion": "The 8-count position guard stopped the drive before the 60ms ISR deadline, but raw ADC moved about -14 counts from the anchor and coasted about 7 more counts after cutoff. Hard timeout was not the active limiter in this run; allowable final displacement is not yet controlled."
+  }
+}

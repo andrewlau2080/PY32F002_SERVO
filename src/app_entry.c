@@ -135,6 +135,56 @@ static int8_t s_r01_touch_jog_direction;
 static uint32_t s_r01_touch_jog_start_ms;
 static uint16_t s_r01_touch_jog_anchor_adc;
 static uint16_t s_r01_touch_jog_live_adc;
+__attribute__((used)) volatile uint8_t g_r01_touch_jog_trace_count;
+__attribute__((used)) volatile uint8_t g_r01_touch_jog_trace[20][8];
+__attribute__((used)) volatile uint32_t g_r01_touch_jog_trace_start_ms;
+static uint32_t s_r01_touch_jog_trace_last_ms;
+static uint8_t s_r01_touch_jog_trace_active;
+
+static void r01_touch_jog_trace_begin(uint32_t now_ms)
+{
+  g_r01_touch_jog_trace_count = 0U;
+  g_r01_touch_jog_trace_start_ms = now_ms;
+  s_r01_touch_jog_trace_last_ms = now_ms - 10U;
+  s_r01_touch_jog_trace_active = 1U;
+}
+
+static void r01_touch_jog_trace_sample(uint32_t now_ms, uint16_t command_us)
+{
+  uint32_t elapsed_ms;
+  uint8_t index;
+  uint16_t raw_adc;
+  int8_t direction;
+  uint8_t active;
+  if (s_r01_touch_jog_trace_active == 0U)
+  {
+    return;
+  }
+  elapsed_ms = (uint32_t)(now_ms - g_r01_touch_jog_trace_start_ms);
+  if ((elapsed_ms - (uint32_t)(s_r01_touch_jog_trace_last_ms - g_r01_touch_jog_trace_start_ms)) < 10U)
+  {
+    return;
+  }
+  if ((elapsed_ms >= 200U) || (g_r01_touch_jog_trace_count >= 20U))
+  {
+    s_r01_touch_jog_trace_active = 0U;
+    return;
+  }
+  raw_adc = ADC_Feedback_ReadRaw();
+  direction = s_r01_touch_jog_direction;
+  active = g_r01_production_test_active;
+  index = g_r01_touch_jog_trace_count;
+  g_r01_touch_jog_trace[index][0] = (uint8_t)elapsed_ms;
+  g_r01_touch_jog_trace[index][1] = (uint8_t)(elapsed_ms >> 8);
+  g_r01_touch_jog_trace[index][2] = (uint8_t)raw_adc;
+  g_r01_touch_jog_trace[index][3] = (uint8_t)(raw_adc >> 8);
+  g_r01_touch_jog_trace[index][4] = (uint8_t)command_us;
+  g_r01_touch_jog_trace[index][5] = (uint8_t)(command_us >> 8);
+  g_r01_touch_jog_trace[index][6] = (uint8_t)direction;
+  g_r01_touch_jog_trace[index][7] = active;
+  g_r01_touch_jog_trace_count = (uint8_t)(index + 1U);
+  s_r01_touch_jog_trace_last_ms = now_ms;
+}
 #endif
 #if SERVO_R01_CENTER_RETURN_TEST
 volatile uint16_t g_r01_center_live_adc;
@@ -4808,6 +4858,8 @@ int entry(void)
           s_r01_touch_jog_anchor_adc = ADC_Feedback_ReadRaw();
           s_r01_touch_jog_live_adc = s_r01_touch_jog_anchor_adc;
           s_r01_touch_jog_start_ms = now_ms;
+          r01_touch_jog_trace_begin(now_ms);
+          HBridge_SetHardCoastDeadline(now_ms + SERVO_R01_TOUCH_JOG_MAX_MS);
           g_r01_production_test_active = 1U;
           g_r01_active_test_arm_request = 1U;
         }
@@ -4846,6 +4898,7 @@ int entry(void)
                       ((s_r01_touch_jog_direction < 0) ? 1450U : 1500U);
       g_r01_production_test_pulse_us = test_pulse_us;
       PWM_Input_SetTestPulse(test_pulse_us, now_ms);
+      r01_touch_jog_trace_sample(now_ms, test_pulse_us);
     }
 #else
 #if SERVO_R01_CENTER_RETURN_TEST

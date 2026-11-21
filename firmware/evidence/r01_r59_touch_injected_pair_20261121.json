@@ -1,0 +1,592 @@
+{
+  "version": "R59",
+  "guard": {
+    "duty_permille": 175,
+    "position_limit_adc": 8,
+    "max_ms": 50
+  },
+  "readback": {
+    "host": "andrew@10.211.55.4",
+    "target": "py32f002ax5",
+    "uid": "070000011a5a5cc500000000000c00b6a5a5a5a597969908",
+    "action": "read",
+    "before": {
+      "bytes": 20480,
+      "sha256": "81bb10ac8ee3c2446b0892825dc95116737e85ce132141b3e56356636a69caa2",
+      "sp": "0x20000c00",
+      "pc": "0x08003379",
+      "versions": [
+        {
+          "address": "0x08003494",
+          "text": "P50 V10.6R13LCD"
+        },
+        {
+          "address": "0x0800422c",
+          "text": "P50 V10.6R13LCD"
+        }
+      ]
+    },
+    "verified": true
+  },
+  "pre_flash_sha256": "389a739d4b0df35fa3930fbac6c577b48301f7eb77b9eb8c808aba4cd6213a6f",
+  "fwd": {
+    "direction_test": "FWD",
+    "injected_coordinate": [
+      400,
+      80
+    ],
+    "guard": {
+      "max_duty_permille": 175,
+      "max_displacement_adc": 8,
+      "max_time_ms": 50
+    },
+    "before": {
+      "tag": "before",
+      "state": "State.RUNNING",
+      "raw_adc": 2353,
+      "vdd_mv": 3243,
+      "status": {
+        "state": 0,
+        "input_us": 1500,
+        "target_adc": 2048,
+        "feedback_adc": 2353,
+        "error_adc": 0,
+        "motor_duty": 0,
+        "input_valid": 0
+      },
+      "direction": 0,
+      "anchor_adc": 0,
+      "active": 0,
+      "arm": 0,
+      "bridge_fwd_ticks": 0,
+      "bridge_rev_ticks": 0,
+      "last_duty": 0,
+      "anchor_raw": 0,
+      "raw_displacement": 0,
+      "max_raw_displacement": 0,
+      "nonzero_duty_count": 0
+    },
+    "frames": [
+      {
+        "tag": "during",
+        "state": "State.RUNNING",
+        "raw_adc": 2351,
+        "vdd_mv": 3243,
+        "status": {
+          "state": 0,
+          "input_us": 1500,
+          "target_adc": 2048,
+          "feedback_adc": 2353,
+          "error_adc": 0,
+          "motor_duty": 0,
+          "input_valid": 0
+        },
+        "direction": 0,
+        "anchor_adc": 2352,
+        "active": 0,
+        "arm": 2,
+        "bridge_fwd_ticks": 585,
+        "bridge_rev_ticks": 0,
+        "last_duty": 0,
+        "anchor_raw": 0,
+        "raw_displacement": 0,
+        "max_raw_displacement": 0,
+        "nonzero_duty_count": 0
+      },
+      {
+        "tag": "during",
+        "state": "State.RUNNING",
+        "raw_adc": 2352,
+        "vdd_mv": 3241,
+        "status": {
+          "state": 0,
+          "input_us": 1500,
+          "target_adc": 2048,
+          "feedback_adc": 2353,
+          "error_adc": 0,
+          "motor_duty": 0,
+          "input_valid": 0
+        },
+        "direction": 0,
+        "anchor_adc": 2352,
+        "active": 0,
+        "arm": 2,
+        "bridge_fwd_ticks": 585,
+        "bridge_rev_ticks": 0,
+        "last_duty": 0,
+        "anchor_raw": 0,
+        "raw_displacement": 0,
+        "max_raw_displacement": 0,
+        "nonzero_duty_count": 0
+      }
+    ],
+    "after_release": {
+      "tag": "after_release",
+      "state": "State.RUNNING",
+      "raw_adc": 2352,
+      "vdd_mv": 3241,
+      "status": {
+        "state": 0,
+        "input_us": 1500,
+        "target_adc": 2048,
+        "feedback_adc": 2353,
+        "error_adc": 0,
+        "motor_duty": 0,
+        "input_valid": 0
+      },
+      "direction": 0,
+      "anchor_adc": 2352,
+      "active": 0,
+      "arm": 2,
+      "bridge_fwd_ticks": 585,
+      "bridge_rev_ticks": 0,
+      "last_duty": 0,
+      "anchor_raw": 0,
+      "raw_displacement": 0,
+      "max_raw_displacement": 0,
+      "nonzero_duty_count": 0
+    },
+    "settled": {
+      "tag": "settled",
+      "state": "State.RUNNING",
+      "raw_adc": 2352,
+      "vdd_mv": 3241,
+      "status": {
+        "state": 0,
+        "input_us": 1500,
+        "target_adc": 2048,
+        "feedback_adc": 2353,
+        "error_adc": 0,
+        "motor_duty": 0,
+        "input_valid": 0
+      },
+      "direction": 0,
+      "anchor_adc": 2352,
+      "active": 0,
+      "arm": 2,
+      "bridge_fwd_ticks": 585,
+      "bridge_rev_ticks": 0,
+      "last_duty": 0,
+      "anchor_raw": 0,
+      "raw_displacement": 0,
+      "max_raw_displacement": 0,
+      "nonzero_duty_count": 0
+    }
+  },
+  "rev": {
+    "direction_test": "REV",
+    "injected_coordinate": [
+      400,
+      135
+    ],
+    "guard": {
+      "max_duty_permille": 175,
+      "max_displacement_adc": 8,
+      "max_time_ms": 50
+    },
+    "before": {
+      "tag": "before",
+      "state": "State.RUNNING",
+      "raw_adc": 2352,
+      "vdd_mv": 3241,
+      "status": {
+        "state": 0,
+        "input_us": 1500,
+        "target_adc": 2048,
+        "feedback_adc": 2353,
+        "error_adc": 0,
+        "motor_duty": 0,
+        "input_valid": 0
+      },
+      "direction": 0,
+      "anchor_adc": 2352,
+      "active": 0,
+      "arm": 2,
+      "bridge_fwd_ticks": 585,
+      "bridge_rev_ticks": 0,
+      "last_duty": 0,
+      "anchor_raw": 0,
+      "raw_displacement": 0,
+      "max_raw_displacement": 0,
+      "nonzero_duty_count": 0
+    },
+    "frames": [
+      {
+        "tag": "during",
+        "state": "State.RUNNING",
+        "raw_adc": 2362,
+        "vdd_mv": 3241,
+        "status": {
+          "state": 0,
+          "input_us": 1500,
+          "target_adc": 2048,
+          "feedback_adc": 2353,
+          "error_adc": 0,
+          "motor_duty": 0,
+          "input_valid": 0
+        },
+        "direction": 0,
+        "anchor_adc": 2362,
+        "active": 0,
+        "arm": 2,
+        "bridge_fwd_ticks": 585,
+        "bridge_rev_ticks": 468,
+        "last_duty": 0,
+        "anchor_raw": 0,
+        "raw_displacement": 0,
+        "max_raw_displacement": 0,
+        "nonzero_duty_count": 0
+      },
+      {
+        "tag": "during",
+        "state": "State.RUNNING",
+        "raw_adc": 2361,
+        "vdd_mv": 3226,
+        "status": {
+          "state": 0,
+          "input_us": 1500,
+          "target_adc": 2048,
+          "feedback_adc": 2353,
+          "error_adc": 0,
+          "motor_duty": 0,
+          "input_valid": 0
+        },
+        "direction": 0,
+        "anchor_adc": 2362,
+        "active": 0,
+        "arm": 2,
+        "bridge_fwd_ticks": 585,
+        "bridge_rev_ticks": 468,
+        "last_duty": 0,
+        "anchor_raw": 0,
+        "raw_displacement": 0,
+        "max_raw_displacement": 0,
+        "nonzero_duty_count": 0
+      }
+    ],
+    "after_release": {
+      "tag": "after_release",
+      "state": "State.RUNNING",
+      "raw_adc": 2361,
+      "vdd_mv": 3226,
+      "status": {
+        "state": 0,
+        "input_us": 1500,
+        "target_adc": 2048,
+        "feedback_adc": 2353,
+        "error_adc": 0,
+        "motor_duty": 0,
+        "input_valid": 0
+      },
+      "direction": 0,
+      "anchor_adc": 2362,
+      "active": 0,
+      "arm": 2,
+      "bridge_fwd_ticks": 585,
+      "bridge_rev_ticks": 468,
+      "last_duty": 0,
+      "anchor_raw": 0,
+      "raw_displacement": 0,
+      "max_raw_displacement": 0,
+      "nonzero_duty_count": 0
+    },
+    "settled": {
+      "tag": "settled",
+      "state": "State.RUNNING",
+      "raw_adc": 2361,
+      "vdd_mv": 3226,
+      "status": {
+        "state": 0,
+        "input_us": 1500,
+        "target_adc": 2048,
+        "feedback_adc": 2353,
+        "error_adc": 0,
+        "motor_duty": 0,
+        "input_valid": 0
+      },
+      "direction": 0,
+      "anchor_adc": 2362,
+      "active": 0,
+      "arm": 2,
+      "bridge_fwd_ticks": 585,
+      "bridge_rev_ticks": 468,
+      "last_duty": 0,
+      "anchor_raw": 0,
+      "raw_displacement": 0,
+      "max_raw_displacement": 0,
+      "nonzero_duty_count": 0
+    }
+  },
+  "fast_block_read_pair": {
+    "guard": {
+      "duty_permille": 175,
+      "position_limit_adc": 8,
+      "max_ms": 50
+    },
+    "results": [
+      {
+        "direction": "FWD",
+        "coord": [
+          400,
+          80
+        ],
+        "before": {
+          "tag": "before",
+          "dt_ms": 57.2,
+          "raw": 2361,
+          "vdd_mv": 3226,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2362,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 0,
+          "fwd_ticks": 585,
+          "rev_ticks": 468,
+          "touch_seq": 4,
+          "consumed": 4
+        },
+        "frames": [
+          {
+            "tag": "during",
+            "dt_ms": 155.1,
+            "raw": 2363,
+            "vdd_mv": 3241,
+            "input_us": 1500,
+            "direction": 1,
+            "anchor": 2360,
+            "active": 1,
+            "arm": 1,
+            "duty": 0,
+            "status_input_us": 0,
+            "fwd_ticks": 1035,
+            "rev_ticks": 468,
+            "touch_seq": 5,
+            "consumed": 5
+          },
+          {
+            "tag": "during",
+            "dt_ms": 220.1,
+            "raw": 2369,
+            "vdd_mv": 3243,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2360,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 0,
+            "fwd_ticks": 1107,
+            "rev_ticks": 468,
+            "touch_seq": 5,
+            "consumed": 5
+          },
+          {
+            "tag": "during",
+            "dt_ms": 285.2,
+            "raw": 2369,
+            "vdd_mv": 3243,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2360,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 0,
+            "fwd_ticks": 1107,
+            "rev_ticks": 468,
+            "touch_seq": 5,
+            "consumed": 5
+          },
+          {
+            "tag": "during",
+            "dt_ms": 349.2,
+            "raw": 2369,
+            "vdd_mv": 3243,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2360,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 0,
+            "fwd_ticks": 1107,
+            "rev_ticks": 468,
+            "touch_seq": 5,
+            "consumed": 5
+          }
+        ],
+        "released": {
+          "tag": "released",
+          "dt_ms": 514.2,
+          "raw": 2369,
+          "vdd_mv": 3243,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2360,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 0,
+          "fwd_ticks": 1107,
+          "rev_ticks": 468,
+          "touch_seq": 6,
+          "consumed": 6
+        },
+        "settled": {
+          "tag": "settled",
+          "dt_ms": 656.0,
+          "raw": 2369,
+          "vdd_mv": 3243,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2360,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 0,
+          "fwd_ticks": 1107,
+          "rev_ticks": 468,
+          "touch_seq": 6,
+          "consumed": 6
+        }
+      },
+      {
+        "direction": "REV",
+        "coord": [
+          400,
+          135
+        ],
+        "before": {
+          "tag": "before",
+          "dt_ms": 730.3,
+          "raw": 2369,
+          "vdd_mv": 3243,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2360,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 0,
+          "fwd_ticks": 1107,
+          "rev_ticks": 468,
+          "touch_seq": 6,
+          "consumed": 6
+        },
+        "frames": [
+          {
+            "tag": "during",
+            "dt_ms": 830.9,
+            "raw": 2380,
+            "vdd_mv": 3232,
+            "input_us": 1500,
+            "direction": -1,
+            "anchor": 2381,
+            "active": 1,
+            "arm": 1,
+            "duty": 0,
+            "status_input_us": 0,
+            "fwd_ticks": 1107,
+            "rev_ticks": 930,
+            "touch_seq": 7,
+            "consumed": 7
+          },
+          {
+            "tag": "during",
+            "dt_ms": 896.0,
+            "raw": 2379,
+            "vdd_mv": 3237,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2381,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 0,
+            "fwd_ticks": 1107,
+            "rev_ticks": 981,
+            "touch_seq": 7,
+            "consumed": 7
+          },
+          {
+            "tag": "during",
+            "dt_ms": 961.2,
+            "raw": 2379,
+            "vdd_mv": 3237,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2381,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 0,
+            "fwd_ticks": 1107,
+            "rev_ticks": 981,
+            "touch_seq": 7,
+            "consumed": 7
+          },
+          {
+            "tag": "during",
+            "dt_ms": 1028.2,
+            "raw": 2379,
+            "vdd_mv": 3237,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2381,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 0,
+            "fwd_ticks": 1107,
+            "rev_ticks": 981,
+            "touch_seq": 7,
+            "consumed": 7
+          }
+        ],
+        "released": {
+          "tag": "released",
+          "dt_ms": 1196.2,
+          "raw": 2379,
+          "vdd_mv": 3237,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2381,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 0,
+          "fwd_ticks": 1107,
+          "rev_ticks": 981,
+          "touch_seq": 8,
+          "consumed": 8
+        },
+        "settled": {
+          "tag": "settled",
+          "dt_ms": 1343.2,
+          "raw": 2379,
+          "vdd_mv": 3237,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2381,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 0,
+          "fwd_ticks": 1107,
+          "rev_ticks": 981,
+          "touch_seq": 8,
+          "consumed": 8
+        }
+      }
+    ]
+  },
+  "final_read_only": {
+    "core": "State.RUNNING",
+    "active": 0,
+    "duty": 0,
+    "raw_adc": 2379,
+    "vdd_mv": 3226
+  }
+}

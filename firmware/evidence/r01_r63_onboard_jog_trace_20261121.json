@@ -1,0 +1,373 @@
+{
+  "version": "R63",
+  "purpose": "capture short jog command/raw ADC/direction/active at 10ms nominal intervals onboard; 20x8-byte RAM rows",
+  "guard": {
+    "duty_permille": 175,
+    "position_limit_adc": 8,
+    "hard_coast_ms": 50,
+    "trace_window_ms": 200
+  },
+  "build": {
+    "bin_bytes": 14288,
+    "bin_sha256": "c4cb6a27ec2f7d2884414023b8f6a8765ea25d39326649889281f738717fc652",
+    "manifest_r01_touch_jog_max_ms": 50,
+    "elf_bytes": 213336
+  },
+  "flash": {
+    "pre_flash_sha256": "71a17e4068f1edcbd9da313c9507382d12d8c914adcea0115eb75303238b96ea",
+    "bytes": 20480,
+    "sha256": "73966a3cbc16c7e8eeed7b275d660f7faab4fef3298e1c4350cfcd0e64c0c69f",
+    "application_matches": true,
+    "tail384_unchanged": true,
+    "core_running": true
+  },
+  "fwd": {
+    "core": "State.RUNNING",
+    "active": 0,
+    "duty": 0,
+    "raw_adc": 2391,
+    "fwd_ticks": 441,
+    "rev_ticks": 0,
+    "trace_count": 14,
+    "trace": [
+      {
+        "elapsed_ms": 0,
+        "raw_adc": 2389,
+        "command_us": 1550,
+        "direction": 1,
+        "active": 1
+      },
+      {
+        "elapsed_ms": 32,
+        "raw_adc": 2387,
+        "command_us": 1550,
+        "direction": 1,
+        "active": 1
+      },
+      {
+        "elapsed_ms": 50,
+        "raw_adc": 2388,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 66,
+        "raw_adc": 2391,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 82,
+        "raw_adc": 2392,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 92,
+        "raw_adc": 2391,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 102,
+        "raw_adc": 2392,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 112,
+        "raw_adc": 2390,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 128,
+        "raw_adc": 2390,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 138,
+        "raw_adc": 2390,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 148,
+        "raw_adc": 2390,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 158,
+        "raw_adc": 2391,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 174,
+        "raw_adc": 2390,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      },
+      {
+        "elapsed_ms": 190,
+        "raw_adc": 2391,
+        "command_us": 1500,
+        "direction": 0,
+        "active": 0
+      }
+    ]
+  },
+  "rev": {
+    "guard": {
+      "duty_permille": 175,
+      "position_limit_adc": 8,
+      "max_ms": 50
+    },
+    "results": [
+      {
+        "direction": "REV",
+        "coord": [
+          400,
+          135
+        ],
+        "before": {
+          "tag": "before",
+          "dt_ms": 58.8,
+          "raw": 2391,
+          "vdd_mv": 3239,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2390,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 441,
+          "rev_ticks": 0,
+          "touch_seq": 2,
+          "consumed": 2
+        },
+        "frames": [
+          {
+            "tag": "during",
+            "dt_ms": 158.8,
+            "raw": 2389,
+            "vdd_mv": 3243,
+            "input_us": 1500,
+            "direction": -1,
+            "anchor": 2389,
+            "active": 1,
+            "arm": 1,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 441,
+            "rev_ticks": 315,
+            "touch_seq": 3,
+            "consumed": 3
+          },
+          {
+            "tag": "during",
+            "dt_ms": 221.1,
+            "raw": 2389,
+            "vdd_mv": 3241,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2389,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 441,
+            "rev_ticks": 441,
+            "touch_seq": 3,
+            "consumed": 3
+          },
+          {
+            "tag": "during",
+            "dt_ms": 283.8,
+            "raw": 2390,
+            "vdd_mv": 3243,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2389,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 441,
+            "rev_ticks": 441,
+            "touch_seq": 3,
+            "consumed": 3
+          },
+          {
+            "tag": "during",
+            "dt_ms": 349.0,
+            "raw": 2392,
+            "vdd_mv": 3237,
+            "input_us": 1500,
+            "direction": 0,
+            "anchor": 2389,
+            "active": 0,
+            "arm": 2,
+            "duty": 0,
+            "status_input_us": 1500,
+            "fwd_ticks": 441,
+            "rev_ticks": 441,
+            "touch_seq": 3,
+            "consumed": 3
+          }
+        ],
+        "released": {
+          "tag": "released",
+          "dt_ms": 509.0,
+          "raw": 2392,
+          "vdd_mv": 3237,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2389,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 441,
+          "rev_ticks": 441,
+          "touch_seq": 4,
+          "consumed": 4
+        },
+        "settled": {
+          "tag": "settled",
+          "dt_ms": 655.8,
+          "raw": 2392,
+          "vdd_mv": 3237,
+          "input_us": 1500,
+          "direction": 0,
+          "anchor": 2389,
+          "active": 0,
+          "arm": 2,
+          "duty": 0,
+          "status_input_us": 1500,
+          "fwd_ticks": 441,
+          "rev_ticks": 441,
+          "touch_seq": 4,
+          "consumed": 4
+        },
+        "trace": [
+          {
+            "elapsed_ms": 0,
+            "raw_adc": 2389,
+            "command_us": 1450,
+            "direction": -1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 44,
+            "raw_adc": 2389,
+            "command_us": 1450,
+            "direction": -1,
+            "active": 1
+          },
+          {
+            "elapsed_ms": 61,
+            "raw_adc": 2389,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 77,
+            "raw_adc": 2392,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 93,
+            "raw_adc": 2390,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 109,
+            "raw_adc": 2390,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 119,
+            "raw_adc": 2391,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 135,
+            "raw_adc": 2390,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 151,
+            "raw_adc": 2390,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 161,
+            "raw_adc": 2390,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 171,
+            "raw_adc": 2390,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 181,
+            "raw_adc": 2389,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          },
+          {
+            "elapsed_ms": 197,
+            "raw_adc": 2392,
+            "command_us": 1500,
+            "direction": 0,
+            "active": 0
+          }
+        ]
+      }
+    ]
+  },
+  "final_read_only": {
+    "core": "State.RUNNING",
+    "active": 0,
+    "duty": 0,
+    "raw_adc": 2392,
+    "filtered_feedback_adc": 2389,
+    "vdd_mv": 3237,
+    "fwd_ticks": 441,
+    "rev_ticks": 441
+  }
+}

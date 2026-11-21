@@ -748,3 +748,26 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 
 - 两个方向的H桥计数及反馈变化符号相符；这是局部双向响应的实测证据。动作前普通raw读取与随后点动锚点相差最多25 count，SWD采样间隔无法拆分触发前采样差、动作期间位移和coast后的惯性滑行。按点动锚点计算，结束采样偏移超过8-count阈值的轮次达到14–18 count；8-count是触发coast门槛，不是保证最终停在8 count内。VDD末值约3243mV，三帧静止复查raw=2360、active=0、duty=0且桥tick不再增长，核心Running。
 - **结论：R58已确认两个方向都能通过固件点动路径产生对应桥输出及同符号反馈变化；不代表P/A屏幕已目视核实，也不代表机械行程/角度已验收。由于coast后位移超过阈值且低速SWD无法精确分离滑行，停止本轮后续电机动作；R01仍未通过。下一步先缩短/收紧点动脉冲并分析滑行，不得继续提高占空或做端点测试。**
+
+### 2026-11-21 R59软截止与R60中断硬截止验证
+
+- 针对R58主循环可能延迟触发coast，先构建R59：175‰、8 ADC count、最大50ms，但截止仍由主循环检查。候选BIN 14,016B，SHA256=`51bff14249387d347be0bc72cc05f68880725877c0fab2ec84155e2c44e086b7`；R59 under-reset下载后整片20,480B SHA256=`81bb10ac8ee3c2446b0892825dc95116737e85ce132141b3e56356636a69caa2`，应用匹配、尾384B保持。稀疏SWD首轮FWD/REV导通节拍585/468；快速块采样复测分别522/513，第一次采样仍晚于点动触发，且active在约98ms后仍为1、随后约163ms观察为0。快速复测raw锚点到末值FWD约+9、REV约−2 count，方向动作窗内未捕获脉宽显示，不能确认位移。证据`firmware/evidence/r01_r59_touch_injected_pair_20261121.json`及读回`build/board_readback/20261121_r59_postflash/`。
+- R59采样显示点动时active可持续到50ms配置之后才被观察到，且桥导通节拍多于理论50ms×175‰预算。为让PWM中断在主循环/UI延迟时仍能关断，R60新增硬截止：按钮事件时记录绝对HAL tick截止，HBridge 20µs ISR到期后直接清占空并强制coast；保留主循环ADC位移和超时保护。修改`inc/hbridge.h`、`src/hbridge.c`、`src/app_entry.c`。Ubuntu构建通过，候选BIN 14,096B SHA256=`45f4bc6cdb8595eedc5da2fb854a086acd690cae0d19cc48f9db64b46a28598b`。
+- R60先完整备份R59（SHA256=`81bb10ac8ee3c2446b0892825dc95116737e85ce132141b3e56356636a69caa2`），2MHz under-reset下载后整片20,480B SHA256=`71a17e4068f1edcbd9da313c9507382d12d8c914adcea0115eb75303238b96ea`，14,096B应用逐字节匹配BIN、尾384B不变、核心Running。175‰/8count/50ms下FWD/REV桥导通计数各441个20µs节拍（8.82ms累计导通时间，折算约50.4ms载波时长），均在主循环延迟后停止；R59对应522/468，说明ISR硬截止把最长输出窗收敛到设定值附近。证据`firmware/evidence/r01_r60_hard_coast_pair_20261121.json`、读回`build/board_readback/20261121_r60_postflash/`。
+- R60 FWD动作锚点2379→末值2388（+9 raw count），REV锚点2389→末值2388（−1）；反向反馈变化不足以确认可重复位移。三帧复查核心Running、active=0、duty=0，raw=2388稳定、VDD=3237mV，桥计数不再增长。**当前板R60安全空闲。硬时间截止已板测通过；机械最终滑行/8-count限位、反向位置响应、实体LCD触摸包和P/A显示仍未通过，R01未通过。后续不得恢复150ms窗；先改善快速位移记录并审查反馈锚点/滑行后再决定动作幅度。**
+
+### 2026-11-21 R63板内短点动轨迹记录
+
+- 为避开SWD读分散变量每帧约45–80ms的延迟，加入20×8B RAM轨迹区：名义每10ms记一次elapsed/raw ADC/等效命令/方向/active，最多200ms；不改变R60 50ms硬截止、175‰ duty或8-count门槛。修改仍仅适用于LCDM点动诊断配置。Ubuntu构建通过；BIN 14,288B SHA256=`c4cb6a27ec2f7d2884414023b8f6a8765ea25d39326649889281f738717fc652`。
+- 先备份R60整片SHA256=`71a17e4068f1edcbd9da313c9507382d12d8c914adcea0115eb75303238b96ea`；R63 2MHz under-reset下载后整片20,480B SHA256=`73966a3cbc16c7e8eeed7b275d660f7faab4fef3298e1c4350cfcd0e64c0c69f`，14,288B应用匹配、尾384B保持、核心Running。板内轨迹和读回证据分别在`firmware/evidence/r01_r63_onboard_jog_trace_20261121.json`、`build/board_readback/20261121_r63_postflash/`。
+- SWD注入已解析坐标事件，各触发FWD/REV一次。FWD在t=0/32ms记录命令1550µs、方向+1、active=1；t=50ms转为1500/coast；ADC锚点2389，滑行采样峰值2392（+3），后续2390–2391。REV在t=0/44ms为1450µs、方向−1、active=1；t=61ms观察为coast；ADC锚点2389，随后范围2389–2392。两向桥导通计数各441个20µs tick，证明50ms ISR硬截止有效；ADC变化不超过约3 count，无法区别静态波动，**未确认真实位移或反向反馈**。末次只读核心Running、active=0、duty=0、raw=2392、滤波反馈2389、VDD=3237mV，计数稳定。
+- R63结束时板安全空闲；后续R64–R66结果及当前状态见下文。
+
+### 2026-11-21 R64–R66收紧点动与位置门槛复测
+
+- R64保持175‰、8-count位置门槛，将20µs ISR硬截止从50ms改为80ms。BIN 14,288B SHA256=`36b36bae7f749bfeace1b04e687d745265954ac9ad518fe40790291a942412cc`；R63→R64整片读回SHA256=`43fe18535579b34f2db7bec408d19b2edb128d0a828cf93d59c8da646f3220a8`，应用匹配、尾384B不变、Running。先前配对FWD/REV板内轨迹表明：FWD 710个20µs输出tick、raw锚点2391后峰值2413（+22）；REV 693 tick、锚点2410后最低2393（−17）。同位置附近重复两轮响应减弱：第一轮FWD约+12、REV约−7 ADC；偏移后再测FWD约+12、REV约−3。重复性和双向对称性不足，且8-count触发阈值不限制coast后最终位移。完整首轮轨迹在`firmware/evidence/r01_r64_onboard_jog_trace_20261121.json`；另两轮摘要按SWD只读结果记于本节。
+- 为处理偏弱位置，R65仅把占空由175‰增至185‰，80ms硬截止/8-count门槛不变。BIN SHA256=`eb98f264018aa738cc43175fdbbc880b14831ff82cd8694a17233b4a7920bb7f`。同一附近REV锚点2411/2412后降至最低2388，最终约2389（约−23至−24 count），桥计数670；相对R64弱响应有明显增强，但滑行大且越过位置阈值，R65不适合作为更长动作窗依据。原始采样`/private/tmp/r65_rev_trace.json`仅作临时分析；其关键结果已固化于本记录。
+- R66保留185‰和8-count门槛，把ISR硬截止从80ms收紧至60ms。构建目录`build/releases/V10.6_TSSOP20_R01_JOG_ISR_TRACE20_DUTY185_60MS_20261121_R66/`，BIN 14,288B SHA256=`270b91689625b4f01191e1c6a270f58faf3304029fe5b54d42a13fca8c4e0db5`。先备份R65整片SHA256=`a701e065d211841ae9a9b5ac8e74bf3437c80579e569ac28da5d7889e59cf6bb`；使用2MHz under-reset 下载后整片SHA256=`e7c4147165c6b115c2fd735a0994c04fe61f86d25b39b3d626633f090cb80429`，应用与R66候选匹配、尾384B与备份一致、核心Running。完整读回见`build/board_readback/20261121_r66_verified/`，板测证据`firmware/evidence/r01_r66_onboard_jog_trace_20261121.json`。
+- R66只触发一次REV：命令1450µs，锚点2390 raw ADC。位置差达到8 count后，ISR/应用将命令复位到1500µs并coast，发生在配置的60ms最大时间之前；桥实际导通330个20µs tick（累计6.6ms高电平时长）。轨迹raw从2387降至最低2374–2376，最终相对锚点约−14；coast后仍继续滑行约7 count。三次只读快照核心Running、active=0、duty=0、计数保持330，VDD约3243mV。此次测试说明8-count触发条件仍不能保证最终位移在8 count内；60ms硬截止因位置阈值先触发，未被本轮独立测到。动作仅在局部中间位置，不触碰端点。
+- 烧录复核中曾调用`servo_swd_ssh.py flash`，但该工具固定使用attach连接，不符合本项目禁止attach烧录的约束；整片前后SHA256相同、应用状态未变。随后按既定2MHz under-reset脚本重新确认并读回，R66应用匹配、尾384B未变。该attach调用未造成可见Flash变化；后续仍只用under-reset写入。
+- **当前板R66已安全空闲**。本轮确认局部FWD/REV命令能产生相应桥tick，185‰可增强弱REV响应；尚未通过R01：最终滑行超出门槛、相同条件响应幅度/重复性不稳定，无法据此设定安全闭环动作。此轮通过SWD注入“已经解码的触摸事件”，并非实体屏幕触摸测试；物理触摸包、P/A画面联动、实体位置重复性仍未验。下一步先离板改进点动制动/滑行约束和事件轨迹分析，再只做极小、单次中间行程复测；不加大占空、不碰端点。
