@@ -82,6 +82,7 @@ static bool model_matches_context(const ServoLearnedModel *model,
   uint16_t supply_delta;
   if ((model == NULL) ||
       (expected_model_id == 0U) ||
+      (expected_profile_id == 0U) ||
       (expected_calibration_fingerprint == 0U) ||
       (expected_motor_supply_mv == 0U) ||
       (model->model_id != expected_model_id) ||
@@ -166,6 +167,7 @@ bool Servo_ModelStore_Save(const ServoLearnedModel *model,
 {
   if ((!qualified_and_stationary) || (model == NULL) ||
       (model->model_id == 0U) ||
+      (model->profile_id == 0U) ||
       (model->calibration_fingerprint == 0U) ||
       (model->reference_motor_supply_mv == 0U) ||
       (model->confidence_permille == 0U) ||

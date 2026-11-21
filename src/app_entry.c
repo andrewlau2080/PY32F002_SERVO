@@ -62,6 +62,12 @@
 #ifndef SERVO_R01_TEST_DWELL_MS
 #define SERVO_R01_TEST_DWELL_MS 1000U
 #endif
+#ifndef SERVO_R01_TEST_STAIRCASE
+#define SERVO_R01_TEST_STAIRCASE 0
+#endif
+#if SERVO_R01_TEST_STAIRCASE
+extern volatile uint16_t g_r01_prod_anchor_adc;
+#endif
 #if SERVO_R01_EXPLICIT_ARM && (!SERVO_ENABLE_INTERNAL_STEP_TEST || SERVO_HBRIDGE_FORCE_COAST || SERVO_R01_TEST_MAX_DUTY > 500)
 #error Explicit R01 motion arm requires an active center test capped at 500 permille or lower.
 #endif
@@ -86,6 +92,14 @@ __attribute__((used)) volatile const char g_servo_firmware_version[] = "P50 V10.
 __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6PRODSTEP";
 volatile uint8_t g_r01_production_test_active;
 volatile uint16_t g_r01_production_test_pulse_us = 1500U;
+volatile uint8_t g_r01_test_sweep_stage;
+volatile uint8_t g_r01_test_sweep_result; /* 0 idle, 1 ramp, 2 return, 3 centered, 4 no feedback by cap, 5 timeout */
+volatile uint16_t g_r01_test_sweep_baseline_adc;
+volatile int16_t g_r01_test_sweep_delta_adc;
+volatile int16_t g_r01_test_sweep_filtered_delta_adc;
+volatile uint16_t g_r01_test_sweep_peak_delta_adc;
+volatile uint8_t g_r01_test_sweep_confirm_count;
+static uint8_t s_r01_test_sweep_return_confirm;
 static uint32_t s_r01_production_test_start_ms;
 #if SERVO_R01_CENTER_RETURN_TEST
 volatile uint16_t g_r01_center_live_adc;
@@ -4760,6 +4774,16 @@ int entry(void)
       g_r01_active_test_arm_request = 1U;
       g_r01_production_test_active = 1U;
       s_r01_production_test_start_ms = now_ms;
+      g_r01_test_sweep_stage = 0U;
+      g_r01_test_sweep_result = 1U;
+#if SERVO_R01_TEST_STAIRCASE
+      g_r01_test_sweep_baseline_adc = ADC_Feedback_ReadRaw();
+      g_r01_test_sweep_delta_adc = 0U;
+      g_r01_test_sweep_filtered_delta_adc = 0;
+      g_r01_test_sweep_peak_delta_adc = 0U;
+      g_r01_test_sweep_confirm_count = 0U;
+      s_r01_test_sweep_return_confirm = 0U;
+#endif
 #if SERVO_R01_CENTER_RETURN_TEST
       }
 #endif
@@ -4776,8 +4800,52 @@ int entry(void)
         HBridge_Coast();
       }
 #else
+#if SERVO_R01_TEST_STAIRCASE
+      {
+        uint32_t stage = elapsed_ms / SERVO_R01_TEST_DWELL_MS;
+        if (stage > 5U) stage = 5U;
+        g_r01_test_sweep_stage = (uint8_t)stage;
+        if (g_r01_test_sweep_result == 2U)
+        {
+          test_pulse_us = 1500U;
+        }
+        else if (stage == 0U)
+        {
+          test_pulse_us = 1500U;
+        }
+        else
+        {
+          test_pulse_us = (uint16_t)(1500U + (stage * 10U));
+        }
+        if ((g_r01_test_sweep_result == 1U) && (elapsed_ms >= 6000U))
+        {
+          if (g_r01_test_sweep_confirm_count >= 3U)
+          {
+            g_r01_test_sweep_result = 2U;
+            test_pulse_us = 1500U;
+          }
+          else
+          {
+            g_r01_test_sweep_result = 4U;
+            g_r01_production_test_active = 0U;
+            g_r01_active_test_arm_request = 2U;
+            HBridge_Coast();
+            test_pulse_us = 1500U;
+          }
+        }
+        else if (elapsed_ms >= 15000U)
+        {
+          g_r01_test_sweep_result = 5U;
+          g_r01_production_test_active = 0U;
+          g_r01_active_test_arm_request = 2U;
+          HBridge_Coast();
+          test_pulse_us = 1500U;
+        }
+      }
+#else
       test_pulse_us = (((elapsed_ms / SERVO_R01_TEST_DWELL_MS) & 1U) == 0U) ?
                       (uint16_t)(1500U + SERVO_R01_TEST_STEP_US) : 1500U;
+#endif
 #endif
     }
     g_r01_production_test_pulse_us = test_pulse_us;
@@ -4791,6 +4859,56 @@ int entry(void)
       if (g_r01_production_test_active != 0U)
       {
         Servo_Control_Update1ms();
+#if SERVO_R01_TEST_STAIRCASE && !SERVO_R01_CENTER_RETURN_TEST
+        {
+          int32_t signed_displacement = (int32_t)ADC_Feedback_GetRaw() -
+                                        (int32_t)g_r01_test_sweep_baseline_adc;
+          int32_t displacement = signed_displacement;
+          ServoStatus sweep_status = Servo_Control_GetStatus();
+          int32_t filtered_displacement = (int32_t)sweep_status.feedback_adc -
+                                          (int32_t)g_r01_prod_anchor_adc;
+          int32_t abs_filtered_displacement = filtered_displacement;
+          if (displacement < 0) displacement = -displacement;
+          if (abs_filtered_displacement < 0) abs_filtered_displacement = -abs_filtered_displacement;
+          g_r01_test_sweep_delta_adc = (int16_t)signed_displacement;
+          g_r01_test_sweep_filtered_delta_adc = (int16_t)filtered_displacement;
+          if (displacement > g_r01_test_sweep_peak_delta_adc)
+            g_r01_test_sweep_peak_delta_adc = (uint16_t)displacement;
+          if ((g_r01_test_sweep_result == 1U) &&
+              (g_r01_test_sweep_stage >= 1U) && (displacement >= 8))
+          {
+            if (g_r01_test_sweep_confirm_count < 3U)
+              g_r01_test_sweep_confirm_count++;
+          }
+          else if (g_r01_test_sweep_result == 1U)
+          {
+            g_r01_test_sweep_confirm_count = 0U;
+          }
+          if ((g_r01_test_sweep_result == 1U) && (displacement >= 100))
+          {
+            g_r01_test_sweep_result = 2U;
+          }
+          if (g_r01_test_sweep_result == 2U)
+          {
+            if ((displacement <= 5) && (abs_filtered_displacement <= 8))
+            {
+              if (s_r01_test_sweep_return_confirm < 3U)
+                s_r01_test_sweep_return_confirm++;
+              if (s_r01_test_sweep_return_confirm >= 3U)
+              {
+                g_r01_test_sweep_result = 3U;
+                g_r01_production_test_active = 0U;
+                g_r01_active_test_arm_request = 2U;
+                HBridge_Coast();
+              }
+            }
+            else
+            {
+              s_r01_test_sweep_return_confirm = 0U;
+            }
+          }
+        }
+#endif
 #if SERVO_R01_CENTER_RETURN_TEST
         {
           ServoStatus center_status = Servo_Control_GetStatus();

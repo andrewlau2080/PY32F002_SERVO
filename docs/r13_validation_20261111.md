@@ -45,6 +45,11 @@ R01–R12 未通过项留待后续统一复核，本轮未重跑。
 
 ## 2026-11-19 离板调用资格复核
 
-- 生产入口`app_model_store_init_context()`以参数中的model/profile和参数CRC建立加载身份，但明确将`expected_motor_supply_mv`传为0；`model_matches_context()`因此拒绝所有已保存模型。默认`ServoParams`的`model_id/profile_id`也为0。此行为是有意fail-closed，因为当前VREFINT只代表MCU供电，电机供电轨尚未确认。
+- 生产入口`app_model_store_init_context()`以参数中的model/profile和参数CRC建立加载身份，但明确将`expected_motor_supply_mv`传为0；`model_matches_context()`因此拒绝所有已保存模型。默认`ServoParams`的`model_id/profile_id`也为0。此行为是有意fail-closed：项目统一电机工作范围现已确认4.8–8.4V，但当前具体运行供电身份/档案尚未配置；VREFINT只代表MCU供电，不能代替电机电压。
 - 全工程仍没有`Servo_ModelStore_Save()`调用。Save API仅有`qualified_and_stationary`布尔参数，缺少来源可信的供电身份和运行时资格状态，因此现在接自动保存会产生不可加载的记录，或依赖调用方未经验证的资格声明。未改写自动保存逻辑。
 - 可无仿真器继续的下一步是设计并实现显式的保存资格/节流接口，但在TSSOP20供电身份和可用于恢复加载的model/profile标识明确前，接口必须fail-closed，不能自动擦写Flash。板上验证仍需先整片备份，再检查模型槽写入、复位加载与掉电回退。
+
+## 2026-11-21 工况身份失败关闭补强
+
+- 源码复核发现加载端会拒绝`model_id=0`，但没有拒绝`profile_id=0`；保存端也允许零profile，可能让未指定工况的记录被当成有效身份。已在`src/servo_model_store.c`补上读写两端的非零profile要求。
+- 修改后运行`git diff --check`通过；Ubuntu TSSOP20生产LCDM构建通过，归档`build/releases/V10.6_TSSOP20_R13_R21_PROFILE_GUARD_20261121/`，BIN 16,240B，SHA256=`9a6d151bfbdf7df2ec61039727a38c79dc5e0744bbe277228dea627de06f50f4`。未运行测试、未下载。该改动不能替代生产Save调用、运行时资格状态机及Flash板测；R13仍未通过。

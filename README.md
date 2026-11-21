@@ -2,6 +2,10 @@
 
 Target MCU: PY32F002AL15S6TU, SOP8.
 
+## 内部研发规格基准
+
+项目整体开发设计要求（非客户交付规格书）见 [`docs/servo_development_design_spec.md`](docs/servo_development_design_spec.md)。本文件集中管理已确认产品参数、TSSOP20当前开发范围、硬件/供电基准、软件安全要求和R01–R22需求目录；逐项验证状态与证据以 [`docs/servo_requirements_acceptance_matrix.md`](docs/servo_requirements_acceptance_matrix.md) 为准。未来客户规格书从内部基准中选取已定型且有验收证据的子集。
+
 ## 当前开发版本约定（更新至 2026-11-10）
 
 用户指定：以已恢复的原始 **P50 V9.6** 为基准，从 **V10.0** 开始继续开发，后续依次 **V10.1、V10.2……**。每个交付测试的修改版本单独编号、留档；失败版本也保留记录，不复用编号。
@@ -9,7 +13,7 @@ Target MCU: PY32F002AL15S6TU, SOP8.
 - 当前板上：`P50 V10.5`，2026-11-10 按用户本次指令经 Ubuntu 下载，整片 Flash 回读后应用区与 18,768 B BIN 一致，核心 Running。下载前后末尾 384 B 均全为 `FF`，固件将按默认参数启动；现场动作、波形和稳定性尚未验证。证据见 [`firmware/releases/v10.5`](firmware/releases/v10.5/verification_20261110.json)。
 - 当前研发源码：`P50 V10.6 candidate06`，**未下载**；通用默认 PWM 范围调整为 500–2500 µs（已有有效标定不覆盖），开发板与 SOP8 输入捕获引脚已分配置，通用反馈滤波及学习速度时间归一已修正。两种配置 Ubuntu 构建和离板检查通过；LCDM 1–2 µs HOLD 缺陷仍在、SOP8 和机械响应未实测。候选证据见 [`firmware/candidates/v10.6_r01_r03_candidate06`](firmware/candidates/v10.6_r01_r03_candidate06/README.md)。
 - 逐项需求与源码/输出验收状态见[`servo_requirements_acceptance_matrix.md`](docs/servo_requirements_acceptance_matrix.md)，按 R01–R22 维护，不以构建通过替代行为验收。
-- Word 版完整控制器要求与验收矩阵：[`servo_controller_requirements.docx`](docs/servo_controller_requirements.docx)（R01–R22，横向 A4）。
+- Word 历史快照：[`servo_controller_requirements.docx`](docs/servo_controller_requirements.docx)（2026-11-09/V10.5，含旧PA3/SOP8接脚和旧板况；仅供追溯，不是当前要求）。现行规格和验收以以上两份 Markdown 为准。
 - 永久恢复目录：[`firmware/baselines/v9.6_original`](firmware/baselines/v9.6_original/manifest.json)，包含完整 Flash、保留参数区的应用 ELF/BIN、哈希及下载验证记录。不得覆盖。
 - V10.0：已完成首轮 V9.6 行为重建并在 Ubuntu 编译通过，394 组离线控制对照及 6 页显示命令对照通过；已下载后因 RAM 参数损坏标记现场失败。后续源码不是逐字节找回的原始 C 文件。归档见 [`firmware/releases/v10.0/recovery_report.html`](firmware/releases/v10.0/recovery_report.html)。
 - V10.2现场采集：约100秒，中心目标时原始ADC864–3076、反馈863–3074（两者差值不超过18），确认是实际位置大幅往返；误差257–512区间的有效驱动帧中79.2%达到≥900占空。V10.4沿用V10.3近目标软上限，并将500µs步进纳入客户波形时序。数据与归档见[`firmware/releases/v10.4`](firmware/releases/v10.4/)。
