@@ -66,6 +66,12 @@ def main():
                         help='armed 1500..1550 us visible staircase; return to 1500 after feedback confirmation, otherwise coast')
     parser.add_argument('--r01-touch-jog', action='store_true',
                         help='add LCDM FWD/REV momentary jog controls with position and time limits')
+    parser.add_argument('--r01-touch-jog-max-duty', type=int, default=100,
+                        help='touch-jog duty cap in permille (1..200)')
+    parser.add_argument('--r01-touch-jog-position-limit-adc', type=int, default=8,
+                        help='touch-jog auto-coast displacement limit (1..32 ADC counts)')
+    parser.add_argument('--r01-touch-jog-max-ms', type=int, default=150,
+                        help='touch-jog auto-coast timeout in milliseconds (1..400)')
     parser.add_argument('--r01-lcd-only-test', action='store_true',
                         help='show 1500/1550 us on the V9.x P50 LCD layout with the H-bridge held coast')
     parser.add_argument('--r04-ui-redraw-stress', action='store_true',
@@ -126,6 +132,12 @@ def main():
         parser.error('--production-loop-r01-test selects its own production LCDM and internal step flags')
     if args.r01_touch_jog and not args.production_loop_r01_test:
         parser.error('--r01-touch-jog requires --production-loop-r01-test')
+    if not 1 <= args.r01_touch_jog_max_duty <= 200:
+        parser.error('--r01-touch-jog-max-duty must be in 1..200 permille')
+    if not 1 <= args.r01_touch_jog_position_limit_adc <= 32:
+        parser.error('--r01-touch-jog-position-limit-adc must be in 1..32 ADC counts')
+    if not 1 <= args.r01_touch_jog_max_ms <= 400:
+        parser.error('--r01-touch-jog-max-ms must be in 1..400 milliseconds')
     if args.adc_subsample_diagnostic and not (args.internal_step_test or args.production_loop_r01_test):
         parser.error('--adc-subsample-diagnostic requires --internal-step-test or a guarded R01 production-loop test')
     if args.adc_vdd_each_batch and not args.adc_subsample_diagnostic:
@@ -156,7 +168,10 @@ def main():
                          f'SERVO_R01_TEST_STEP_US={args.r01_test_step_us}',
                          f'SERVO_R01_TEST_DWELL_MS={args.r01_test_dwell_ms}U']
         if args.r01_touch_jog:
-            flags.append('SERVO_R01_TOUCH_JOG_TEST=1')
+            flags += ['SERVO_R01_TOUCH_JOG_TEST=1',
+                      f'SERVO_R01_TOUCH_JOG_MAX_DUTY={args.r01_touch_jog_max_duty}',
+                      f'SERVO_R01_TOUCH_JOG_POSITION_LIMIT_ADC={args.r01_touch_jog_position_limit_adc}',
+                      f'SERVO_R01_TOUCH_JOG_MAX_MS={args.r01_touch_jog_max_ms}']
         if args.r01_test_staircase:
             flags.append('SERVO_R01_TEST_STAIRCASE=1')
         if args.r01_lcd_only_test:
@@ -295,7 +310,7 @@ def main():
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, r01_lcd_only_test=args.r01_lcd_only_test, tjc_soft_tx=args.tjc_soft_tx, r01_center_return_test=args.r01_center_return_test, r01_test_staircase=args.r01_test_staircase, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=args.r01_test_step_us, r01_test_max_duty=args.r01_test_max_duty, r01_test_dwell_ms=args.r01_test_dwell_ms, r01_position_limit_adc=args.r01_position_limit_adc, r01_anchor_pulse_us=args.r01_anchor_pulse_us, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, r01_lcd_only_test=args.r01_lcd_only_test, r01_touch_jog=args.r01_touch_jog, r01_touch_jog_max_duty=args.r01_touch_jog_max_duty if args.r01_touch_jog else None, r01_touch_jog_position_limit_adc=args.r01_touch_jog_position_limit_adc if args.r01_touch_jog else None, r01_touch_jog_max_ms=args.r01_touch_jog_max_ms if args.r01_touch_jog else None, tjc_soft_tx=args.tjc_soft_tx, r01_center_return_test=args.r01_center_return_test, r01_test_staircase=args.r01_test_staircase, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=args.r01_test_step_us, r01_test_max_duty=args.r01_test_max_duty, r01_test_dwell_ms=args.r01_test_dwell_ms, r01_position_limit_adc=args.r01_position_limit_adc, r01_anchor_pulse_us=args.r01_anchor_pulse_us, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),

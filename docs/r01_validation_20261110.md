@@ -708,3 +708,10 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 新增`Servo_Control_MapAdcToPulse()`，按当前参数的左右独立线性映射、中心偏置和方向反转选项，将实时raw ADC反算为等效输入脉宽；R01点动显示支路使用该值作为P，A仍显示raw ADC，T为起始锚点，E为当前位置与锚点差。没有改PWM映射、H桥输出、点动占空上限或保护阈值。
 - 修改`inc/servo_control.h`、`src/servo_control.c`、`src/app_entry.c`及本验证记录。Ubuntu构建通过：`build/releases/V10.6_TSSOP20_R01_JOG_FEEDBACK_PULSE_20261121_R55/`，BIN 14,020B，SHA256=`3297a7e364954cbc71b1e6b6dcfe00022cef603017629525a7e2b88c056f26c5`。2MHz under-reset下载后整片20,480B读回SHA256=`bcef495e80264ae53897d59a30ad506b001c6a13233a37da16b629352a6a9fbc`，应用与BIN逐字节匹配、尾384B与R54相同、核心Running；证据`build/board_readback/20261121_r55_postflash/`。
 - 下载后只读SWD 2帧：反馈ADC=2626、active=0、duty=0、正反桥ticks=0、VDD估值3226mV；未触发动作。软件映射及读回已核，**P随实际点动变化仍需短按FWD/REV实机目视确认，R01未因此通过**。
+
+### 2026-11-21 将点动范围收窄用于P/A同步验证（R56）
+
+- 用户要求先收窄范围，验证此前P不随FWD/REV变化的问题。R55点动上限为200‰、32 ADC count、400ms；R56收窄为100‰、8 ADC count、150ms，触发任一限值立即coast。PWM/ADC位置映射和显示算法保持不变。
+- 修改`Makefile`、`tools/build_v10_ubuntu.py`、`src/app_entry.c`及本记录，新增三个独立构建参数并写入manifest。首轮构建暴露时间宏重复`U`后缀，已修正；错误构建未下载。最终候选`build/releases/V10.6_TSSOP20_R01_JOG_FEEDBACK_PULSE_LIMITED_20261121_R56B/`，BIN 14,016B SHA256=`c1386666b800e5ac6a50814244c4c5055244ec96c080319092b97a19997122ec`；manifest核实100‰/8 count/150ms，Ubuntu构建通过。
+- R56按2MHz under-reset下载；整片20,480B读回SHA256=`a05a9b0c153ba877a4bf2fe57c56d622ecf41996e9a76a2c45ddff673a71370d`，应用与BIN逐字节一致，尾384B与R55相同，核心Running。证据`build/board_readback/20261121_r56_postflash/`。下载后只读SWD两帧：active=0、H桥duty=0、正反桥ticks=0，raw ADC=2313、VDD估值3230mV，没有自动动作。
+- **当前板R56**。下一步仅短按一次FWD或REV并观察P与A是否同步变化；自动位移≤8 raw ADC count或运行≤150ms，之后coast。该实测尚未发生，R01及P/A显示关联均未验收通过。

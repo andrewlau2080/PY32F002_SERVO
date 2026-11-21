@@ -42,6 +42,15 @@
 #ifndef SERVO_R01_TOUCH_JOG_TEST
 #define SERVO_R01_TOUCH_JOG_TEST 0
 #endif
+#ifndef SERVO_R01_TOUCH_JOG_MAX_DUTY
+#define SERVO_R01_TOUCH_JOG_MAX_DUTY 100
+#endif
+#ifndef SERVO_R01_TOUCH_JOG_POSITION_LIMIT_ADC
+#define SERVO_R01_TOUCH_JOG_POSITION_LIMIT_ADC 8
+#endif
+#ifndef SERVO_R01_TOUCH_JOG_MAX_MS
+#define SERVO_R01_TOUCH_JOG_MAX_MS 150U
+#endif
 #ifndef SERVO_R01_LCD_ONLY_TEST
 #define SERVO_R01_LCD_ONLY_TEST 0
 #endif
@@ -4816,8 +4825,8 @@ int entry(void)
         int32_t delta;
         s_r01_touch_jog_live_adc = ADC_Feedback_ReadRaw();
         delta = (int32_t)s_r01_touch_jog_live_adc - (int32_t)s_r01_touch_jog_anchor_adc;
-        if (((delta < 0) ? -delta : delta) >= 32 ||
-            ((uint32_t)(now_ms - s_r01_touch_jog_start_ms) >= 400U))
+        if (((delta < 0) ? -delta : delta) >= SERVO_R01_TOUCH_JOG_POSITION_LIMIT_ADC ||
+            ((uint32_t)(now_ms - s_r01_touch_jog_start_ms) >= SERVO_R01_TOUCH_JOG_MAX_MS))
         {
           s_r01_touch_jog_direction = 0;
           g_r01_production_test_active = 0U;
@@ -4826,7 +4835,7 @@ int entry(void)
         }
         else
         {
-          HBridge_SetSignedDuty((int16_t)(s_r01_touch_jog_direction * 200));
+          HBridge_SetSignedDuty((int16_t)(s_r01_touch_jog_direction * SERVO_R01_TOUCH_JOG_MAX_DUTY));
         }
       }
       else
@@ -4976,7 +4985,7 @@ int entry(void)
 #if SERVO_R01_TOUCH_JOG_TEST
       if (g_r01_production_test_active != 0U)
       {
-        HBridge_SetSignedDuty((int16_t)(s_r01_touch_jog_direction * 200));
+        HBridge_SetSignedDuty((int16_t)(s_r01_touch_jog_direction * SERVO_R01_TOUCH_JOG_MAX_DUTY));
       }
       else
       {
