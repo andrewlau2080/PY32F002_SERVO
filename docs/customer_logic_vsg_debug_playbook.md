@@ -1,6 +1,6 @@
 # Customer LOGICDATA and VSG Debug Playbook
 
-> Architecture authority: `servo_adaptive_motion_architecture.md` (2026-11-08). This playbook preserves the evidence workflow, but historical phase numbers below are hypotheses/baseline notes until the raw customer levels and both output lanes are decoded or remeasured. Use only `PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata` as the customer reference per user direction; do not mix in the `2026/PA7串口*.logicdata` files.
+> Architecture authority: `servo_adaptive_motion_architecture.md` (2026-11-08). This playbook preserves the evidence workflow, but historical phase numbers below are hypotheses/baseline notes until the raw customer levels and both output lanes are decoded or remeasured. Per the user's 2026-11-22 instruction, analyze `2026/1000-1500.logicdata`, `2026/1500-2000.logicdata`, and `2026/2000-1000.logicdata` as the selected customer motion samples. Keep the older `PY32F002_SIGNAL_CAPTURE/CUSTOMER.logicdata` as historical reference, and do not mix in `2026/PA7串口*.logicdata` as motor traces.
 
 This project must use this workflow whenever customer LOGICDATA exists or the user says to compare with customer waveforms. Do not fall back to slow PID/limit tuning before this comparison is visible.
 
