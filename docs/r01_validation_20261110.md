@@ -715,3 +715,8 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 修改`Makefile`、`tools/build_v10_ubuntu.py`、`src/app_entry.c`及本记录，新增三个独立构建参数并写入manifest。首轮构建暴露时间宏重复`U`后缀，已修正；错误构建未下载。最终候选`build/releases/V10.6_TSSOP20_R01_JOG_FEEDBACK_PULSE_LIMITED_20261121_R56B/`，BIN 14,016B SHA256=`c1386666b800e5ac6a50814244c4c5055244ec96c080319092b97a19997122ec`；manifest核实100‰/8 count/150ms，Ubuntu构建通过。
 - R56按2MHz under-reset下载；整片20,480B读回SHA256=`a05a9b0c153ba877a4bf2fe57c56d622ecf41996e9a76a2c45ddff673a71370d`，应用与BIN逐字节一致，尾384B与R55相同，核心Running。证据`build/board_readback/20261121_r56_postflash/`。下载后只读SWD两帧：active=0、H桥duty=0、正反桥ticks=0，raw ADC=2313、VDD估值3230mV，没有自动动作。
 - **当前板R56**。下一步仅短按一次FWD或REV并观察P与A是否同步变化；自动位移≤8 raw ADC count或运行≤150ms，之后coast。该实测尚未发生，R01及P/A显示关联均未验收通过。
+
+### 2026-11-21 用户报告REV触发死机（R56只读检查）
+
+- 用户报告按REV会死机；未再次触发动作。R56只读SWD采样时核心`State.RUNNING`，active=0、arm请求=2、H桥duty=0；反向桥导通tick=0。寄存器快照PC在正常`Servo_Control_MapPulseToAdc()`代码内，不在`APP_ErrorHandler`/HardFault；此前瞬时采样曾落在正常`__udivsi3`计算中，不能作为卡死证据。
+- 当前触摸遥测末包为0x67坐标x=410,y=78,event=1，落在自绘FWD区域(342–470,58–104)，不是REV区域(342–470,112–158)；RX共25包、UART错误0。该值可能是历史末包，不能证明本次REV按压有没有发到MCU。当前没有捕获到REV桥输出或复现死机。记录结论：REV死机报告未定位、R01不通过；需先区分“LCD停更”还是“MCU/整板停机”，并取得REV按压时坐标/核心PC/桥输出证据，再决定代码修复。没有修改源码、没有复位或触发动作。
