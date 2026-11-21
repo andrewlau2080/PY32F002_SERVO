@@ -149,16 +149,15 @@ void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
   }
   if (last_pulse_us == 0U)
   {
+    send_cmd("page 0");
     send_cmd("cls 65535");
   }
   last_pulse_us = pulse_us;
   last_draw_ms = now;
-  /* Other LCDM pages may have changed since the last update; make the
-     diagnostic page explicit before drawing each new command/ADC snapshot. */
-  send_cmd("page 0");
-  send_cmd("fill 0,0,480,90,65535");
+  /* Reuse the coordinates and color tuple previously confirmed visible on LCDM. */
+  send_cmd("fill 20,70,440,100,65535");
   (void)snprintf(cmd, sizeof(cmd),
-                 "xstr 10,10,460,70,0,0,65535,1,1,1,\"CMD %u ADC %u TGT %u ERR %d\"",
+                 "xstr 20,70,440,100,0,31,65535,1,1,1,\"CMD %u ADC %u TGT %u ERR %d\"",
                  (unsigned)pulse_us, (unsigned)feedback_adc,
                  (unsigned)target_adc, (int)error_adc);
   send_cmd(cmd);

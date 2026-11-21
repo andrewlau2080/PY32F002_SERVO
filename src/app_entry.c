@@ -4803,7 +4803,9 @@ int entry(void)
 #if SERVO_R01_TEST_STAIRCASE
       {
         uint32_t stage = elapsed_ms / SERVO_R01_TEST_DWELL_MS;
-        if (stage > 5U) stage = 5U;
+        uint32_t max_stage = 50U / SERVO_R01_TEST_STEP_US;
+        uint32_t ramp_ms = (max_stage + 1U) * SERVO_R01_TEST_DWELL_MS;
+        if (stage > max_stage) stage = max_stage;
         g_r01_test_sweep_stage = (uint8_t)stage;
         if (g_r01_test_sweep_result == 2U)
         {
@@ -4815,9 +4817,9 @@ int entry(void)
         }
         else
         {
-          test_pulse_us = (uint16_t)(1500U + (stage * 10U));
+          test_pulse_us = (uint16_t)(1500U + (stage * SERVO_R01_TEST_STEP_US));
         }
-        if ((g_r01_test_sweep_result == 1U) && (elapsed_ms >= 6000U))
+        if ((g_r01_test_sweep_result == 1U) && (elapsed_ms >= ramp_ms))
         {
           if (g_r01_test_sweep_confirm_count >= 3U)
           {
