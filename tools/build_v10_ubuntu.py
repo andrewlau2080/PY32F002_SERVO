@@ -140,8 +140,8 @@ def main():
     flags = (PRODUCTION_LCDM_FLAGS if (args.production_lcdm or args.production_loop_r01_test) else
              (FLAGS if args.profile == 'lcdm' else GENERIC_FLAGS))
     if args.tjc_soft_tx:
-        if args.profile != 'lcdm' or not (args.production_lcdm or args.production_loop_r01_test):
-            parser.error('--tjc-soft-tx requires a production LCDM build')
+        if args.profile != 'lcdm':
+            parser.error('--tjc-soft-tx requires the TSSOP20 LCDM profile')
         flags = flags + ['SERVO_TJC_SOFT_TX=1']
     if args.production_loop_r01_test:
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1',

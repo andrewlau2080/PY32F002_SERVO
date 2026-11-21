@@ -4,9 +4,9 @@
 
 ## 最新状态（2026-11-21，覆盖下方较早的R20/R16状态）
 
-- 当前TSSOP20板运行R13 LCDM主页重载诊断版；整片SHA256=`a23aae6f7e605ac9d23fcb3410cd72a66b7fcefd42715b5581a59823340144b0`，应用15,188B与BIN匹配、尾384B保持、核心Running；版本串`P50 V10.6R13LCD`。active=0、arm=0、HBridge duty=0、正反桥计数均0，没有运动。
+- 当前TSSOP20板运行R14B force-coast LCDM整页绘制版；整片SHA256=`82ec502ff5b8dd18eed8762619d3355689709659465e4f845531fe7772c0b621`，应用19,036B与BIN匹配、尾384B保持、核心Running；版本`P50 V10.6SIMB2C`。复用既有`run_lcdm_runtime_ui_test()`/`lcdm_draw_p50()`与PA7软发送；H桥强制coast，无马达动作。屏幕目视结果待确认。
 - R11单次反向命令中raw ADC相对锚点−37 count、位置反馈−5 count，VDD 3232–3235mV；8-count raw位移保护生效并coast。由于没有动作期逐帧趋势和实体目视佐证，不能判定机构位移，也不能推断方向错误；R01仍未通过。
-- 用户确认R12未恢复多项主页。复核发现R12未清理R11留在LCD显存的单行残影，也未强制重载原HMI页面。R13初始化现按旧PA7路径使用`ref_stop`/`cls`、切到page1再回page0、`ref_star`，随后更新原P00控件；SWD读到TX命令计数28、无错误，但LCD实体页面仍须由用户目视核对，软件计数不等于显示通过。旧R3强制最低duty测试严禁重跑；继续查raw/反馈差异前不再触发马达动作或端点。
+- R12/R13均未恢复屏幕。R14B改用仓库已有的V9.x P50整页绘制入口；首次构建RAM超16B，关闭此显示路径不用的USART RX缓冲后Ubuntu构建通过。下载后应用逐字节匹配且Running，编译期force-coast；实体屏幕显示仍待目视确认。
 
 ## 当前状态提示（2026-11-21）
 

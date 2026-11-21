@@ -600,3 +600,8 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 用户确认R12仍未恢复9.x多项主页。现场实际原因：R12虽停止画单行，但未擦除R11留下的显存覆盖；仅发对象值并不能清掉旧像素。R13在PA7初始化加入`ref_stop`、`cls 65535`、page1→page0页面切换、`ref_star`，再继续用既有P00 `send_home_page()`更新控件；未改控制环、未arm电机。
 - Ubuntu构建`build/releases/V10.6_TSSOP20_R01_HOME_RELOAD_20261121_R13/`通过；BIN 15,188B SHA256=`749dc0207236f6f9cc4ea200b73d3bae61ef5575865f6c9a9c6ccd074b3ca49e`。R13通过2MHz under-reset下载；读回整片20,480B SHA256=`a23aae6f7e605ac9d23fcb3410cd72a66b7fcefd42715b5581a59823340144b0`，应用逐字节匹配、尾384B保持、版本`P50 V10.6R13LCD`、核心Running。
 - RAM只读确认active=0、arm=0、duty=0、正反桥tick均0；LCD TX命令计数28、错误0，包含新的重载序列。计数只能证明软件执行了发送路径；用户尚未报告实体屏幕是否恢复多行，故显示项仍未通过。
+### 2026-11-21 R14B复用V9.x P50整页绘制
+
+- 用户要求先恢复显示。R12/R13的主页控件路径均失败；R14B改用现存`run_lcdm_runtime_ui_test()`与`lcdm_draw_p50()`整页绘制（标题、P/T/A/E/H五行、底栏）及PA7软发送。`SERVO_HBRIDGE_FORCE_COAST=1`，不驱动马达。
+- Ubuntu构建`build/releases/V10.6_TSSOP20_R01_P50_RUNTIME_UI_COAST_20261121_R14B/`通过；BIN 19,036B SHA256=`6e9b060737f02440abbb51d2d0925d9f14e2334f828cf5456bc62ccde1b19671`。首次构建RAM超16B；关闭此路径未使用的USART RX后构建通过。R14B经2MHz under-reset下载，整片20,480B SHA256=`82ec502ff5b8dd18eed8762619d3355689709659465e4f845531fe7772c0b621`，应用逐字节匹配、尾384B保持、核心Running。
+- 目前验证到旧整页绘制入口已经运行且H桥强制coast；实体屏幕显示仍以用户目视为准，尚未记为通过。
