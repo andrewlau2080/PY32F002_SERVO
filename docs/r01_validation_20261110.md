@@ -554,3 +554,11 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - **R24按已验证组合回归**：源码恢复此前R5用户确认可见的`page 0`初始化、`fill 20,70,440,100,65535`和蓝色`xstr`坐标/颜色；阶梯上限改为由编译步进参数计算，允许复用R16已确认动作的1500↔1550µs、200/1000、每档2秒。BIN 16,672B SHA256=`9faca04751b91b2049f2a5fd906ade1e4d441607289283c4f3d96e73b3be8e4d`。
 - R24按2MHz under-reset下载；应用区逐字节匹配、尾384B保持，整片SHA256=`6e867a6a6edf9dc5f76d1f7b0729bb780280cd75e54079f8e890eabd1a636394`，核心Running。自动arm后命令1500/1550µs均出现，反馈raw范围2420–2527（启动2433），滤波反馈范围2415–2509，峰值raw位移97；结束结果码3，raw回到基线+3、滤波回到锚点−5，满足当前源码回中门槛。测试后active=0、实际duty=0、核心Running，LCD UART TX错误计数0。**屏幕及此次马达是否可见由用户现场确认；未收到本轮目视确认前不判显示/实体动作通过。**
 - **当前板况：R24测试已结束并coast。** R01仍未通过整项验收；本轮屏幕实显和马达可见动作待用户反馈。GitHub推送因本机GitHub凭据失效未完成。
+
+## 2026-11-21 回归V9.x P50页面及PA7发送链（R25–R28C）
+
+- 用户报告R22马达有动但屏幕未变，R23屏幕/马达均无变化；R24后用户仍指出屏幕无刷新。撤销此前仅凭UART计数判定显示已验证的结论。
+- 对照`v9.0-customer-pid-baseline`和`v9.5-internal-pwm-stable`：旧P50页面使用固定标题与P/T/A/E行，值写入P行的x=286、y=42 LCD坐标；旧路径通过PA7 GPIO按SysTick逐位发串口，并在每条命令后留间隔。R25虽复用页面坐标，仍走USART1硬件TX；R26改PA7 GPIO发送并用R16的1500↔1550µs、200/1000、2秒组合，但SWD未抓到1550状态，用户实屏结果仍失败/未证实。
+- R27纯显示版原定每秒切换1500/1550并强制coast，但发现`SERVO_R01_LCD_ONLY_TEST`只出现在构建清单、未由Makefile传给gcc，显示测试分支未编入。该构建失败原因已修：Makefile增加宏映射和前置条件；构建器强制检查实际gcc命令含LCD-only及PA7 soft-TX宏，并修正对应版本字符串识别。
+- **R28C独立显示测试**：构建`build/releases/V10.6_TSSOP20_R01_P50_LCD_ONLY_PA7_20261121_R28C/`通过，BIN 13,208B SHA256=`dab0ec9146e06ed2419f8b4809a1347785fb472c114b04324b43c9dcbf4cb956`。gcc实际命令含`SERVO_R01_LCD_ONLY_TEST=1`、`SERVO_TJC_SOFT_TX=1`。2MHz under-reset下载后应用区逐字节匹配、尾384B保持，全片SHA256=`554e159f7adf1ef919e6b5580eadc3656652aa2b578e6fcda869b3b0cf239bd2`，核心Running。
+- R28C只刷新V9.x P50布局，SWD连续4.23秒读到命令1500与1550µs交替；signed duty=0、正反H桥导通计数均为0、ADC保持2350。**固件侧交替及马达保持停止已验证；LCD物理显示仍需用户目视确认。**当前板为R28C LCD-only固件，持续coast，不会驱动马达；R01整体验收仍未通过。

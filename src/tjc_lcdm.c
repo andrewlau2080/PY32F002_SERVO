@@ -54,10 +54,24 @@ static volatile uint8_t s_tjc_last_packet2;
 static volatile uint8_t s_tjc_debug_page;
 
 #if SERVO_TJC_SOFT_TX
-static void soft_tx_wait_until(uint32_t target_us)
+static void soft_tx_wait_ticks(uint32_t ticks)
 {
-  while ((int32_t)(Board_Micros() - target_us) < 0)
+  uint32_t elapsed = 0U;
+  uint32_t reload = SysTick->LOAD + 1U;
+  uint32_t previous = SysTick->VAL;
+
+  while (elapsed < ticks)
   {
+    uint32_t current = SysTick->VAL;
+    if (previous >= current)
+    {
+      elapsed += previous - current;
+    }
+    else
+    {
+      elapsed += previous + (reload - current);
+    }
+    previous = current;
   }
 }
 
@@ -76,23 +90,22 @@ static void soft_tx_init(void)
 
 static void soft_tx_byte(uint8_t value)
 {
-  uint32_t bit_us = (1000000UL + (TJC_LCDM_DEFAULT_BAUD / 2UL)) / TJC_LCDM_DEFAULT_BAUD;
-  uint32_t target_us = Board_Micros();
+  uint32_t bit_ticks = SystemCoreClock / TJC_LCDM_DEFAULT_BAUD;
 
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
-  target_us += bit_us;
-  soft_tx_wait_until(target_us);
+  GPIOA->BRR = GPIO_PIN_7;
+  soft_tx_wait_ticks(bit_ticks);
 
   for (uint32_t i = 0; i < 8U; i++)
   {
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, ((value & (1U << i)) != 0U) ? GPIO_PIN_SET : GPIO_PIN_RESET);
-    target_us += bit_us;
-    soft_tx_wait_until(target_us);
+    if ((value & (1U << i)) != 0U)
+      GPIOA->BSRR = GPIO_PIN_7;
+    else
+      GPIOA->BRR = GPIO_PIN_7;
+    soft_tx_wait_ticks(bit_ticks);
   }
 
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
-  target_us += bit_us;
-  soft_tx_wait_until(target_us);
+  GPIOA->BSRR = GPIO_PIN_7;
+  soft_tx_wait_ticks(bit_ticks);
 }
 #endif
 
@@ -136,31 +149,93 @@ static void send_cmd(const char *cmd)
 }
 
 #if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && SERVO_R01_PRODUCTION_LOOP_TEST
+static void r01_draw_cmd(const char *cmd)
+{
+  send_cmd(cmd);
+  HAL_Delay(2U);
+}
+
+static void r01_draw_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                          uint16_t color)
+{
+  char cmd[48];
+  (void)snprintf(cmd, sizeof(cmd), "fill %u,%u,%u,%u,%u",
+                 (unsigned)x, (unsigned)y, (unsigned)w, (unsigned)h,
+                 (unsigned)color);
+  r01_draw_cmd(cmd);
+}
+
+static void r01_draw_text(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+                          uint16_t fg, uint16_t bg, uint8_t align,
+                          const char *text)
+{
+  char cmd[128];
+  (void)snprintf(cmd, sizeof(cmd),
+                 "xstr %u,%u,%u,%u,0,%u,%u,%u,1,1,\"%s\"",
+                 (unsigned)x, (unsigned)y, (unsigned)w, (unsigned)h,
+                 (unsigned)fg, (unsigned)bg, (unsigned)align, text);
+  r01_draw_cmd(cmd);
+}
+
+static void r01_draw_row(uint8_t row, const char *name, const char *value,
+                         uint16_t value_color)
+{
+  static const uint16_t row_y[] = {42U, 80U, 118U, 156U, 194U};
+  uint16_t bg = (row & 1U) ? 65535U : 61374U;
+  uint16_t y = row_y[row];
+
+  r01_draw_fill(18U, (uint16_t)(y - 2U), 444U, 38U, bg);
+  r01_draw_text(26U, y, 230U, 36U, 31U, bg, 0U, name);
+  r01_draw_text(286U, y, 152U, 36U, value_color, bg, 0U, value);
+}
+
+static void r01_draw_value(uint8_t row, const char *value, uint16_t color)
+{
+  static const uint16_t row_y[] = {42U, 80U, 118U, 156U, 194U};
+  uint16_t bg = (row & 1U) ? 65535U : 61374U;
+  r01_draw_text(286U, row_y[row], 152U, 36U, color, bg, 0U, value);
+}
+
 void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
                             uint16_t target_adc, int16_t error_adc)
 {
+  static bool page_drawn;
   static uint16_t last_pulse_us = 0U;
   static uint32_t last_draw_ms;
-  char cmd[80];
+  char value[24];
   uint32_t now = HAL_GetTick();
   if ((pulse_us == last_pulse_us) && ((uint32_t)(now - last_draw_ms) < 100U))
   {
     return;
   }
-  if (last_pulse_us == 0U)
+  if (!page_drawn)
   {
-    send_cmd("page 0");
-    send_cmd("cls 65535");
+    r01_draw_cmd("page 0");
+    r01_draw_cmd("ref_stop");
+    r01_draw_cmd("cls 65535");
+    r01_draw_fill(0U, 0U, 480U, 32U, 16U);
+    r01_draw_text(6U, 3U, 340U, 26U, 65535U, 16U, 0U, "P50 STEP");
+    r01_draw_text(350U, 3U, 124U, 26U, 65535U, 16U, 2U, "R01");
+    r01_draw_row(0U, "P", "-- us", 31U);
+    r01_draw_row(1U, "T", "--", 31U);
+    r01_draw_row(2U, "A", "--", 31U);
+    r01_draw_row(3U, "E", "--", 63488U);
+    r01_draw_row(4U, "R01", "WAIT", 65504U);
+    r01_draw_cmd("ref_star");
+    page_drawn = true;
   }
+
   last_pulse_us = pulse_us;
   last_draw_ms = now;
-  /* Reuse the coordinates and color tuple previously confirmed visible on LCDM. */
-  send_cmd("fill 20,70,440,100,65535");
-  (void)snprintf(cmd, sizeof(cmd),
-                 "xstr 20,70,440,100,0,31,65535,1,1,1,\"CMD %u ADC %u TGT %u ERR %d\"",
-                 (unsigned)pulse_us, (unsigned)feedback_adc,
-                 (unsigned)target_adc, (int)error_adc);
-  send_cmd(cmd);
+  (void)snprintf(value, sizeof(value), "%u us", (unsigned)pulse_us);
+  r01_draw_value(0U, value, 31U);
+  (void)snprintf(value, sizeof(value), "%u", (unsigned)target_adc);
+  r01_draw_value(1U, value, 31U);
+  (void)snprintf(value, sizeof(value), "%u", (unsigned)feedback_adc);
+  r01_draw_value(2U, value, 31U);
+  (void)snprintf(value, sizeof(value), "%d", (int)error_adc);
+  r01_draw_value(3U, value, (error_adc < 0) ? 63488U : 31U);
+  r01_draw_value(4U, (pulse_us == 1500U) ? "1500" : "1550", 65504U);
 }
 #endif
 

@@ -60,12 +60,16 @@ def main():
                         help='time to hold each internal R01 pulse width before switching')
     parser.add_argument('--r01-test-staircase', action='store_true',
                         help='armed 1500..1550 us visible staircase; return to 1500 after feedback confirmation, otherwise coast')
+    parser.add_argument('--r01-lcd-only-test', action='store_true',
+                        help='show 1500/1550 us on the V9.x P50 LCD layout with the H-bridge held coast')
     parser.add_argument('--r04-ui-redraw-stress', action='store_true',
                         help='repaint the LCDM diagnostic page every 250 ms for R04 load testing')
     parser.add_argument('--force-coast', action='store_true',
                         help='force H-bridge outputs to coast for non-moving diagnostics')
     parser.add_argument('--disable-tjc-rx', action='store_true',
                         help='omit LCDM touch UART RX to reduce RAM/Flash for read-only diagnostics')
+    parser.add_argument('--tjc-soft-tx', action='store_true',
+                        help='drive LCDM TX on PA7 by GPIO bit-banging, matching the V9.x path')
     parser.add_argument('--direction-probe', action='store_true',
                         help='build explicitly armed hardware single-pulse diagnostic')
     parser.add_argument('--pa6-single-pulse', action='store_true',
@@ -93,6 +97,8 @@ def main():
         parser.error('--r01-center-return-test requires --production-loop-r01-test')
     if args.r01_test_staircase and (not args.production_loop_r01_test or args.r01_center_return_test):
         parser.error('--r01-test-staircase requires --production-loop-r01-test and excludes --r01-center-return-test')
+    if args.r01_lcd_only_test and (not args.production_loop_r01_test or not args.tjc_soft_tx):
+        parser.error('--r01-lcd-only-test requires --production-loop-r01-test --tjc-soft-tx')
     if args.internal_step_test and args.profile != 'lcdm':
         parser.error('--internal-step-test requires --profile lcdm')
     if args.pa6_single_pulse and (args.direction_probe or args.internal_step_test or args.force_coast or args.r04_ui_redraw_stress):
@@ -125,6 +131,10 @@ def main():
     version = match.group(1)
     flags = (PRODUCTION_LCDM_FLAGS if (args.production_lcdm or args.production_loop_r01_test) else
              (FLAGS if args.profile == 'lcdm' else GENERIC_FLAGS))
+    if args.tjc_soft_tx:
+        if args.profile != 'lcdm' or not (args.production_lcdm or args.production_loop_r01_test):
+            parser.error('--tjc-soft-tx requires a production LCDM build')
+        flags = flags + ['SERVO_TJC_SOFT_TX=1']
     if args.production_loop_r01_test:
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1',
                          'SERVO_R01_EXPLICIT_ARM=1', 'SERVO_R01_PRODUCTION_LOOP_TEST=1',
@@ -133,6 +143,8 @@ def main():
                          f'SERVO_R01_TEST_DWELL_MS={args.r01_test_dwell_ms}U']
         if args.r01_test_staircase:
             flags.append('SERVO_R01_TEST_STAIRCASE=1')
+        if args.r01_lcd_only_test:
+            flags.append('SERVO_R01_LCD_ONLY_TEST=1')
         if args.r01_center_return_test:
             flags.append('SERVO_R01_CENTER_RETURN_TEST=1')
     if args.pa6_single_pulse:
@@ -222,8 +234,12 @@ def main():
     if result.returncode:
         print((out / 'build.log').read_text()[-4000:])
         raise SystemExit(result.returncode)
+    build_log = (out / 'build.log').read_text(errors='replace')
+    if args.r01_lcd_only_test and '-DSERVO_R01_LCD_ONLY_TEST=1' not in build_log:
+        raise SystemExit('Requested LCD-only test macro is absent from the compiler command; candidate rejected')
+    if args.tjc_soft_tx and '-DSERVO_TJC_SOFT_TX=1' not in build_log:
+        raise SystemExit('Requested PA7 software-TX macro is absent from the compiler command; candidate rejected')
     if args.adc_vdd_each_batch:
-        build_log = (out / 'build.log').read_text(errors='replace')
         if '-DSERVO_ADC_VDD_EACH_DIAG_BATCH=1' not in build_log:
             raise SystemExit('Requested VDD-per-batch macro is absent from the compiler command; candidate rejected')
     artifacts = {}
@@ -245,15 +261,17 @@ def main():
                        (direction_suffix if args.direction_probe else
                        ('SIMB2C' if args.force_coast else ('SIMB2' if args.internal_step_test else '')))
                        ))
-    expected_version = ('P50 V10.6PRODSTEP' if args.production_loop_r01_test else
-                        ('P50 ' + version + ('' if args.production_lcdm else expected_suffix))).encode()
+    expected_version_text = ('P50 V10.6LCDP50' if args.r01_lcd_only_test else
+                             ('P50 V10.6PRODSTEP' if args.production_loop_r01_test else
+                              'P50 ' + version + ('' if args.production_lcdm else expected_suffix)))
+    expected_version = expected_version_text.encode()
     if (args.profile == 'lcdm' and not args.pa6_single_pulse and versions != [expected_version]) or (
             args.pa6_single_pulse and versions not in ([], [expected_version])) or (
             args.profile == 'generic' and versions not in ([], [expected_version])):
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, r01_center_return_test=args.r01_center_return_test, r01_test_staircase=args.r01_test_staircase, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=args.r01_test_step_us, r01_test_max_duty=args.r01_test_max_duty, r01_test_dwell_ms=args.r01_test_dwell_ms, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, r01_lcd_only_test=args.r01_lcd_only_test, tjc_soft_tx=args.tjc_soft_tx, r01_center_return_test=args.r01_center_return_test, r01_test_staircase=args.r01_test_staircase, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=args.r01_test_step_us, r01_test_max_duty=args.r01_test_max_duty, r01_test_dwell_ms=args.r01_test_dwell_ms, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),

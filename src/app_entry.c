@@ -39,6 +39,9 @@
 #ifndef SERVO_R01_PRODUCTION_LOOP_TEST
 #define SERVO_R01_PRODUCTION_LOOP_TEST 0
 #endif
+#ifndef SERVO_R01_LCD_ONLY_TEST
+#define SERVO_R01_LCD_ONLY_TEST 0
+#endif
 #ifndef SERVO_R01_CENTER_RETURN_TEST
 #define SERVO_R01_CENTER_RETURN_TEST 0
 #endif
@@ -89,7 +92,11 @@ volatile uint8_t g_servo_model_record_valid;
 __attribute__((used)) volatile const char g_servo_firmware_version[] = "P50 V10.6SIMB2PA6P";
 #endif
 #if SERVO_R01_PRODUCTION_LOOP_TEST
+#if SERVO_R01_LCD_ONLY_TEST
+__attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6LCDP50";
+#else
 __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6PRODSTEP";
+#endif
 volatile uint8_t g_r01_production_test_active;
 volatile uint16_t g_r01_production_test_pulse_us = 1500U;
 volatile uint8_t g_r01_test_sweep_stage;
@@ -4749,6 +4756,12 @@ int entry(void)
     uint32_t now_ms = HAL_GetTick();
 #if SERVO_R01_PRODUCTION_LOOP_TEST
     uint16_t test_pulse_us = 1500U;
+#if SERVO_R01_LCD_ONLY_TEST
+    test_pulse_us = (((now_ms / 1000U) & 1U) != 0U) ? 1550U : 1500U;
+    g_r01_production_test_pulse_us = test_pulse_us;
+    PWM_Input_SetTestPulse(test_pulse_us, now_ms);
+    HBridge_Coast();
+#else
 #if SERVO_R01_CENTER_RETURN_TEST
     if ((uint32_t)(now_ms - last_center_adc_ms) >= 20U)
     {
@@ -4852,12 +4865,16 @@ int entry(void)
     }
     g_r01_production_test_pulse_us = test_pulse_us;
     PWM_Input_SetTestPulse(test_pulse_us, now_ms);
+#endif /* SERVO_R01_LCD_ONLY_TEST */
 #endif
     /* 控制循环固定 1ms 调用一次，避免主循环快慢影响舵机响应。 */
     if ((uint32_t)(now_ms - last_control_ms) >= SERVO_CONTROL_PERIOD_MS)
     {
       last_control_ms = now_ms;
 #if SERVO_R01_PRODUCTION_LOOP_TEST
+#if SERVO_R01_LCD_ONLY_TEST
+      HBridge_Coast();
+#else
       if (g_r01_production_test_active != 0U)
       {
         Servo_Control_Update1ms();
@@ -4938,6 +4955,7 @@ int entry(void)
       {
         HBridge_Coast();
       }
+#endif /* SERVO_R01_LCD_ONLY_TEST */
 #else
       Servo_Control_Update1ms();
 #endif
@@ -4945,11 +4963,20 @@ int entry(void)
 
     TJC_LCDM_Process();
 #if SERVO_R01_PRODUCTION_LOOP_TEST
+#if SERVO_R01_LCD_ONLY_TEST
+    {
+      uint16_t feedback = ADC_Feedback_GetRaw();
+      uint16_t target = Servo_Control_MapPulseToAdc(test_pulse_us);
+      int16_t error = (int16_t)((int32_t)target - (int32_t)feedback);
+      TJC_LCDM_ShowR01Status(test_pulse_us, feedback, target, error);
+    }
+#else
     {
       ServoStatus status = Servo_Control_GetStatus();
       TJC_LCDM_ShowR01Status(test_pulse_us, status.feedback_adc,
                              status.target_adc, status.error_adc);
     }
+#endif /* SERVO_R01_LCD_ONLY_TEST */
 #endif
     Board_StatusHeartbeat();
   }
