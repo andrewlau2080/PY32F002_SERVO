@@ -394,8 +394,16 @@ void TJC_LCDM_Init(void)
   soft_tx_cmd_at_baud(9600U, "bkcmd=0");
   HAL_Delay(80U);
   soft_tx_cmd_at_baud(9600U, "dim=100");
+  soft_tx_cmd_at_baud(9600U, "ref_stop");
+  soft_tx_cmd_at_baud(9600U, "cls 65535");
+  HAL_Delay(30U);
+  /* Force the panel to rebuild its stored home objects after a diagnostic
+     overlay previously painted directly into the display buffer. */
+  soft_tx_cmd_at_baud(9600U, "page 1");
+  HAL_Delay(100U);
   soft_tx_cmd_at_baud(9600U, "page 0");
   HAL_Delay(250U);
+  soft_tx_cmd_at_baud(9600U, "ref_star");
   soft_tx_cmd_at_baud(9600U, "sendxy=1");
   s_soft_tx_baud = 9600U;
   s_page = 0U;

@@ -280,7 +280,7 @@ def main():
                        ('SIMB2C' if args.force_coast else ('SIMB2' if args.internal_step_test else '')))
                        ))
     expected_version_text = ('P50 V10.6LCDP50' if args.r01_lcd_only_test else
-                             ('P50 V10.6R12LCD' if args.production_loop_r01_test else
+                             ('P50 V10.6R13LCD' if args.production_loop_r01_test else
                               'P50 ' + version + ('' if args.production_lcdm else expected_suffix)))
     expected_version = expected_version_text.encode()
     if (args.profile == 'lcdm' and not args.pa6_single_pulse and versions != [expected_version]) or (

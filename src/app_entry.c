@@ -105,7 +105,7 @@ __attribute__((used)) volatile const char g_servo_firmware_version[] = "P50 V10.
 #if SERVO_R01_LCD_ONLY_TEST
 __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6LCDP50";
 #else
-__attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6R12LCD";
+__attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6R13LCD";
 #endif
 volatile uint8_t g_r01_production_test_active;
 volatile uint16_t g_r01_production_test_pulse_us = 1500U;

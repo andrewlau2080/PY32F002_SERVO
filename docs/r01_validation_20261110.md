@@ -595,3 +595,8 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 修复：移除清屏/矩形覆盖；R01诊断值改送入现有`send_home_page()`的P00遥测控件（n0–n5、j0–j2、t0/t1），保留原TJC页面对象及100ms缓存刷新。LCD-only诊断也继续调用原主页刷新。版本标识改为`P50 V10.6R12LCD`。
 - Ubuntu构建`build/releases/V10.6_TSSOP20_R01_HOME_UI_20261121_R12/`通过；BIN 15,096B，SHA256=`db2c3f091ad0a2821df5ed019cd55e630e3c95919d3880970750c7cc2b77406f`。下载前R11只读状态active=0/duty=0；R12通过2MHz under-reset下载。写后全片20,480B SHA256=`87c72032afd272b1ee02317647a418c8d3fab6d5709eb8be08c4e6e50f0e08c5`，应用逐字节匹配、尾384B与R10前备份相同、版本串正确、核心Running。
 - 写后RAM只读：active=0、arm=0、duty=0、正反H桥计数均0、核心Running；没有触发运动。R12已验证固件路径不再清屏/覆盖且主页控件发送路径编译下载成功；实体屏幕是否显示完整多项主页仍需目视确认，不能以UART计数代替屏幕显示验收。
+### 2026-11-21 R13清除单行残影并强制重载主页
+
+- 用户确认R12仍未恢复9.x多项主页。现场实际原因：R12虽停止画单行，但未擦除R11留下的显存覆盖；仅发对象值并不能清掉旧像素。R13在PA7初始化加入`ref_stop`、`cls 65535`、page1→page0页面切换、`ref_star`，再继续用既有P00 `send_home_page()`更新控件；未改控制环、未arm电机。
+- Ubuntu构建`build/releases/V10.6_TSSOP20_R01_HOME_RELOAD_20261121_R13/`通过；BIN 15,188B SHA256=`749dc0207236f6f9cc4ea200b73d3bae61ef5575865f6c9a9c6ccd074b3ca49e`。R13通过2MHz under-reset下载；读回整片20,480B SHA256=`a23aae6f7e605ac9d23fcb3410cd72a66b7fcefd42715b5581a59823340144b0`，应用逐字节匹配、尾384B保持、版本`P50 V10.6R13LCD`、核心Running。
+- RAM只读确认active=0、arm=0、duty=0、正反桥tick均0；LCD TX命令计数28、错误0，包含新的重载序列。计数只能证明软件执行了发送路径；用户尚未报告实体屏幕是否恢复多行，故显示项仍未通过。
