@@ -241,15 +241,10 @@ void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
 
   last_pulse_us = pulse_us;
   last_draw_ms = now;
-  (void)snprintf(value, sizeof(value), "%u us", (unsigned)pulse_us);
-  r01_draw_value(0U, value, 31U);
-  (void)snprintf(value, sizeof(value), "%u", (unsigned)target_adc);
-  r01_draw_value(1U, value, 31U);
-  (void)snprintf(value, sizeof(value), "%u", (unsigned)feedback_adc);
-  r01_draw_value(2U, value, 31U);
-  (void)snprintf(value, sizeof(value), "%d", (int)error_adc);
-  r01_draw_value(3U, value, (error_adc < 0) ? 63488U : 31U);
-  r01_draw_value(4U, (pulse_us == 1500U) ? "1500" : "1550", 65504U);
+  (void)snprintf(value, sizeof(value), "P%u A%u", (unsigned)pulse_us,
+                 (unsigned)feedback_adc);
+  r01_draw_value(4U, value, (error_adc < 0) ? 65504U : 31U);
+  (void)target_adc;
 }
 #endif
 

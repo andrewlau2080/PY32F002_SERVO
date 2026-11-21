@@ -14,6 +14,18 @@
 #ifndef SERVO_R01_TEST_MAX_DUTY
 #define SERVO_R01_TEST_MAX_DUTY 40
 #endif
+#ifndef SERVO_R01_TEST_POSITION_LIMIT_ADC
+#define SERVO_R01_TEST_POSITION_LIMIT_ADC 16U
+#endif
+#ifndef SERVO_R01_TEST_ANCHOR_PULSE_US
+#define SERVO_R01_TEST_ANCHOR_PULSE_US 1500U
+#endif
+#if SERVO_R01_TEST_ANCHOR_PULSE_US != 1500U && SERVO_R01_TEST_ANCHOR_PULSE_US != 1550U
+#error R01 diagnostic anchor pulse must be 1500 or 1550 us
+#endif
+#if SERVO_R01_TEST_POSITION_LIMIT_ADC == 0U || SERVO_R01_TEST_POSITION_LIMIT_ADC > 32U
+#error R01 test displacement limit must be 1..32 ADC counts
+#endif
 #include "servo_stability_timer.h"
 #include "py32f0xx_hal.h"
 
@@ -52,7 +64,9 @@ extern volatile uint8_t g_r01_production_test_active;
 static int16_t s_r01_prod_center_offset_adc;
 static uint16_t s_r01_prod_anchor_feedback_adc;
 static uint8_t s_r01_prod_anchor_seeded;
-static uint8_t s_r01_prod_motion_locked;
+volatile uint8_t g_r01_prod_motion_locked;
+volatile uint16_t g_r01_prod_max_displacement_adc;
+volatile int16_t g_r01_prod_signed_displacement_adc;
 volatile uint16_t g_r01_prod_anchor_adc;
 volatile int16_t g_r01_prod_center_offset_adc;
 volatile uint32_t g_r01_prod_nonzero_duty_count;
@@ -403,17 +417,27 @@ void Servo_Control_Update1ms(void)
     if (s_r01_prod_anchor_seeded == 0U)
     {
       s_r01_prod_center_offset_adc = (int16_t)((int32_t)feedback -
-          (int32_t)Servo_Control_MapPulseToAdc(1500U));
+          (int32_t)Servo_Control_MapPulseToAdc(SERVO_R01_TEST_ANCHOR_PULSE_US));
       s_r01_prod_anchor_feedback_adc = feedback;
       g_r01_prod_anchor_adc = feedback;
       g_r01_prod_center_offset_adc = s_r01_prod_center_offset_adc;
       s_r01_prod_anchor_seeded = 1U;
+      g_r01_prod_motion_locked = 0U;
+      g_r01_prod_max_displacement_adc = 0U;
+      g_r01_prod_signed_displacement_adc = 0;
     }
+    int32_t displacement = (int32_t)feedback - (int32_t)s_r01_prod_anchor_feedback_adc;
+    g_r01_prod_signed_displacement_adc = (int16_t)displacement;
+    if (displacement < 0) displacement = -displacement;
+    if (displacement > g_r01_prod_max_displacement_adc)
+      g_r01_prod_max_displacement_adc = (uint16_t)displacement;
+    if ((uint32_t)displacement >= SERVO_R01_TEST_POSITION_LIMIT_ADC)
+      g_r01_prod_motion_locked = 1U;
     int32_t anchored_target = (int32_t)target + s_r01_prod_center_offset_adc;
     if (anchored_target < 0) anchored_target = 0;
     if (anchored_target > 4095) anchored_target = 4095;
     target = (uint16_t)anchored_target;
-    if (s_r01_prod_motion_locked != 0U)
+    if (g_r01_prod_motion_locked != 0U)
     {
       HBridge_Coast();
       s_status.state = SERVO_STATE_HOLD;
@@ -632,11 +656,6 @@ void Servo_Control_Update1ms(void)
   s_last_feedback = feedback;
 
 #if SERVO_R01_PRODUCTION_LOOP_TEST
-  if (!SERVO_R01_CENTER_RETURN_TEST && (g_r01_production_test_active != 0U) && (duty != 0) &&
-      (abs_i16(duty) < SERVO_R01_TEST_MAX_DUTY))
-  {
-    duty = (duty > 0) ? SERVO_R01_TEST_MAX_DUTY : -SERVO_R01_TEST_MAX_DUTY;
-  }
   if (duty > SERVO_R01_TEST_MAX_DUTY)
   {
     duty = SERVO_R01_TEST_MAX_DUTY;

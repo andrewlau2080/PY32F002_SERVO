@@ -52,6 +52,10 @@ def main():
                         help='build the guarded center-only LCDM diagnostic sequence')
     parser.add_argument('--r01-test-max-duty', type=int, default=40,
                         help='maximum absolute R01 diagnostic duty in permille (1..350 step, 1..500 return)')
+    parser.add_argument('--r01-position-limit-adc', type=int, default=8,
+                        help='latched coast limit from the measured R01 start position (1..32 ADC counts)')
+    parser.add_argument('--r01-anchor-pulse-us', type=int, choices=[1500, 1550], default=1500,
+                        help='pulse mapped to the live ADC anchor; use 1550 to test the 1550-to-1500 direction')
     parser.add_argument('--r01-explicit-arm', action='store_true',
                         help='disable automatic R01 motion and wait for a live SWD arm request; capped at 150 permille')
     parser.add_argument('--r01-test-step-us', type=int, default=None,
@@ -105,6 +109,8 @@ def main():
         parser.error('--pa6-single-pulse is an isolated GPIO test; do not combine with other diagnostics')
     if not 1 <= args.r01_test_step_us <= 50:
         parser.error('--r01-test-step-us must be in 1..50 us')
+    if not 1 <= args.r01_position_limit_adc <= 32:
+        parser.error('--r01-position-limit-adc must be in 1..32 ADC counts')
     if args.r01_explicit_arm and (not args.internal_step_test or args.force_coast or
                                   args.direction_probe or args.r04_ui_redraw_stress or
                                   args.adc_subsample_diagnostic or args.r01_test_max_duty > 150 or
@@ -138,6 +144,8 @@ def main():
     if args.production_loop_r01_test:
         flags = flags + ['SERVO_ALLOW_INTERNAL_STEP_TEST=1', 'SERVO_ENABLE_INTERNAL_STEP_TEST=1',
                          'SERVO_R01_EXPLICIT_ARM=1', 'SERVO_R01_PRODUCTION_LOOP_TEST=1',
+                         f'SERVO_R01_TEST_POSITION_LIMIT_ADC={args.r01_position_limit_adc}',
+                         f'SERVO_R01_TEST_ANCHOR_PULSE_US={args.r01_anchor_pulse_us}',
                          f'SERVO_R01_TEST_MAX_DUTY={args.r01_test_max_duty}',
                          f'SERVO_R01_TEST_STEP_US={args.r01_test_step_us}',
                          f'SERVO_R01_TEST_DWELL_MS={args.r01_test_dwell_ms}U']
@@ -237,6 +245,10 @@ def main():
     build_log = (out / 'build.log').read_text(errors='replace')
     if args.r01_lcd_only_test and '-DSERVO_R01_LCD_ONLY_TEST=1' not in build_log:
         raise SystemExit('Requested LCD-only test macro is absent from the compiler command; candidate rejected')
+    if args.production_loop_r01_test and f'-DSERVO_R01_TEST_POSITION_LIMIT_ADC={args.r01_position_limit_adc}' not in build_log:
+        raise SystemExit('Requested R01 ADC displacement guard is absent from the compiler command; candidate rejected')
+    if args.production_loop_r01_test and f'-DSERVO_R01_TEST_ANCHOR_PULSE_US={args.r01_anchor_pulse_us}U' not in build_log:
+        raise SystemExit('Requested R01 anchor pulse is absent from the compiler command; candidate rejected')
     if args.tjc_soft_tx and '-DSERVO_TJC_SOFT_TX=1' not in build_log:
         raise SystemExit('Requested PA7 software-TX macro is absent from the compiler command; candidate rejected')
     if args.adc_vdd_each_batch:
@@ -271,7 +283,7 @@ def main():
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, r01_lcd_only_test=args.r01_lcd_only_test, tjc_soft_tx=args.tjc_soft_tx, r01_center_return_test=args.r01_center_return_test, r01_test_staircase=args.r01_test_staircase, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=args.r01_test_step_us, r01_test_max_duty=args.r01_test_max_duty, r01_test_dwell_ms=args.r01_test_dwell_ms, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, r01_lcd_only_test=args.r01_lcd_only_test, tjc_soft_tx=args.tjc_soft_tx, r01_center_return_test=args.r01_center_return_test, r01_test_staircase=args.r01_test_staircase, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=args.r01_test_step_us, r01_test_max_duty=args.r01_test_max_duty, r01_test_dwell_ms=args.r01_test_dwell_ms, r01_position_limit_adc=args.r01_position_limit_adc, r01_anchor_pulse_us=args.r01_anchor_pulse_us, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),

@@ -68,6 +68,10 @@
 #ifndef SERVO_R01_TEST_STAIRCASE
 #define SERVO_R01_TEST_STAIRCASE 0
 #endif
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+extern volatile uint8_t g_r01_prod_motion_locked;
+extern volatile uint16_t g_r01_prod_max_displacement_adc;
+#endif
 #if SERVO_R01_TEST_STAIRCASE
 extern volatile uint16_t g_r01_prod_anchor_adc;
 #endif
@@ -4861,6 +4865,13 @@ int entry(void)
       test_pulse_us = (((elapsed_ms / SERVO_R01_TEST_DWELL_MS) & 1U) == 0U) ?
                       (uint16_t)(1500U + SERVO_R01_TEST_STEP_US) : 1500U;
 #endif
+      if ((g_r01_prod_motion_locked != 0U) || (elapsed_ms >= 5000U))
+      {
+        g_r01_production_test_active = 0U;
+        g_r01_active_test_arm_request = 2U;
+        test_pulse_us = 1500U;
+        HBridge_Coast();
+      }
 #endif
     }
     g_r01_production_test_pulse_us = test_pulse_us;
