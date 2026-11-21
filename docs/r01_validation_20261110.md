@@ -726,3 +726,10 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 用户用示波器更正实际H桥PWM为周期1ms、高电平约100µs；这与R56软件命令100‰（10%）相符。用户报告REV时马达只有嗞声、不能起转，故将此前“死机”描述更正为**反向低占空下未观察到转动**；它支持起动转矩不足的可能性，不构成MCU死机证据。
 - 保持8 raw ADC count与150ms自动coast限制，仅把点动占空由100‰提高到150‰（1ms载波下目标高电平约150µs），验证P/A显示映射及REV低幅起动。R57候选`build/releases/V10.6_TSSOP20_R01_JOG_FEEDBACK_PULSE_DUTY150_LIMITED_20261121_R57/`，BIN 14,016B SHA256=`117f2a4c551815bcc263906c7ed7a2d7f7f681a952ab9eb9a4e388b1321c020f`；manifest核实150‰/8 count/150ms，Ubuntu构建通过。
 - R57按2MHz under-reset下载后，整片20,480B SHA256=`9bdc8d2f819b32a3e587cb55a1644c1112a52f7657176525b90b3f90d30f7519`，应用逐字节匹配BIN、尾384B与R56相同、核心Running。读回证据`build/board_readback/20261121_r57_postflash/`。只读2帧确认active=0、H桥duty=0、反向桥ticks=0、VDD估值3237mV；没有自动动作。**当前板R57，等待一次短按REV观察是否起转及P/A是否变化；真实动作尚未验证，R01未通过。**
+
+### 2026-11-21 用户报告部分位置可转、部分位置推不动；R58小幅增占空
+
+- 用户反馈R57点动“有些角度转不动，目前能转”。这表明至少部分角度有实际动作；原先把REV低占空嗞声概括为完全不起转不准确。SWD导通计数是累计、非按键配对数据，不能据此判断每次动作是否成功，也不能排除负载/位置导致的起动差异。
+- 在不改变方向/反馈映射和安全行程限制的前提下，将点动占空从150‰小幅提高至175‰；仍限制位移8 raw ADC count或持续150ms，先到即coast。1ms PWM周期下目标高电平约175µs（17.5%）。
+- R58 Ubuntu构建目录`build/releases/V10.6_TSSOP20_R01_JOG_FEEDBACK_PULSE_DUTY175_LIMITED_20261121_R58/`，BIN 14,016B SHA256=`7a225b2b996cb513949f21773ca351f58d6d50bf256ff11c33c606f1fd4d99a3`。2MHz under-reset下载后整片20,480B SHA256=`389a739d4b0df35fa3930fbac6c577b48301f7eb77b9eb8c808aba4cd6213a6f`，应用与BIN逐字节匹配、尾384B与R57相同、核心Running；读回证据`build/board_readback/20261121_r58_postflash/`。
+- 下载后只读状态为active=0、duty=0、正反桥tick=0，raw ADC约2469、VDD估值3247mV，无自动动作。**当前板R58，尚待用户在先前推不动的位置短按FWD/REV，确认能否起转及P/A是否同步变化；本次不宣称故障已修复，R01未通过。**
