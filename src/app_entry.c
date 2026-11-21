@@ -4961,7 +4961,9 @@ int entry(void)
 #endif
     }
 
+#if !SERVO_R01_LCD_ONLY_TEST
     TJC_LCDM_Process();
+#endif
 #if SERVO_R01_PRODUCTION_LOOP_TEST
 #if SERVO_R01_LCD_ONLY_TEST
     {

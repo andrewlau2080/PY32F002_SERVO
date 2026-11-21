@@ -54,6 +54,8 @@ static volatile uint8_t s_tjc_last_packet2;
 static volatile uint8_t s_tjc_debug_page;
 
 #if SERVO_TJC_SOFT_TX
+static uint32_t s_soft_tx_baud = TJC_LCDM_DEFAULT_BAUD;
+
 static void soft_tx_wait_ticks(uint32_t ticks)
 {
   uint32_t elapsed = 0U;
@@ -90,7 +92,7 @@ static void soft_tx_init(void)
 
 static void soft_tx_byte(uint8_t value)
 {
-  uint32_t bit_ticks = SystemCoreClock / TJC_LCDM_DEFAULT_BAUD;
+  uint32_t bit_ticks = SystemCoreClock / s_soft_tx_baud;
 
   GPIOA->BRR = GPIO_PIN_7;
   soft_tx_wait_ticks(bit_ticks);
@@ -107,6 +109,7 @@ static void soft_tx_byte(uint8_t value)
   GPIOA->BSRR = GPIO_PIN_7;
   soft_tx_wait_ticks(bit_ticks);
 }
+
 #endif
 
 static void send_end(void)
@@ -147,6 +150,14 @@ static void send_cmd(const char *cmd)
 #endif
   send_end();
 }
+
+#if SERVO_TJC_SOFT_TX
+static void soft_tx_cmd_at_baud(uint32_t baud, const char *cmd)
+{
+  s_soft_tx_baud = baud;
+  send_cmd(cmd);
+}
+#endif
 
 #if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && SERVO_R01_PRODUCTION_LOOP_TEST
 static void r01_draw_cmd(const char *cmd)
@@ -204,7 +215,9 @@ void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
   static uint32_t last_draw_ms;
   char value[24];
   uint32_t now = HAL_GetTick();
-  if ((pulse_us == last_pulse_us) && ((uint32_t)(now - last_draw_ms) < 100U))
+  /* UART rendering is synchronous; 100 ms full-page redraws can starve the
+     production 1 ms control loop. Refresh on command change, otherwise at 1 Hz. */
+  if ((pulse_us == last_pulse_us) && ((uint32_t)(now - last_draw_ms) < 1000U))
   {
     return;
   }
@@ -213,6 +226,7 @@ void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
     r01_draw_cmd("page 0");
     r01_draw_cmd("ref_stop");
     r01_draw_cmd("cls 65535");
+    HAL_Delay(30U);
     r01_draw_fill(0U, 0U, 480U, 32U, 16U);
     r01_draw_text(6U, 3U, 340U, 26U, 65535U, 16U, 0U, "P50 STEP");
     r01_draw_text(350U, 3U, 124U, 26U, 65535U, 16U, 2U, "R01");
@@ -432,7 +446,25 @@ static void start_receive(void)
 void TJC_LCDM_Init(void)
 {
 #if SERVO_TJC_SOFT_TX
+  char cmd[24];
+  static const uint32_t recovery_baud[] = {9600U, 38400U, 115200U};
   soft_tx_init();
+  /* Match the known-good V9.x PA7 display recovery sequence. */
+  for (uint32_t i = 0U; i < (sizeof(recovery_baud) / sizeof(recovery_baud[0])); i++)
+  {
+    soft_tx_cmd_at_baud(recovery_baud[i], "bkcmd=0");
+    (void)snprintf(cmd, sizeof(cmd), "bauds=%u", 9600U);
+    soft_tx_cmd_at_baud(recovery_baud[i], cmd);
+    soft_tx_cmd_at_baud(recovery_baud[i], "baud=9600");
+    HAL_Delay(50U);
+  }
+  soft_tx_cmd_at_baud(9600U, "bkcmd=0");
+  HAL_Delay(80U);
+  soft_tx_cmd_at_baud(9600U, "dim=100");
+  soft_tx_cmd_at_baud(9600U, "page 0");
+  HAL_Delay(250U);
+  soft_tx_cmd_at_baud(9600U, "sendxy=1");
+  s_soft_tx_baud = 9600U;
   s_page = 0U;
   s_tjc_debug_page = s_page;
   invalidate_page_cache();
