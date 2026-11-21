@@ -105,7 +105,7 @@ __attribute__((used)) volatile const char g_servo_firmware_version[] = "P50 V10.
 #if SERVO_R01_LCD_ONLY_TEST
 __attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6LCDP50";
 #else
-__attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6PRODSTEP";
+__attribute__((used)) const char g_servo_firmware_version[] = "P50 V10.6R12LCD";
 #endif
 volatile uint8_t g_r01_production_test_active;
 volatile uint16_t g_r01_production_test_pulse_us = 1500U;
@@ -4991,9 +4991,7 @@ int entry(void)
 #endif
     }
 
-#if !SERVO_R01_LCD_ONLY_TEST
     TJC_LCDM_Process();
-#endif
 #if SERVO_R01_PRODUCTION_LOOP_TEST
 #if SERVO_R01_LCD_ONLY_TEST
     {
@@ -5008,7 +5006,7 @@ int entry(void)
       TJC_LCDM_ShowR01Status(test_pulse_us, status.feedback_adc,
                              status.target_adc, status.error_adc);
     }
-#endif /* SERVO_R01_LCD_ONLY_TEST */
+#endif
 #endif
     Board_StatusHeartbeat();
   }

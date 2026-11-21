@@ -20,5 +20,4 @@ void TJC_LCDM_IRQHandler(void);
 void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
                             uint16_t target_adc, int16_t error_adc);
 #endif
-
 #endif

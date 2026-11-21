@@ -52,6 +52,24 @@ static volatile uint8_t s_tjc_last_packet0;
 static volatile uint8_t s_tjc_last_packet1;
 static volatile uint8_t s_tjc_last_packet2;
 static volatile uint8_t s_tjc_debug_page;
+#if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && SERVO_R01_PRODUCTION_LOOP_TEST
+static volatile uint8_t s_r01_status_override_valid;
+static volatile uint16_t s_r01_status_pulse_us;
+static volatile uint16_t s_r01_status_feedback_adc;
+static volatile uint16_t s_r01_status_target_adc;
+static volatile int16_t s_r01_status_error_adc;
+
+void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
+                            uint16_t target_adc, int16_t error_adc)
+{
+  /* Feed the existing P00 telemetry page; do not paint a one-line overlay. */
+  s_r01_status_pulse_us = pulse_us;
+  s_r01_status_feedback_adc = feedback_adc;
+  s_r01_status_target_adc = target_adc;
+  s_r01_status_error_adc = error_adc;
+  s_r01_status_override_valid = 1U;
+}
+#endif
 
 #if SERVO_TJC_SOFT_TX
 static uint32_t s_soft_tx_baud = TJC_LCDM_DEFAULT_BAUD;
@@ -159,37 +177,6 @@ static void soft_tx_cmd_at_baud(uint32_t baud, const char *cmd)
 }
 #endif
 
-#if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && SERVO_R01_PRODUCTION_LOOP_TEST
-void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
-                            uint16_t target_adc, int16_t error_adc)
-{
-  static uint16_t last_pulse_us = 0U;
-  static uint32_t last_draw_ms;
-  char cmd[80];
-  uint32_t now = HAL_GetTick();
-  /* Keep the original V9.x confirmed fill/xstr region and text style. Only
-     redraw on command change or once per second, avoiding loop starvation. */
-  if ((pulse_us == last_pulse_us) && ((uint32_t)(now - last_draw_ms) < 1000U))
-  {
-    return;
-  }
-  if (last_pulse_us == 0U)
-  {
-    send_cmd("page 0");
-    send_cmd("cls 65535");
-  }
-
-  last_pulse_us = pulse_us;
-  last_draw_ms = now;
-  send_cmd("fill 20,70,440,100,65535");
-  (void)snprintf(cmd, sizeof(cmd),
-                 "xstr 20,70,440,100,0,31,65535,1,1,1,\"CMD %u ADC %u TGT %u ERR %d\"",
-                 (unsigned)pulse_us, (unsigned)feedback_adc,
-                 (unsigned)target_adc, (int)error_adc);
-  send_cmd(cmd);
-}
-#endif
-
 static void set_num(const char *obj, int32_t value)
 {
   char cmd[32];
@@ -286,6 +273,15 @@ static void send_home_page(void)
 {
   ServoTelemetry telemetry;
   Servo_Comm_FillTelemetry(&telemetry);
+#if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && SERVO_R01_PRODUCTION_LOOP_TEST
+  if (s_r01_status_override_valid != 0U)
+  {
+    telemetry.input_us = s_r01_status_pulse_us;
+    telemetry.feedback_adc = s_r01_status_feedback_adc;
+    telemetry.target_adc = s_r01_status_target_adc;
+    telemetry.error_adc = s_r01_status_error_adc;
+  }
+#endif
 
   int16_t duty = telemetry.motor_duty;
   if (duty < 0)

@@ -589,3 +589,9 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 - 沿用用户确认过的V9.x LCD绘图区域与CMD/ADC/TGT/ERR文本；构建后下载R11生产LCDM测试版。候选`build/releases/V10.6_TSSOP20_R01_REVERSE_350CAP_1S_20261121_R11/`，BIN 15,252B SHA256=`b33234aeb364dff7cf1cbc179929258e9cf9c5dbbc7e85c1b5a57077013d93c8`。下载前R10整片SHA256=`07ac8154e72c2b3a73608cf3c96c41dbf06f791e4d6c77aa4bf3ca364fa7e152`；下载后整片SHA256=`314d5520d3bb48d75635df34c70b40d01055b617bd135db557c4944a0194cca0`，应用区与BIN逐字节相同、尾384B未变、核心Running。板版本字符串仍是通用`P50 V10.6PRODSTEP`，未区分R11，是版本标识缺陷。
 - 显式arm后只触发一次1550→1500µs反向命令，最大duty实测210‰（配置上限350‰）；R01保护锁存后自动停机，未重复动作。16帧SWD采集约11.44s，反馈过滤值2519–2524、raw 2487–2523；anchor过滤位移最大5 count、raw位移最大37 count，VDD 3232–3235mV。锁定原因位2对应raw相对anchor达到8-count门槛（本次最大37），不是动作成功判据。结束只读快照：active=0、arm=2、HBridge duty=0、正向on-ticks=0、反向on-ticks=2041、核心Running；signed duty状态为0。实际PA脚波形及可见机械位移未独立确认。
 - **结论与纠正**：这次没有通过R01。之前把350‰上限及粗略限时直接作为下一步，是未先解决raw ADC安全锁误触发和反馈采样跳变的逻辑缺口；本次锁止证明保护生效，不能据此宣称反馈方向错误或马达动作成功。下一步先离板追踪raw ADC批次、过滤器与position guard的取样语义，并补齐逐帧guard触发前后日志；修正后以唯一版本标识重建。未完成这些前不再触发马达、不扩大duty、不碰端点。
+### 2026-11-21 R12恢复原有LCDM主页
+
+- 根因确认：R11诊断绘图主动发送`page 0`、`cls 65535`，再以`fill 20,70,440,100`覆盖主页，故屏幕只剩单行；仅复用`fill/xstr`格式并没有恢复9.x的多控件首页。
+- 修复：移除清屏/矩形覆盖；R01诊断值改送入现有`send_home_page()`的P00遥测控件（n0–n5、j0–j2、t0/t1），保留原TJC页面对象及100ms缓存刷新。LCD-only诊断也继续调用原主页刷新。版本标识改为`P50 V10.6R12LCD`。
+- Ubuntu构建`build/releases/V10.6_TSSOP20_R01_HOME_UI_20261121_R12/`通过；BIN 15,096B，SHA256=`db2c3f091ad0a2821df5ed019cd55e630e3c95919d3880970750c7cc2b77406f`。下载前R11只读状态active=0/duty=0；R12通过2MHz under-reset下载。写后全片20,480B SHA256=`87c72032afd272b1ee02317647a418c8d3fab6d5709eb8be08c4e6e50f0e08c5`，应用逐字节匹配、尾384B与R10前备份相同、版本串正确、核心Running。
+- 写后RAM只读：active=0、arm=0、duty=0、正反H桥计数均0、核心Running；没有触发运动。R12已验证固件路径不再清屏/覆盖且主页控件发送路径编译下载成功；实体屏幕是否显示完整多项主页仍需目视确认，不能以UART计数代替屏幕显示验收。
