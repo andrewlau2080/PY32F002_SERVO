@@ -720,3 +720,9 @@ SOP8 复用选择依据[普冉 PY32F002A 数据手册](https://www.puyasemi.com/
 
 - 用户报告按REV会死机；未再次触发动作。R56只读SWD采样时核心`State.RUNNING`，active=0、arm请求=2、H桥duty=0；反向桥导通tick=0。寄存器快照PC在正常`Servo_Control_MapPulseToAdc()`代码内，不在`APP_ErrorHandler`/HardFault；此前瞬时采样曾落在正常`__udivsi3`计算中，不能作为卡死证据。
 - 当前触摸遥测末包为0x67坐标x=410,y=78,event=1，落在自绘FWD区域(342–470,58–104)，不是REV区域(342–470,112–158)；RX共25包、UART错误0。该值可能是历史末包，不能证明本次REV按压有没有发到MCU。当前没有捕获到REV桥输出或复现死机。记录结论：REV死机报告未定位、R01不通过；需先区分“LCD停更”还是“MCU/整板停机”，并取得REV按压时坐标/核心PC/桥输出证据，再决定代码修复。没有修改源码、没有复位或触发动作。
+
+### 2026-11-21 R56 REV嗞声、无位移；R57小幅提高点动占空
+
+- 用户用示波器更正实际H桥PWM为周期1ms、高电平约100µs；这与R56软件命令100‰（10%）相符。用户报告REV时马达只有嗞声、不能起转，故将此前“死机”描述更正为**反向低占空下未观察到转动**；它支持起动转矩不足的可能性，不构成MCU死机证据。
+- 保持8 raw ADC count与150ms自动coast限制，仅把点动占空由100‰提高到150‰（1ms载波下目标高电平约150µs），验证P/A显示映射及REV低幅起动。R57候选`build/releases/V10.6_TSSOP20_R01_JOG_FEEDBACK_PULSE_DUTY150_LIMITED_20261121_R57/`，BIN 14,016B SHA256=`117f2a4c551815bcc263906c7ed7a2d7f7f681a952ab9eb9a4e388b1321c020f`；manifest核实150‰/8 count/150ms，Ubuntu构建通过。
+- R57按2MHz under-reset下载后，整片20,480B SHA256=`9bdc8d2f819b32a3e587cb55a1644c1112a52f7657176525b90b3f90d30f7519`，应用逐字节匹配BIN、尾384B与R56相同、核心Running。读回证据`build/board_readback/20261121_r57_postflash/`。只读2帧确认active=0、H桥duty=0、反向桥ticks=0、VDD估值3237mV；没有自动动作。**当前板R57，等待一次短按REV观察是否起转及P/A是否变化；真实动作尚未验证，R01未通过。**
