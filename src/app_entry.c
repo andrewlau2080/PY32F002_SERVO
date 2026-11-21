@@ -68,6 +68,9 @@
 #ifndef SERVO_R01_TEST_ANCHOR_PULSE_US
 #define SERVO_R01_TEST_ANCHOR_PULSE_US 1500U
 #endif
+#ifndef SERVO_R01_TEST_TIMEOUT_MS
+#define SERVO_R01_TEST_TIMEOUT_MS 1000U
+#endif
 #ifndef SERVO_R01_TEST_STAIRCASE
 #define SERVO_R01_TEST_STAIRCASE 0
 #endif
@@ -4880,7 +4883,8 @@ int entry(void)
         test_pulse_us = (uint16_t)(1500U + SERVO_R01_TEST_STEP_US);
       }
 #endif
-      if ((g_r01_prod_motion_locked != 0U) || (elapsed_ms >= 5000U))
+      if ((g_r01_prod_motion_locked != 0U) ||
+          (elapsed_ms >= SERVO_R01_TEST_TIMEOUT_MS))
       {
         g_r01_production_test_active = 0U;
         g_r01_active_test_arm_request = 2U;
@@ -4996,15 +5000,13 @@ int entry(void)
       uint16_t feedback = ADC_Feedback_GetRaw();
       uint16_t target = Servo_Control_MapPulseToAdc(test_pulse_us);
       int16_t error = (int16_t)((int32_t)target - (int32_t)feedback);
-      TJC_LCDM_ShowR01Status(test_pulse_us, feedback, target, error,
-                             HBridge_GetDuty());
+      TJC_LCDM_ShowR01Status(test_pulse_us, feedback, target, error);
     }
 #else
     {
       ServoStatus status = Servo_Control_GetStatus();
       TJC_LCDM_ShowR01Status(test_pulse_us, status.feedback_adc,
-                             status.target_adc, status.error_adc,
-                             HBridge_GetDuty());
+                             status.target_adc, status.error_adc);
     }
 #endif /* SERVO_R01_LCD_ONLY_TEST */
 #endif

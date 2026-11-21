@@ -160,87 +160,33 @@ static void soft_tx_cmd_at_baud(uint32_t baud, const char *cmd)
 #endif
 
 #if defined(SERVO_R01_PRODUCTION_LOOP_TEST) && SERVO_R01_PRODUCTION_LOOP_TEST
-static void r01_draw_cmd(const char *cmd)
-{
-  send_cmd(cmd);
-  HAL_Delay(2U);
-}
-
-static void r01_draw_fill(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
-                          uint16_t color)
-{
-  char cmd[48];
-  (void)snprintf(cmd, sizeof(cmd), "fill %u,%u,%u,%u,%u",
-                 (unsigned)x, (unsigned)y, (unsigned)w, (unsigned)h,
-                 (unsigned)color);
-  r01_draw_cmd(cmd);
-}
-
-static void r01_draw_text(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
-                          uint16_t fg, uint16_t bg, uint8_t align,
-                          const char *text)
-{
-  char cmd[128];
-  (void)snprintf(cmd, sizeof(cmd),
-                 "xstr %u,%u,%u,%u,0,%u,%u,%u,1,1,\"%s\"",
-                 (unsigned)x, (unsigned)y, (unsigned)w, (unsigned)h,
-                 (unsigned)fg, (unsigned)bg, (unsigned)align, text);
-  r01_draw_cmd(cmd);
-}
-
-static void r01_draw_row(uint8_t row, const char *name, const char *value,
-                         uint16_t value_color)
-{
-  static const uint16_t row_y[] = {42U, 80U, 118U, 156U, 194U};
-  uint16_t bg = (row & 1U) ? 65535U : 61374U;
-  uint16_t y = row_y[row];
-
-  r01_draw_fill(18U, (uint16_t)(y - 2U), 444U, 38U, bg);
-  r01_draw_text(26U, y, 230U, 36U, 31U, bg, 0U, name);
-  r01_draw_text(286U, y, 152U, 36U, value_color, bg, 0U, value);
-}
-
 void TJC_LCDM_ShowR01Status(uint16_t pulse_us, uint16_t feedback_adc,
-                            uint16_t target_adc, int16_t error_adc,
-                            int16_t bridge_duty)
+                            uint16_t target_adc, int16_t error_adc)
 {
-  static bool page_drawn;
   static uint16_t last_pulse_us = 0U;
   static uint32_t last_draw_ms;
-  char value[48];
+  char cmd[80];
   uint32_t now = HAL_GetTick();
-  /* UART rendering is synchronous; 100 ms full-page redraws can starve the
-     production 1 ms control loop. Refresh on command change, otherwise at 1 Hz. */
+  /* Keep the original V9.x confirmed fill/xstr region and text style. Only
+     redraw on command change or once per second, avoiding loop starvation. */
   if ((pulse_us == last_pulse_us) && ((uint32_t)(now - last_draw_ms) < 1000U))
   {
     return;
   }
-  if (!page_drawn)
+  if (last_pulse_us == 0U)
   {
-    r01_draw_cmd("page 0");
-    r01_draw_cmd("ref_stop");
-    r01_draw_cmd("cls 65535");
-    HAL_Delay(30U);
-    r01_draw_fill(0U, 0U, 480U, 32U, 16U);
-    r01_draw_text(6U, 3U, 340U, 26U, 65535U, 16U, 0U, "P50 STEP");
-    r01_draw_text(350U, 3U, 124U, 26U, 65535U, 16U, 2U, "R01");
-    r01_draw_row(0U, "P", "-- us", 31U);
-    r01_draw_row(1U, "T", "--", 31U);
-    r01_draw_row(2U, "A", "--", 31U);
-    r01_draw_row(3U, "E", "--", 63488U);
-    r01_draw_row(4U, "R01", "WAIT", 65504U);
-    r01_draw_cmd("ref_star");
-    page_drawn = true;
+    send_cmd("page 0");
+    send_cmd("cls 65535");
   }
 
   last_pulse_us = pulse_us;
   last_draw_ms = now;
-  (void)snprintf(value, sizeof(value), "P%u T%u A%u E%+d D%+d",
-                 (unsigned)pulse_us, (unsigned)target_adc,
-                 (unsigned)feedback_adc, (int)error_adc, (int)bridge_duty);
-  r01_draw_text(26U, 194U, 430U, 36U,
-                (bridge_duty != 0) ? 2016U : ((error_adc < 0) ? 65504U : 31U),
-                61374U, 0U, value);
+  send_cmd("fill 20,70,440,100,65535");
+  (void)snprintf(cmd, sizeof(cmd),
+                 "xstr 20,70,440,100,0,31,65535,1,1,1,\"CMD %u ADC %u TGT %u ERR %d\"",
+                 (unsigned)pulse_us, (unsigned)feedback_adc,
+                 (unsigned)target_adc, (int)error_adc);
+  send_cmd(cmd);
 }
 #endif
 
