@@ -207,10 +207,11 @@ def simulate_recorded_profile(
     kd: float,
     brake_shift_s: float = 0.0,
     friction_accel: float = 0.0,
+    torque_tau_s: float = 0.0,
 ) -> tuple[float, float, float, float]:
     """Replay the captured signed PWM profile, then close the loop to the target."""
     dt = 0.00025
-    x = velocity = peak = 0.0
+    x = velocity = peak = torque_effort = 0.0
     end_time = segment.brake_end_s - segment.drive_start_s + brake_shift_s
     end_position = None
     first98 = None
@@ -229,7 +230,11 @@ def simulate_recorded_profile(
                 end_position = x
             feedforward = 0.0
         effort = clamp(feedforward + kp * (1.0 - x) - kd * velocity)
-        drive_accel = motor_gain * effort - drag * velocity
+        if torque_tau_s > 0:
+            torque_effort += dt * (effort - torque_effort) / torque_tau_s
+        else:
+            torque_effort = effort
+        drive_accel = motor_gain * torque_effort - drag * velocity
         friction = friction_accel * (1.0 if drive_accel > 0 else -1.0) if abs(velocity) < 0.01 else friction_accel * (1.0 if velocity > 0 else -1.0)
         if abs(velocity) < 0.01 and abs(drive_accel) <= friction_accel:
             drive_accel = 0.0
@@ -360,6 +365,24 @@ def main() -> None:
         print(
             f"  friction={friction:.1f}: max_overshoot={max(v[0] for v in values):.4f}, "
             f"max_t98={max(v[1] for v in values):.3f}s, unsettled={sum(v[2] < 0 for v in values)}/6"
+        )
+
+    print("torque_build_time_sensitivity with friction=5, profile-fit PD4_85_013:")
+    for tau_ms in (0, 2, 5, 10, 20):
+        values = []
+        profile_ends = []
+        for segment, (gain_i, drag_i) in zip(SEGMENTS, per_segment):
+            times, states = cache[segment.file]
+            result = simulate_recorded_profile(
+                segment, times, states, gain_i, drag_i, 4.85, 0.13,
+                friction_accel=5.0, torque_tau_s=tau_ms / 1000,
+            )
+            profile_ends.append(result[0])
+            values.append(result)
+        print(
+            f"  tau={tau_ms:2d}ms: profile_end={min(profile_ends):.3f}..{max(profile_ends):.3f}, "
+            f"max_overshoot={max(v[1] for v in values):.4f}, "
+            f"max_t98={max(v[2] for v in values):.3f}s, unsettled={sum(v[3] < 0 for v in values)}/6"
         )
     candidates: list[tuple[float, float, float, float, float]] = []
     for kp_index in range(10, 41):
