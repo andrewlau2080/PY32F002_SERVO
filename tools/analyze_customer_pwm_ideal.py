@@ -197,6 +197,61 @@ def simulate_step(kp: float, kd: float, motor_gain: float, drag: float) -> tuple
     return rise_time, max(0.0, peak - 1.0), settled_at
 
 
+def simulate_recorded_profile(
+    segment: Segment,
+    times: list[float],
+    states: list[list[int]],
+    motor_gain: float,
+    drag: float,
+    kp: float,
+    kd: float,
+    brake_shift_s: float = 0.0,
+    friction_accel: float = 0.0,
+) -> tuple[float, float, float, float]:
+    """Replay the captured signed PWM profile, then close the loop to the target."""
+    dt = 0.00025
+    x = velocity = peak = 0.0
+    end_time = segment.brake_end_s - segment.drive_start_s + brake_shift_s
+    end_position = None
+    first98 = None
+    stable_at = None
+    stable_samples = 0
+    for index in range(5000):
+        t = index * dt
+        if t < end_time:
+            brake_rel = segment.brake_start_s - segment.drive_start_s
+            source_rel = t if t < brake_rel + brake_shift_s else t - brake_shift_s
+            source_time = segment.drive_start_s + max(0.0, source_rel)
+            edge_index = max(0, bisect.bisect_right(times, source_time) - 1)
+            feedforward = segment.direction * (states[edge_index][4] - states[edge_index][6])
+        else:
+            if end_position is None:
+                end_position = x
+            feedforward = 0.0
+        effort = clamp(feedforward + kp * (1.0 - x) - kd * velocity)
+        drive_accel = motor_gain * effort - drag * velocity
+        friction = friction_accel * (1.0 if drive_accel > 0 else -1.0) if abs(velocity) < 0.01 else friction_accel * (1.0 if velocity > 0 else -1.0)
+        if abs(velocity) < 0.01 and abs(drive_accel) <= friction_accel:
+            drive_accel = 0.0
+        else:
+            drive_accel -= friction
+        velocity += dt * drive_accel
+        x += dt * velocity
+        peak = max(peak, x)
+        if first98 is None and x >= 0.98:
+            first98 = t
+        if abs(1.0 - x) < 0.01 and abs(velocity) < 0.05:
+            stable_samples += 1
+            if stable_samples == 80:
+                stable_at = t - 79 * dt
+                break
+        else:
+            stable_samples = 0
+    if end_position is None:
+        end_position = x
+    return end_position, max(0.0, peak - 1.0), first98 or -1.0, stable_at or -1.0
+
+
 def main() -> None:
     cache: dict[str, tuple[list[float], list[list[int]]]] = {}
     data: list[tuple[Segment, list[tuple[float, float, float]]]] = []
@@ -265,6 +320,47 @@ def main() -> None:
             f"overshoot={overshoot:.4f}, settle={settle if settle is not None else 'not settled'}"
         )
 
+    print("captured_profile_feedforward_plus_PD (sampled at 4kHz):")
+    for segment, (gain_i, drag_i) in zip(SEGMENTS, per_segment):
+        times, states = cache[segment.file]
+        for label, test_kp, test_kd in (("no_feedback", 0.0, 0.0), ("PD14_050", 14.0, 0.50)):
+            end_x, overshoot, rise, settle = simulate_recorded_profile(
+                segment, times, states, gain_i, drag_i, test_kp, test_kd
+            )
+            print(
+                f"  {segment.label} {label}: x_at_profile_end={end_x:.3f}, "
+                f"overshoot={overshoot:.4f}, t98={rise:.3f}, settle={settle:.3f}"
+            )
+
+    print("brake_onset_sensitivity with profile-fit PD4_85_013 and friction=5 normalized/s^2:")
+    for shift_ms in (-30, -20, -10, 0, 10, 20, 30):
+        values = []
+        for segment, (gain_i, drag_i) in zip(SEGMENTS, per_segment):
+            times, states = cache[segment.file]
+            _, overshoot, rise, settle = simulate_recorded_profile(
+                segment, times, states, gain_i, drag_i, 4.85, 0.13,
+                brake_shift_s=shift_ms / 1000, friction_accel=5.0,
+            )
+            values.append((overshoot, rise, settle))
+        max_over = max(v[0] for v in values)
+        max_rise = max(v[1] for v in values)
+        unsettled = sum(v[2] < 0 for v in values)
+        print(f"  shift={shift_ms:+d}ms: max_overshoot={max_over:.4f}, max_t98={max_rise:.3f}s, unsettled={unsettled}/6")
+
+    print("startup_friction_sensitivity at nominal brake timing (profile-fit PD4_85_013):")
+    for friction in (0.0, 5.0, 10.0, 20.0):
+        values = []
+        for segment, (gain_i, drag_i) in zip(SEGMENTS, per_segment):
+            times, states = cache[segment.file]
+            _, overshoot, rise, settle = simulate_recorded_profile(
+                segment, times, states, gain_i, drag_i, 4.85, 0.13,
+                friction_accel=friction,
+            )
+            values.append((overshoot, rise, settle))
+        print(
+            f"  friction={friction:.1f}: max_overshoot={max(v[0] for v in values):.4f}, "
+            f"max_t98={max(v[1] for v in values):.3f}s, unsettled={sum(v[2] < 0 for v in values)}/6"
+        )
     candidates: list[tuple[float, float, float, float, float]] = []
     for kp_index in range(10, 41):
         test_kp = kp_index * 0.5
