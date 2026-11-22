@@ -309,6 +309,39 @@ def main() -> None:
     for segment, (gain_i, drag_i) in zip(SEGMENTS, per_segment):
         print(f"  {segment.label}: gain={gain_i:.1f}, drag={drag_i:.2f}")
 
+    print("same_profile_parameter_basis (idealized; not startup threshold):")
+    response_by_direction: dict[int, list[float]] = {+1: [], -1: []}
+    brake_by_direction: dict[int, list[float]] = {+1: [], -1: []}
+    for segment in SEGMENTS:
+        times, states = cache[segment.file]
+        drive_duty = abs(average_effort(segment, segment.drive_start_s, segment.drive_end_s, times, states))
+        brake_duty = abs(average_effort(segment, segment.brake_start_s, segment.brake_end_s, times, states))
+        effective_time = (segment.drive_end_s - segment.drive_start_s) + (segment.brake_start_s - segment.drive_end_s) + (segment.brake_end_s - segment.brake_start_s) / 2
+        speed = 1.0 / effective_time
+        brake_time = segment.brake_end_s - segment.brake_start_s
+        speed_gain = speed / drive_duty if drive_duty > 0 else 0.0
+        brake_accel = speed / brake_time
+        response_by_direction[segment.direction].append(speed_gain)
+        brake_by_direction[segment.direction].append(brake_accel)
+        print(
+            f"  {segment.label}: drive_duty={drive_duty:.3f}, speed_gain={speed_gain:.2f} norm/s/duty, "
+            f"brake_duty={brake_duty:.3f}, brake_accel={brake_accel:.1f} norm/s^2, "
+            f"brake_duty_ratio={brake_duty / drive_duty if drive_duty else 0.0:.2f}"
+        )
+    for direction, label in ((+1, "increasing"), (-1, "decreasing")):
+        gains = response_by_direction[direction]
+        brakes = brake_by_direction[direction]
+        sorted_gains = sorted(gains)
+        median_gain = sorted_gains[len(sorted_gains) // 2]
+        duty_trims = [median_gain / gain for gain in gains]
+        print(
+            f"  {label} baseline: speed_gain_median={median_gain:.2f}, "
+            f"observed_span={min(gains):.2f}..{max(gains):.2f}; "
+            f"inverse_gain_duty_trim_span={min(duty_trims):.2f}..{max(duty_trims):.2f}; "
+            f"brake_accel_median={sorted(brakes)[len(brakes)//2]:.1f}, "
+            f"observed_span={min(brakes):.1f}..{max(brakes):.1f}"
+        )
+
     for label, test_kp, test_kd in (("curve_fit_PD", kp, kd), ("closed_loop_seed", 14.0, 0.50)):
         rise, overshoot, settle = simulate_step(test_kp, test_kd, motor_gain, drag)
         print(
