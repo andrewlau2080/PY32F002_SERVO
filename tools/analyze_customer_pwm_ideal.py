@@ -342,6 +342,27 @@ def main() -> None:
             f"observed_span={min(brakes):.1f}..{max(brakes):.1f}"
         )
 
+    print("same_profile_adaptation_capacity (normalized target speed=0.5, duty cap=0.9):")
+    for direction, label in ((+1, "increasing"), (-1, "decreasing")):
+        gains = response_by_direction[direction]
+        reference_gain = sorted(gains)[len(gains) // 2]
+        base_duty = 0.5 / reference_gain
+        for response_ratio in (0.4, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5):
+            current_gain = reference_gain * response_ratio
+            ideal_scale = reference_gain / current_gain
+            tuned_scale = max(0.5, min(2.0, ideal_scale))
+            duty_scales = [1.0 + (tuned_scale - 1.0) * confidence for confidence in (0.0, 0.5, 1.0)]
+            residuals = []
+            for scale in duty_scales:
+                applied_duty = min(0.9, base_duty * scale)
+                achieved_speed = current_gain * applied_duty
+                residuals.append((achieved_speed - 0.5) / 0.5 * 100.0)
+            print(
+                f"  {label} response={response_ratio:.2f}x profile: "
+                f"duty_scale@conf0/500/1000={duty_scales[0]:.2f}/{duty_scales[1]:.2f}/{duty_scales[2]:.2f}, "
+                f"speed_error={residuals[0]:+.0f}/{residuals[1]:+.0f}/{residuals[2]:+.0f}%"
+            )
+
     for label, test_kp, test_kd in (("curve_fit_PD", kp, kd), ("closed_loop_seed", 14.0, 0.50)):
         rise, overshoot, settle = simulate_step(test_kp, test_kd, motor_gain, drag)
         print(
