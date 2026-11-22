@@ -122,6 +122,81 @@ def clamp(value: float) -> float:
     return max(-OUTPUT_LIMIT, min(OUTPUT_LIMIT, value))
 
 
+def average_effort(
+    segment: Segment,
+    start_s: float,
+    end_s: float,
+    times: list[float],
+    states: list[list[int]],
+) -> float:
+    """Average signed H-bridge duty over a time interval."""
+    total = 0.0
+    index = max(0, bisect.bisect_right(times, start_s) - 1)
+    cursor = start_s
+    while cursor < end_s and index < len(times) - 1:
+        next_edge = times[index + 1]
+        overlap_end = min(end_s, next_edge)
+        if overlap_end > cursor:
+            total += (overlap_end - cursor) * segment.direction * (states[index][4] - states[index][6])
+            cursor = overlap_end
+        if next_edge <= cursor:
+            index += 1
+        else:
+            break
+    if cursor < end_s:
+        total += (end_s - cursor) * segment.direction * (states[index][4] - states[index][6])
+    return total / (end_s - start_s)
+
+
+def fit_normalized_motor(segments: tuple[Segment, ...], cache: dict[str, tuple[list[float], list[list[int]]]]) -> tuple[float, float, list[tuple[float, float]]]:
+    """Fit v_dot = motor_gain*u - viscous_drag*v to the ideal segments.
+
+    Cruise is treated as steady speed and the first reverse packet as constant
+    deceleration. This only produces a normalized simulator plant.
+    """
+    motor_gains: list[float] = []
+    drags: list[float] = []
+    for segment in segments:
+        times, states = cache[segment.file]
+        drive = average_effort(segment, segment.drive_start_s, segment.drive_end_s, times, states)
+        brake = average_effort(segment, segment.brake_start_s, segment.brake_end_s, times, states)
+        drive_s = segment.drive_end_s - segment.drive_start_s
+        gap_s = segment.brake_start_s - segment.drive_end_s
+        brake_s = segment.brake_end_s - segment.brake_start_s
+        cruise_speed = 1.0 / (drive_s + gap_s + brake_s / 2)
+        gain = cruise_speed / (brake_s * (drive - brake))
+        drag = gain * drive / cruise_speed
+        motor_gains.append(gain)
+        drags.append(drag)
+    return sum(motor_gains) / len(motor_gains), sum(drags) / len(drags), list(zip(motor_gains, drags))
+
+
+def simulate_step(kp: float, kd: float, motor_gain: float, drag: float) -> tuple[float | None, float, float | None]:
+    """Run a normalized 1-D closed loop and return 98% time, overshoot, settle time."""
+    dt = 0.001
+    x = velocity = 0.0
+    peak = x
+    rise_time: float | None = None
+    settled_at: float | None = None
+    stable_samples = 0
+    for index in range(1200):
+        time_s = index * dt
+        error = 1.0 - x
+        effort = clamp(kp * error - kd * velocity)
+        velocity += dt * (motor_gain * effort - drag * velocity)
+        x += dt * velocity
+        peak = max(peak, x)
+        if rise_time is None and x >= 0.98:
+            rise_time = time_s
+        if abs(1.0 - x) < 0.01 and abs(velocity) < 0.05:
+            stable_samples += 1
+            if stable_samples == 20 and settled_at is None:
+                settled_at = time_s - 0.019
+        else:
+            stable_samples = 0
+    return rise_time, max(0.0, peak - 1.0), settled_at
+
+
 def main() -> None:
     cache: dict[str, tuple[list[float], list[list[int]]]] = {}
     data: list[tuple[Segment, list[tuple[float, float, float]]]] = []
@@ -167,6 +242,46 @@ def main() -> None:
         )
     print(f"samples={sum(len(samples) for _, samples in data)}; Kp={kp:.2f}; Ki=0; Kd={kd:.3f}; total_RMSE={math.sqrt(mse):.3f}")
     print("Note: fitted gains belong only to this normalized idealized proxy, not verified customer firmware constants.")
+
+    motor_gain, drag, per_segment = fit_normalized_motor(SEGMENTS, cache)
+    print(f"normalized plant: motor_gain={motor_gain:.1f} s^-2/duty; viscous_drag={drag:.2f} s^-1")
+    print("segment_plant_parameters:")
+    for segment, (gain_i, drag_i) in zip(SEGMENTS, per_segment):
+        print(f"  {segment.label}: gain={gain_i:.1f}, drag={drag_i:.2f}")
+
+    for label, test_kp, test_kd in (("curve_fit_PD", kp, kd), ("closed_loop_seed", 14.0, 0.50)):
+        rise, overshoot, settle = simulate_step(test_kp, test_kd, motor_gain, drag)
+        print(
+            f"step_sim {label}: Kp={test_kp:.2f}, Ki=0, Kd={test_kd:.3f}, "
+            f"t98={rise if rise is not None else 'not reached'}, "
+            f"overshoot={overshoot:.4f}, settle={settle if settle is not None else 'not settled'}"
+        )
+
+    print("segment_plant_step_sim using closed_loop_seed Kp=14, Ki=0, Kd=0.50:")
+    for segment, (gain_i, drag_i) in zip(SEGMENTS, per_segment):
+        rise, overshoot, settle = simulate_step(14.0, 0.50, gain_i, drag_i)
+        print(
+            f"  {segment.label}: t98={rise if rise is not None else 'not reached'}, "
+            f"overshoot={overshoot:.4f}, settle={settle if settle is not None else 'not settled'}"
+        )
+
+    candidates: list[tuple[float, float, float, float, float]] = []
+    for kp_index in range(10, 41):
+        test_kp = kp_index * 0.5
+        for kd_index in range(2, 25):
+            test_kd = kd_index * 0.025
+            rise, overshoot, settle = simulate_step(test_kp, test_kd, motor_gain, drag)
+            if rise is not None and settle is not None and 0.14 <= rise <= 0.24 and overshoot <= 0.01:
+                # Prefer a quick, low-overshoot response without selecting the
+                # edge of the search grid just because it has a tiny time gain.
+                candidates.append((settle + 0.5 * overshoot, overshoot, rise, test_kp, test_kd))
+    if candidates:
+        _, overshoot, rise, test_kp, test_kd = min(candidates)
+        _, _, settle = simulate_step(test_kp, test_kd, motor_gain, drag)
+        print(
+            f"bounded_gain_candidate: Kp={test_kp:.2f}, Ki=0, Kd={test_kd:.3f}, "
+            f"t98={rise:.3f}s, overshoot={overshoot:.4f}, settled={settle:.3f}s"
+        )
 
 
 if __name__ == "__main__":
