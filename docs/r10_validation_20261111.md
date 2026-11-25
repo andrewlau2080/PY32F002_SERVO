@@ -60,3 +60,26 @@ R01–R09 未通过项留待后续统一复核，本轮未重跑。
 - 联合用例覆盖反馈方向需反刹、反向前8ms coast、到期后允许反向输出、500ms截止和反馈无效零输出；源文件`tools/r16_host_sim/test_lcdm_motion_phase_guard.c`。
 - 本轮输入哈希：`src/app_entry.c`=`6225fa6cbad1480e6af0012ae2b94eb2ef1e37a5591032ac50c60e793fb83408`；`Makefile`=`c505e7a81734ec5f999dab05d38e8908863c229ed9d6cd64bcc7f7f4eb15fd6c`；`tools/build_v10_ubuntu.py`=`54dc29bc8b1a52312ee6612128f62a374791322ac9d7749572d9410f92af049c`；联合测试=`e0ce34711df355526d4062d46c8d4d877fd7fb2ec2762e026afa22e3ccefde1a`；最终候选BIN=`04b773f82bb6c8ef3e73dd415e21c50f34eab952fa110e55f05d4a9fc753ddef`。
 - **R10未通过**：候选已能构建，但仍未下载；还缺板上目标—反馈—速度—signed duty与双桥脚同步证据，以及零速归零/不反向再加速核验。无需用户操作；下一步先只读识别并备份板上整片，再选择这份候选做单次中段受限动作。
+
+### 2026-11-25 R10候选下载与只读状态
+
+- 下载前板为R66：20,480B整片SHA256=`e7c4147165c6b115c2fd735a0994c04fe61f86d25b39b3d626633f090cb80429`；应用与R66 BIN逐字节匹配，末384B与此前归档一致。备份`build/board_readback/20261125_motion_phase_preflash/before.bin`。
+- R10候选按2MHz under-reset下载；读回20,480B整片SHA256=`971f9f28554dde101284d6bd2f2e9d59c66c692ae36d7552d8ee807d98570995`，前17,452B与R10 BIN逐字节匹配，末384B保持一致，版本`P50 V10.6R10R16P`，SP=`0x20000c00`、PC=`0x08004165`、核心Running。读回和报告在`build/board_readback/20261125_motion_phase_postflash/`。
+- SWD只读3帧显示：phase=COAST、arm request=0、armed=0、customer active=0、signed duty=0、反馈约2390 ADC、VDD约3176–3182mV。没有触发马达；输入命令脉宽仍为无效初值65535，确认这版缺内部测试源，无法自行生成命令。这也是换成R11自生1500/1550µs源的原因。
+- R10板上图像尚无用户目视确认；R10没有执行任何运动。此后R11候选增加SWD可控的内部命令源和一次性arm，输出仍限制200‰/8 ADC/500ms。
+
+### 2026-11-25 R11动作复盘与R12候选
+
+- R11内部源确有1500→1550µs切换，目标ADC约2048→2144；当前反馈约2392ADC，未观察到输出duty或位置响应。静态映射中心偏差约344ADC，导致该次动作不能用于判断H桥或阶段算法是否工作。
+- R12在首次有效中立样本把1500µs目标锚定到当前反馈，并增加阶段signed-duty请求、最终HBridge duty、误差和反馈有效标志。候选BIN 17,476B SHA256=`e9b517d74e7060d3b5c63bd57f5dc742f0d87a4e0b27598a1c6be577dff188d6`，Ubuntu构建通过；默认内部源关闭、arm=0。
+- R12以2MHz under-reset下载；20,480B整片SHA256=`791138f224a68a555c95aacefbcbe09bc77a0d9ebb3c4c1e62465aab989513d0`，17,476B应用与BIN匹配，尾384B与R11相同，核心Running，PC=`0x08004229`。只读快照确认arm=0、内部PWM=0、active=0、signed duty=0，反馈约2392ADC。当前板为R12 idle，尚未在R12运行动作。
+- 先核实R12的中立锚定与新遥测字段后，再决定同一小幅限幅动作。不得直接放大PWM或位置范围。R10实板验收仍未通过；桥脚波形需要示波器/逻辑分析仪实测。
+
+### 2026-11-25 R13–R16分级驱动结果（当前板R16）
+
+- R13–R16均使用1500/1550µs内部命令、live反馈锚定、8 ADC count位移保护、500ms硬截止；只逐级调整启动占空请求下限40→160→200‰，上限始终200‰。每轮仅一次arm，结束后HBridge `s_duty=0`、state=COAST、核心Running。
+- R14（请求峰值137‰）：501个有效阶段周期，阶段DRIVE→TIMEOUT，误差93–99 ADC；raw反馈2390–2394。正向PWM ISR计数增加3490、反向0。
+- R15（请求峰值184‰）：501个有效周期，误差93–97 ADC；raw反馈2390–2394。正向PWM ISR计数增加4982、反向0。
+- R16（请求峰值200‰）：501个有效周期，阶段位图含DRIVE与TIMEOUT，误差95–100 ADC；raw反馈2390–2395（动作监控raw总范围2389–2396）；正向PWM ISR计数增加4982、反向0。VDD约3158–3207mV。反馈变化仍落在原始静态波动范围内，不能确认位置改变。ISR计数证明固件执行了正向输出函数，不等价于示波器确认PA6/PB0电气波形。
+- R16 BIN 17,772B SHA256=`d681df196f8ee06b0db11f1d309264cfb53940cd5c0f39afe611b98b79f83c0e`；下载后全片SHA256=`14c3f78c67b3f2afb346fe3c0b326603cd09743957baf41f8e6eeecae2a11fc6`，应用逐字节匹配、末384B与R15一致，核心Running。当前板R16，内部源仍启用但一次性arm已消费，active=0、实际HBridge duty=0/state=coast。
+- **R01/R10未通过**：三档小范围正向请求都未获得可区分于静止噪声的ADC位移；反向制动、速度过零、真实H桥针脚波形和客户曲线仍未验证。先核对PA6/PB0波形或电机端PWM/电流，并确认机构实际响应；不继续盲目加大PWM。

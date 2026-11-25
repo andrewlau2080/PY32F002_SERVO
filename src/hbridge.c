@@ -9,6 +9,9 @@
 #ifndef SERVO_HBRIDGE_FORCE_COAST
 #define SERVO_HBRIDGE_FORCE_COAST 0
 #endif
+#ifndef SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
+#define SERVO_ENABLE_LCDM_MOTION_PHASE_TEST 0
+#endif
 #ifndef SERVO_DIRECTION_PROBE
 #define SERVO_DIRECTION_PROBE 0
 #endif
@@ -28,6 +31,11 @@ static volatile uint16_t s_pwm_phase_us;
 static volatile uint16_t s_pwm_period_us = HBRIDGE_PWM_PERIOD_US;
 static volatile uint32_t s_hard_coast_deadline_ms;
 static volatile uint8_t s_hard_coast_deadline_armed;
+
+#if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
+__attribute__((used)) volatile uint32_t g_motion_phase_forward_pwm_ticks;
+__attribute__((used)) volatile uint32_t g_motion_phase_reverse_pwm_ticks;
+#endif
 
 #if SERVO_R01_PRODUCTION_LOOP_TEST
 volatile uint32_t g_r01_bridge_forward_on_ticks;
@@ -409,6 +417,9 @@ void HBridge_TickISR(void)
   else if (duty > 0)
   {
     apply_forward();
+#if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
+    g_motion_phase_forward_pwm_ticks++;
+#endif
 #if SERVO_R01_PRODUCTION_LOOP_TEST
     g_r01_bridge_forward_on_ticks++;
 #endif
@@ -416,6 +427,9 @@ void HBridge_TickISR(void)
   else
   {
     apply_reverse();
+#if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
+    g_motion_phase_reverse_pwm_ticks++;
+#endif
 #if SERVO_R01_PRODUCTION_LOOP_TEST
     g_r01_bridge_reverse_on_ticks++;
 #endif

@@ -48,6 +48,46 @@ try:
         print(json.dumps({"event": "R01_ARM_SENT", "active_before": active_now,
                           "arm_before": arm_state, "pulse_us": target.read16(
                               cfg["symbols"]["g_r01_production_test_pulse_us"][0])}), flush=True)
+    if cfg["arm_motion_phase"]:
+        arm = cfg["symbols"].get("g_lcdm_motion_phase_arm_request", [None])[0]
+        internal = cfg["symbols"].get("g_lcdm_motion_phase_use_internal_pwm", [None])[0]
+        armed = cfg["symbols"].get("s_lcdm_motion_phase_armed", [None])[0]
+        active = cfg["symbols"].get("s_lcdm_servo_customer_active", [None])[0]
+        duty = cfg["symbols"].get("s_lcdm_servo_current_duty", [None])[0]
+        if None in (arm, internal, armed, active, duty):
+            raise SystemExit("Selected ELF lacks motion-phase arm/status symbols")
+        current = {"core": str(target.get_state()),
+                   "arm_request": target.read32(arm),
+                   "armed": target.read8(armed),
+                   "active": target.read8(active),
+                   "duty": int.from_bytes(target.read_memory_block8(duty, 2), "little", signed=True)}
+        if ("running" not in current["core"].lower() or current["arm_request"] != 0 or
+                current["armed"] != 0 or current["active"] != 0 or current["duty"] != 0):
+            raise SystemExit("Motion-phase arm refused unless core is running and phase/duty are idle: " +
+                             json.dumps(current))
+        target.write8(internal, 1)
+        target.write32(arm, 0x50484153)
+        print(json.dumps({"event": "MOTION_PHASE_ARM_SENT", "before": current,
+                          "internal_pwm_source": "1500/1550us alternating every 4s"}), flush=True)
+    if cfg["enable_motion_phase_input"]:
+        internal = cfg["symbols"].get("g_lcdm_motion_phase_use_internal_pwm", [None])[0]
+        armed = cfg["symbols"].get("s_lcdm_motion_phase_armed", [None])[0]
+        active = cfg["symbols"].get("s_lcdm_servo_customer_active", [None])[0]
+        duty = cfg["symbols"].get("s_lcdm_servo_current_duty", [None])[0]
+        arm = cfg["symbols"].get("g_lcdm_motion_phase_arm_request", [None])[0]
+        if None in (internal, armed, active, duty, arm):
+            raise SystemExit("Selected ELF lacks motion-phase input/status symbols")
+        current = {"core": str(target.get_state()), "arm_request": target.read32(arm),
+                   "internal_pwm": target.read8(internal), "armed": target.read8(armed),
+                   "active": target.read8(active),
+                   "duty": int.from_bytes(target.read_memory_block8(duty, 2), "little", signed=True)}
+        if ("running" not in current["core"].lower() or current["arm_request"] != 0 or
+                current["armed"] != 0 or current["active"] != 0 or current["duty"] != 0):
+            raise SystemExit("Internal input enable refused unless core is running and motion is disarmed/coasted: " +
+                             json.dumps(current))
+        target.write8(internal, 1)
+        print(json.dumps({"event": "MOTION_PHASE_INPUT_ENABLED", "before": current,
+                          "motor_arm": "unchanged/disarmed"}), flush=True)
     for sample in range(cfg["samples"]):
         out = {"sample": sample, "monotonic_s": time.monotonic(),
                "core": str(target.get_state()), "symbols": {}}
@@ -83,6 +123,12 @@ def main():
     parser.add_argument("--interval-ms", type=int, default=100, help="delay between snapshots")
     parser.add_argument("--arm-r01-motion", action="store_true",
                         help="explicitly arm the preconfigured, limited R01 production motion test")
+    parser.add_argument("--motion-phase", action="store_true",
+                        help="read only the limited LCDM motion-phase telemetry symbols")
+    parser.add_argument("--arm-motion-phase", action="store_true",
+                        help="enable internal 1500/1550 us PWM and one-shot 8-count/500ms motion after zero-duty checks")
+    parser.add_argument("--enable-motion-phase-input", action="store_true",
+                        help="enable internal 1500/1550 us command source only; refuses unless motion is disarmed/coasted")
     parser.add_argument("--summary", action="store_true", help="summarize repeated remote snapshots instead of printing every frame")
     parser.add_argument("--pack", default="/home/andrew/ARTERY/DQ110_FW/1.2.8.pack")
     parser.add_argument("--compat", default="/home/andrew/.local/share/servo_swd/dq110_pyocd_hid_compat.py")
@@ -167,6 +213,33 @@ def main():
         ("g_r01_bridge_reverse_on_ticks", 4, False),
         ("s_lcdm_servo_current_duty", 2, True),
         ("s_lcdm_servo_current_state", 1, False),
+        ("g_lcdm_motion_phase_arm_request", 4, False),
+        ("g_lcdm_motion_phase_use_internal_pwm", 1, False),
+        ("g_lcdm_motion_phase_requested_duty", 2, True),
+        ("g_lcdm_motion_phase_final_duty", 2, True),
+        ("g_lcdm_motion_phase_error_adc", 2, True),
+        ("g_lcdm_motion_phase_feedback_valid", 1, False),
+        ("g_lcdm_motion_phase_active_loops", 2, False),
+        ("g_lcdm_motion_phase_seen_mask", 1, False),
+        ("g_lcdm_motion_phase_request_min", 2, True),
+        ("g_lcdm_motion_phase_request_max", 2, True),
+        ("g_lcdm_motion_phase_final_min", 2, True),
+        ("g_lcdm_motion_phase_final_max", 2, True),
+        ("g_lcdm_motion_phase_error_min", 2, True),
+        ("g_lcdm_motion_phase_error_max", 2, True),
+        ("g_lcdm_motion_phase_feedback_min", 2, False),
+        ("g_lcdm_motion_phase_feedback_max", 2, False),
+        ("g_lcdm_motion_phase_valid_loops", 2, False),
+        ("g_motion_phase_forward_pwm_ticks", 4, False),
+        ("g_motion_phase_reverse_pwm_ticks", 4, False),
+        ("s_lcdm_motion_phase", 1, False),
+        ("s_lcdm_motion_phase_armed", 1, False),
+        ("s_lcdm_motion_phase_start_adc", 2, False),
+        ("s_lcdm_servo_customer_active", 1, False),
+        ("s_lcdm_servo_last_control_pulse_us", 2, False),
+        ("s_lcdm_servo_filtered_feedback_adc", 2, False),
+        ("s_lcdm_servo_cmd_target_adc", 2, False),
+        ("s_lcdm_servo_vel_q4", 4, True),
         ("s_last_raw", 2, False),
         ("s_duty", 2, True),
         ("s_state", 1, False),
@@ -184,12 +257,36 @@ def main():
         ("s_tjc_tx_error_count", 4, False),
         ("s_tjc_uart_error_count", 4, False),
     )
+    if args.motion_phase or args.arm_motion_phase or args.enable_motion_phase_input:
+        phase_names = {
+            "g_lcdm_motion_phase_arm_request", "g_lcdm_motion_phase_use_internal_pwm",
+            "g_lcdm_motion_phase_requested_duty", "g_lcdm_motion_phase_final_duty",
+            "g_lcdm_motion_phase_error_adc", "g_lcdm_motion_phase_feedback_valid",
+            "g_lcdm_motion_phase_active_loops", "g_lcdm_motion_phase_seen_mask",
+            "g_lcdm_motion_phase_request_min", "g_lcdm_motion_phase_request_max",
+            "g_lcdm_motion_phase_final_min", "g_lcdm_motion_phase_final_max",
+            "g_lcdm_motion_phase_error_min", "g_lcdm_motion_phase_error_max",
+            "g_lcdm_motion_phase_feedback_min", "g_lcdm_motion_phase_feedback_max",
+            "g_lcdm_motion_phase_valid_loops",
+            "g_motion_phase_forward_pwm_ticks", "g_motion_phase_reverse_pwm_ticks",
+            "s_lcdm_motion_phase", "s_lcdm_motion_phase_armed",
+            "s_lcdm_motion_phase_start_adc", "s_lcdm_servo_customer_active",
+            "s_lcdm_servo_last_control_pulse_us", "s_lcdm_servo_filtered_feedback_adc",
+            "s_lcdm_servo_cmd_target_adc", "s_lcdm_servo_vel_q4",
+            "s_lcdm_servo_current_duty", "s_lcdm_servo_current_state",
+            "s_duty", "s_state",
+            "s_tjc_tx_cmd_count", "s_tjc_tx_error_count", "s_tjc_uart_error_count",
+            "s_last_raw", "s_vdd_mv"
+        }
+        names = tuple(item for item in names if item[0] in phase_names)
     if not sys.platform.startswith("linux"):
         if args.stop and ("g_r01_production_test_active" not in addresses or
                           "g_r01_active_test_arm_request" not in addresses):
             raise SystemExit("Selected ELF lacks R01 stop symbols")
         cfg = {"uid": args.uid, "pack": args.pack, "compat": args.compat,
                "stop": args.stop, "arm_motion": args.arm_r01_motion,
+               "arm_motion_phase": args.arm_motion_phase,
+               "enable_motion_phase_input": args.enable_motion_phase_input,
                "samples": args.samples, "interval_ms": args.interval_ms,
                "symbols": {name: [addresses.get(name), size, signed]
                            for name, size, signed in names}}
@@ -198,7 +295,8 @@ def main():
         python = os.getenv("SERVO_REMOTE_PYTHON", "/home/andrew/ARTERY/.tools/pyocd-venv/bin/python")
         command = shlex.join([python, "-", encoded])
         result = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, command],
-                                input=REMOTE_READ, text=True, capture_output=True, timeout=60)
+                                input=REMOTE_READ, text=True, capture_output=True,
+                                timeout=max(60, args.samples * 0.65 + 30))
         if result.stdout:
             if args.summary and args.samples > 1:
                 rows = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
@@ -209,10 +307,27 @@ def main():
                 status = [row["symbols"].get("s_status") for row in frames
                           if isinstance(row["symbols"].get("s_status"), dict)]
                 summary = {
-                    "arm_event": next((row for row in rows if row.get("event") == "R01_ARM_SENT"), None),
+                    "arm_event": next((row for row in rows if row.get("event") in
+                                       ("R01_ARM_SENT", "MOTION_PHASE_ARM_SENT")), None),
                     "frames": len(frames),
                     "duration_s": round(frames[-1]["monotonic_s"] - frames[0]["monotonic_s"], 3) if len(frames) > 1 else 0,
                     "core_states": sorted({row.get("core") for row in frames}),
+                    "motion_phase_values": sorted(set(series("s_lcdm_motion_phase"))),
+                    "motion_active_values": sorted(set(series("s_lcdm_servo_customer_active"))),
+                    "motion_requested_duty_abs_max": max((abs(v) for v in series("g_lcdm_motion_phase_requested_duty")), default=0),
+                    "motion_final_duty_abs_max": max((abs(v) for v in series("g_lcdm_motion_phase_final_duty")), default=0),
+                    "motion_feedback_valid_values": sorted(set(series("g_lcdm_motion_phase_feedback_valid"))),
+                    "input_pulse_us": sorted(set(series("s_lcdm_servo_last_control_pulse_us"))),
+                    "motion_error_adc_min_max": [min(series("g_lcdm_motion_phase_error_adc")), max(series("g_lcdm_motion_phase_error_adc"))] if series("g_lcdm_motion_phase_error_adc") else [],
+                    "motion_active_loops": max(series("g_lcdm_motion_phase_active_loops"), default=0),
+                    "motion_phase_seen_mask": sorted(set(series("g_lcdm_motion_phase_seen_mask"))),
+                    "motion_request_duty_min_max": [min(series("g_lcdm_motion_phase_request_min")), max(series("g_lcdm_motion_phase_request_max"))] if series("g_lcdm_motion_phase_request_min") and series("g_lcdm_motion_phase_request_max") else [],
+                    "motion_final_duty_min_max": [min(series("g_lcdm_motion_phase_final_min")), max(series("g_lcdm_motion_phase_final_max"))] if series("g_lcdm_motion_phase_final_min") and series("g_lcdm_motion_phase_final_max") else [],
+                    "motion_error_range_min_max": [min(series("g_lcdm_motion_phase_error_min")), max(series("g_lcdm_motion_phase_error_max"))] if series("g_lcdm_motion_phase_error_min") and series("g_lcdm_motion_phase_error_max") else [],
+                    "motion_feedback_range_min_max": [min(series("g_lcdm_motion_phase_feedback_min")), max(series("g_lcdm_motion_phase_feedback_max"))] if series("g_lcdm_motion_phase_feedback_min") and series("g_lcdm_motion_phase_feedback_max") else [],
+                    "motion_valid_loops": max(series("g_lcdm_motion_phase_valid_loops"), default=0),
+                    "forward_pwm_ticks_start_end": [series("g_motion_phase_forward_pwm_ticks")[0], series("g_motion_phase_forward_pwm_ticks")[-1]] if series("g_motion_phase_forward_pwm_ticks") else [],
+                    "reverse_pwm_ticks_start_end": [series("g_motion_phase_reverse_pwm_ticks")[0], series("g_motion_phase_reverse_pwm_ticks")[-1]] if series("g_motion_phase_reverse_pwm_ticks") else [],
                     "commands_us": sorted({row.get("symbols", {}).get("g_r01_production_test_pulse_us") for row in frames}),
                     "sweep_stages": sorted(set(series("g_r01_test_sweep_stage"))),
                     "sweep_results": sorted(set(series("g_r01_test_sweep_result"))),

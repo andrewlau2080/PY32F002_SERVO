@@ -382,3 +382,9 @@
 **2026-11-19 V9.5板级配置修正**：首版漏设LCDM 230400波特率和PA0电位器供电，用户报告屏幕空白且无马达响应。已同tag重建并启用`TJC_LCDM_BAUD_OVERRIDE=230400`、`SERVO_ENABLE_PA0_POT_POWER=1`；BIN SHA256=`364b8a2b65e22319055d138263b16499ae99dfac23e0ae01f134476df77d7393`。下载后读回应用14,580B逐字节匹配，核心Running，全片哈希=`b1025dcdd95e934f2d5101a39e3b2ba75b61f3f2716ac58764496109efaf02fd`。当前V9.5修正重建版在板；LCDM和马达实测结果待用户确认。
 
 **2026-11-19 更旧H桥基线V7.10h**：V9.0与修正V9.5按同选项构建得到相同BIN，未作为独立旧版验收。改用仓库预编译V7.10h；反汇编含TSSOP20 PA1/PA2/PA6/PB0 H桥输出。下载读回版本`P50 V7.10h`，应用20,120B匹配，核心Running，全片SHA256=`4c0f8d7d219c5644b529acce821ae848d4a800f8d04aee0928ca2a43133a74f9`。标签备注内测可用但端点偶有摆动；本轮只做小范围H桥响应，实际动作待用户报告。详见R01验证记录。
+
+**2026-11-25 R11 R10/R16受限实板进展（已由R12覆盖）**：R11 BIN 17,480B SHA256=`0ae55f34b394e7c674ac99f14ec1e0d160455aff91f95741e15134415b5ea236`，2MHz under-reset下载后应用逐字节匹配、尾384B保持、核心Running。内部PWM成功产生1500→1550µs，目标ADC约2048→2144；板上反馈约2389–2395，监控未见位置变化，最终active=0、phase=COAST、duty=0。测试未证明H桥物理输出或客户刹车曲线，R01/R10/R16仍未通过。该次结果促成R12当前位置锚定和阶段输出遥测。详见`docs/r10_validation_20261111.md`与`docs/r16_validation_20261111.md`。
+
+**2026-11-25 R12历史板况（已由R16覆盖）**：R12以2MHz under-reset下载；全片SHA256=`791138f224a68a555c95aacefbcbe09bc77a0d9ebb3c4c1e62465aab989513d0`，应用17,476B与BIN逐字节匹配、尾384B保持、核心Running。新增1500µs live-feedback锚定和阶段请求/最终duty/误差/反馈有效遥测。该阶段的动作结果和后续R13–R16更新见验证文档。
+
+**2026-11-25 R16最新板况（覆盖R12）**：R16 under-reset下载后整片SHA256=`14c3f78c67b3f2afb346fe3c0b326603cd09743957baf41f8e6eeecae2a11fc6`，BIN 17,772B匹配、尾384B保持、核心Running。单次受限测试最高200‰、8-count/500ms：DRIVE→TIMEOUT 501有效周期，正向H桥ISR计数4982、反向0，反馈raw区间2389–2396，与静止噪声重叠；动作后HBridge `s_duty=0`/COAST。软件输出分支已证实，实际PA6/PB0电气波形及机械位移未证实。R01/R10/R16未通过；下一步需PA6/PB0示波器/电机端PWM与电流证据，停止盲目加大占空。详见`docs/r01_validation_20261110.md`、`docs/r10_validation_20261111.md`、`docs/r16_validation_20261111.md`。
