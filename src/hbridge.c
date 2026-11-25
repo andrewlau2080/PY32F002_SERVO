@@ -35,6 +35,10 @@ static volatile uint8_t s_hard_coast_deadline_armed;
 #if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
 __attribute__((used)) volatile uint32_t g_motion_phase_forward_pwm_ticks;
 __attribute__((used)) volatile uint32_t g_motion_phase_reverse_pwm_ticks;
+/* GPIO IDR samples verify the MCU pad level during the software-PWM on slot. */
+__attribute__((used)) volatile uint32_t g_motion_phase_forward_pa6_high_ticks;
+__attribute__((used)) volatile uint32_t g_motion_phase_forward_pb0_high_ticks;
+__attribute__((used)) volatile uint32_t g_motion_phase_forward_pad_mismatch_ticks;
 #endif
 
 #if SERVO_R01_PRODUCTION_LOOP_TEST
@@ -419,6 +423,11 @@ void HBridge_TickISR(void)
     apply_forward();
 #if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
     g_motion_phase_forward_pwm_ticks++;
+    uint8_t pa6_high = (GPIOA->IDR & GPIO_PIN_6) != 0U;
+    uint8_t pb0_high = (GPIOB->IDR & GPIO_PIN_0) != 0U;
+    g_motion_phase_forward_pa6_high_ticks += pa6_high;
+    g_motion_phase_forward_pb0_high_ticks += pb0_high;
+    g_motion_phase_forward_pad_mismatch_ticks += (pa6_high != pb0_high);
 #endif
 #if SERVO_R01_PRODUCTION_LOOP_TEST
     g_r01_bridge_forward_on_ticks++;

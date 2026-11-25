@@ -69,6 +69,9 @@
 #ifndef SERVO_LCDM_MOTION_PHASE_TIMEOUT_MS
 #define SERVO_LCDM_MOTION_PHASE_TIMEOUT_MS 500U
 #endif
+#ifndef SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE
+#define SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE 200U
+#endif
 #define SERVO_LCDM_MOTION_PHASE_ARM_MAGIC 0x50484153UL
 #ifndef SERVO_PA6_SINGLE_PULSE_TEST
 #define SERVO_PA6_SINGLE_PULSE_TEST 0
@@ -3588,13 +3591,13 @@ static int16_t lcdm_servo_loop_update_fast(void)
     phase_config.max_velocity_q4 = (uint16_t)max_velocity;
     phase_config.brake_margin_q4 = 0U;
     phase_config.fallback_brake_distance_q4 = (uint16_t)approach_distance_q4;
-    phase_config.max_duty_permille = 200U;
-    phase_config.drive_duty_permille = 200U;
-    phase_config.untrained_drive_duty_permille = 200U;
-    phase_config.brake_duty_permille = 200U;
+    phase_config.max_duty_permille = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE;
+    phase_config.drive_duty_permille = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE;
+    phase_config.untrained_drive_duty_permille = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE;
+    phase_config.brake_duty_permille = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE;
     phase_config.settle_duty_permille = 80U;
     phase_config.approach_distance_q4 = (uint16_t)approach_distance_q4;
-    phase_config.approach_min_duty_permille = 200U;
+    phase_config.approach_min_duty_permille = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE;
 
     {
       uint16_t displacement = (feedback >= s_lcdm_motion_phase_start_adc) ?

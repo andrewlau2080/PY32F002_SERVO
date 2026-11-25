@@ -45,7 +45,11 @@ def main():
     parser.add_argument('--production-lcdm', action='store_true',
                         help='build the TJC LCDM application path without the runtime-UI test harness')
     parser.add_argument('--lcdm-motion-phase-test', action='store_true',
-                        help='build a SWD-armed LCDM phase test, capped at 200 permille, 8 ADC counts, and 500 ms')
+                        help='build a SWD-armed LCDM phase test, capped at 250 permille, 8 ADC counts, and 500 ms')
+    parser.add_argument('--motion-phase-duty', type=int, default=200,
+                        help='motion-phase test drive/brake cap in permille (100..300; default 200)')
+    parser.add_argument('--motion-phase-timeout-ms', type=int, default=500,
+                        help='motion-phase test hard cutoff in ms (60..500; default 500)')
     parser.add_argument('--production-loop-r01-test', action='store_true',
                         help='build production TJC LCDM and Servo_Control with an explicitly armed internal 1500/1510 us source')
     parser.add_argument('--r01-center-return-test', action='store_true',
@@ -134,6 +138,10 @@ def main():
                                         args.internal_step_test or args.production_loop_r01_test or
                                         args.force_coast or args.r01_touch_jog):
         parser.error('--lcdm-motion-phase-test requires the LCDM runtime feedback loop and cannot combine with other motion diagnostics')
+    if not 100 <= args.motion_phase_duty <= 300:
+        parser.error('--motion-phase-duty must be in 100..300 permille')
+    if not 60 <= args.motion_phase_timeout_ms <= 500:
+        parser.error('--motion-phase-timeout-ms must be in 60..500 ms')
     if args.production_loop_r01_test and (args.profile != 'lcdm' or args.internal_step_test or args.production_lcdm or args.r04_ui_redraw_stress):
         parser.error('--production-loop-r01-test selects its own production LCDM and internal step flags')
     if args.r01_touch_jog and not args.production_loop_r01_test:
@@ -187,7 +195,8 @@ def main():
     if args.lcdm_motion_phase_test:
         flags = [flag for flag in flags if flag != 'SERVO_TJC_RX_ENABLE=1']
         flags += ['SERVO_TJC_RX_ENABLE=0', 'SERVO_ENABLE_LCDM_MOTION_PHASE_TEST=1',
-                  'SERVO_LCDM_MOTION_PHASE_TIMEOUT_MS=500']
+                  f'SERVO_LCDM_MOTION_PHASE_TIMEOUT_MS={args.motion_phase_timeout_ms}',
+                  f'SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE={args.motion_phase_duty}']
     if args.pa6_single_pulse:
         flags = ['LTO=1', 'BOARD_TSSOP20_DEBUG_PINS=1', 'SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=0',
                  'SERVO_ENABLE_TJC_LCDM=0', 'SERVO_ENABLE_COMM=0',
@@ -279,8 +288,10 @@ def main():
     build_log = (out / 'build.log').read_text(errors='replace')
     if args.lcdm_motion_phase_test and (
             '-DSERVO_ENABLE_LCDM_MOTION_PHASE_TEST=1' not in build_log or
-            '-DSERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1' not in build_log):
-        raise SystemExit('Motion-phase candidate is missing its feature or runtime-feedback compiler macro; candidate rejected')
+            '-DSERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1' not in build_log or
+            f'-DSERVO_LCDM_MOTION_PHASE_TIMEOUT_MS={args.motion_phase_timeout_ms}U' not in build_log or
+            f'-DSERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE={args.motion_phase_duty}U' not in build_log):
+        raise SystemExit('Motion-phase candidate is missing its feature, timeout, duty cap, or runtime-feedback macro; candidate rejected')
     if args.r01_lcd_only_test and '-DSERVO_R01_LCD_ONLY_TEST=1' not in build_log:
         raise SystemExit('Requested LCD-only test macro is absent from the compiler command; candidate rejected')
     if args.production_loop_r01_test and f'-DSERVO_R01_TEST_POSITION_LIMIT_ADC={args.r01_position_limit_adc}' not in build_log:
@@ -327,7 +338,7 @@ def main():
         raise SystemExit('Unexpected firmware version strings: ' + repr(versions))
     remote_build_cleaned = cleanup_remote_build()
     atexit.unregister(cleanup_remote_build)
-    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, r01_lcd_only_test=args.r01_lcd_only_test, r01_touch_jog=args.r01_touch_jog, r01_touch_jog_max_duty=args.r01_touch_jog_max_duty if args.r01_touch_jog else None, r01_touch_jog_position_limit_adc=args.r01_touch_jog_position_limit_adc if args.r01_touch_jog else None, r01_touch_jog_max_ms=args.r01_touch_jog_max_ms if args.r01_touch_jog else None, tjc_soft_tx=args.tjc_soft_tx, r01_center_return_test=args.r01_center_return_test, r01_test_staircase=args.r01_test_staircase, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=args.r01_test_step_us, r01_test_max_duty=args.r01_test_max_duty, r01_test_dwell_ms=args.r01_test_dwell_ms, r01_position_limit_adc=args.r01_position_limit_adc, r01_anchor_pulse_us=args.r01_anchor_pulse_us, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
+    report = dict(version=args.pa6_single_pulse and 'V10.6_SIMB2PA6P' or version, profile=args.profile, pa6_single_pulse=args.pa6_single_pulse, pa6_pulse_width_us=100 if args.pa6_single_pulse else None, production_lcdm=(args.production_lcdm or args.production_loop_r01_test), production_loop_r01_test=args.production_loop_r01_test, lcdm_motion_phase_test=args.lcdm_motion_phase_test, motion_phase_duty_permille=args.motion_phase_duty if args.lcdm_motion_phase_test else None, motion_phase_timeout_ms=args.motion_phase_timeout_ms if args.lcdm_motion_phase_test else None, r01_lcd_only_test=args.r01_lcd_only_test, r01_touch_jog=args.r01_touch_jog, r01_touch_jog_max_duty=args.r01_touch_jog_max_duty if args.r01_touch_jog else None, r01_touch_jog_position_limit_adc=args.r01_touch_jog_position_limit_adc if args.r01_touch_jog else None, r01_touch_jog_max_ms=args.r01_touch_jog_max_ms if args.r01_touch_jog else None, tjc_soft_tx=args.tjc_soft_tx, r01_center_return_test=args.r01_center_return_test, r01_test_staircase=args.r01_test_staircase, internal_step_test=(args.internal_step_test or args.production_loop_r01_test), r01_explicit_arm=(args.r01_explicit_arm or args.production_loop_r01_test), r01_test_step_us=args.r01_test_step_us, r01_test_max_duty=args.r01_test_max_duty, r01_test_dwell_ms=args.r01_test_dwell_ms, r01_position_limit_adc=args.r01_position_limit_adc, r01_anchor_pulse_us=args.r01_anchor_pulse_us, r04_ui_redraw_stress=args.r04_ui_redraw_stress, adc_subsample_diagnostic=args.adc_subsample_diagnostic, adc_vdd_each_batch=args.adc_vdd_each_batch, adc_long_sample_diagnostic=args.adc_long_sample_diagnostic, force_coast=args.force_coast, direction_probe=args.direction_probe, probe_pulse_us=args.probe_pulse_us if args.direction_probe else None,
                   date=datetime.datetime.now().isoformat(), target='py32f002ax5',
                   flags=flags, sdk=sdk_meta, source_files=hashes, artifacts=artifacts,
                   lcdm_version_string_present=bool(versions),
