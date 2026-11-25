@@ -15,6 +15,7 @@
 #include "lcdm_format.h"
 #include "lcdm_brake_predictor.h"
 #include "lcdm_customer_brake.h"
+#include "lcdm_output_guard.h"
 #include "lcdm_rx_ring.h"
 #include "servo_stability_timer.h"
 #include "lcdm_trajectory.h"
@@ -2644,50 +2645,6 @@ static void __attribute__((noinline)) lcdm_servo_customer_profile_clear(void)
   s_lcdm_servo_customer_dir = 0;
 }
 
-static bool lcdm_servo_reverse_dead_active(uint32_t now_ms)
-{
-  if (s_lcdm_servo_reverse_dead_active == 0U)
-  {
-    return false;
-  }
-  if ((int32_t)(now_ms - s_lcdm_servo_reverse_dead_until_ms) < 0)
-  {
-    return true;
-  }
-  s_lcdm_servo_reverse_dead_active = 0U;
-  s_lcdm_servo_output_dir = 0;
-  return false;
-}
-
-static int16_t lcdm_servo_apply_slew(int16_t duty, uint32_t elapsed_ms)
-{
-  int16_t slew = (int16_t)(lcdm_param_u16(s_lcdm_reg_params,
-                                          LCDM_REG_PARAM_SLEW,
-                                          LCDM_SERVO_OUT_SLEW) * elapsed_ms);
-
-  if ((s_lcdm_servo_current_duty > 0) && (duty < 0))
-  {
-    int16_t next = (int16_t)(s_lcdm_servo_current_duty - slew);
-    return (next > 0) ? next : 0;
-  }
-  if ((s_lcdm_servo_current_duty < 0) && (duty > 0))
-  {
-    int16_t next = (int16_t)(s_lcdm_servo_current_duty + slew);
-    return (next < 0) ? next : 0;
-  }
-  if ((s_lcdm_servo_current_duty >= 0) && (duty > s_lcdm_servo_current_duty) &&
-      ((duty - s_lcdm_servo_current_duty) > slew))
-  {
-    return (int16_t)(s_lcdm_servo_current_duty + slew);
-  }
-  if ((s_lcdm_servo_current_duty <= 0) && (duty < s_lcdm_servo_current_duty) &&
-      ((s_lcdm_servo_current_duty - duty) > slew))
-  {
-    return (int16_t)(s_lcdm_servo_current_duty - slew);
-  }
-  return duty;
-}
-
 static void lcdm_servo_enter_hold(uint16_t control_pulse_us,
                                   uint16_t raw_adc,
                                   uint16_t target_adc,
@@ -3746,10 +3703,24 @@ static int16_t lcdm_servo_loop_update_fast(void)
 
   if (!customer_profile_direct)
   {
-    int8_t requested_dir = lcdm_servo_duty_dir(duty);
-    uint16_t requested_abs_duty = (duty < 0) ? (uint16_t)(-duty) : (uint16_t)duty;
+    LcdmOutputGuardState guard_state = {
+      s_lcdm_servo_output_dir,
+      s_lcdm_servo_reverse_dead_until_ms,
+      s_lcdm_servo_reverse_dead_active
+    };
+    int16_t guarded_duty = 0;
+    uint16_t slew_per_ms = lcdm_param_u16(s_lcdm_reg_params,
+                                           LCDM_REG_PARAM_SLEW,
+                                           LCDM_SERVO_OUT_SLEW);
+    LcdmOutputGuardResult guard_result = LcdmOutputGuard_Apply(
+        &guard_state, now_ms, duty, s_lcdm_servo_current_duty,
+        LCDM_SERVO_REVERSE_DEAD_MS, LCDM_SERVO_REVERSE_MIN_DUTY,
+        slew_per_ms, slew_elapsed_ms, &guarded_duty);
+    s_lcdm_servo_output_dir = guard_state.output_dir;
+    s_lcdm_servo_reverse_dead_until_ms = guard_state.reverse_dead_until_ms;
+    s_lcdm_servo_reverse_dead_active = guard_state.reverse_dead_active;
 
-    if (lcdm_servo_reverse_dead_active(now_ms))
+    if (guard_result != LCDM_OUTPUT_GUARD_READY)
     {
       HBridge_Coast();
       s_lcdm_servo_current_duty = 0;
@@ -3759,37 +3730,11 @@ static int16_t lcdm_servo_loop_update_fast(void)
                                feedback, error, 0, 3U);
       return 0;
     }
-
-    if ((s_lcdm_servo_output_dir != 0) &&
-        (requested_dir != 0) &&
-        (requested_dir != s_lcdm_servo_output_dir))
-    {
-      HBridge_Coast();
-      s_lcdm_servo_current_duty = 0;
-      s_lcdm_servo_ref_velocity = 0;
-      s_lcdm_servo_current_state = LCDM_SERVO_STATE_BRAKE;
-      if (requested_abs_duty >= LCDM_SERVO_REVERSE_MIN_DUTY)
-      {
-        s_lcdm_servo_reverse_dead_until_ms = now_ms + LCDM_SERVO_REVERSE_DEAD_MS;
-        s_lcdm_servo_reverse_dead_active = 1U;
-      }
-      else
-      {
-        lcdm_servo_clear_output_guard();
-      }
-      lcdm_servo_curve_publish(control_pulse_us, raw_adc, s_lcdm_servo_cmd_target_adc,
-                               feedback, error, 0, 3U);
-      return 0;
-    }
+    duty = guarded_duty;
   }
   else
   {
     lcdm_servo_clear_output_guard();
-  }
-
-  if (!customer_profile_direct)
-  {
-    duty = lcdm_servo_apply_slew(duty, slew_elapsed_ms);
   }
 #if SERVO_ENABLE_INTERNAL_STEP_TEST
   if (duty > LCDM_SERVO_INTERNAL_TEST_MAX_DUTY)

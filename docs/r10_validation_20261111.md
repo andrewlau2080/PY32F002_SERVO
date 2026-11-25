@@ -41,3 +41,11 @@ R01–R09 未通过项留待后续统一复核，本轮未重跑。
 - `src/app_entry.c`中customer-active分支设`customer_profile_direct=true`，因此跳过普通输出分支的`LCDM_SERVO_REVERSE_DEAD_MS=8`换向空档、`lcdm_servo_apply_slew()`和方向报警检查。它直接用定时profile换向，不适合作为新反馈决策器的接入点。
 - 新决策器若进入板测，必须走普通输出guard；反向dead-time期间要继续保留BRAKE阶段状态，但不得把这段零输出等待计入主动制动持续时间。接入前需有主机测试覆盖FWD→deadtime→REV、REV→deadtime→FWD、超时/无效反馈coast及duty限幅。
 - 这轮未修改生产`app_entry.c`、未构建或下载。USBee四个归一化制动边界向量8/8通过，见`docs/r16_validation_20261111.md`；这只验证决策阈值及正反方向符号，不验证物理空档。
+
+## 2026-11-25 输出guard抽取与Ubuntu构建
+
+- 新增`inc/lcdm_output_guard.h`，把原普通LCDM路径的方向空档、tick回绕和同向duty slew抽为生产/主机共用helper；`src/app_entry.c`普通输出路径改用该helper。实际行为沿用原规则：大于等于180‰的反向请求先coast 8ms，小请求沿原有slew规则降至0；customer直驱分支仍未改，也未接入新motion phase planner。
+- `tools/r10_host_sim/test_lcdm_output_guard.c`以C99/C11、`-Wall -Wextra -Werror -fsanitize=undefined`分别运行，**9/9通过**：正反换向、deadtime等待/到期、tick回绕、slew斜率、低幅换向及大elapsed饱和。
+- Ubuntu TSSOP20生产LCDM构建通过：`build/releases/V10.6_R10_OUTPUT_GUARD_20261125_R1/`；BIN 16,360B，SHA256=`a9541b7b7011d9e01156d68f443145b356e1a951e1698ef334f909211adde1b0`。manifest逐文件记录SDK、flags和源码哈希；`flashed=false`。这次只构建，没有下载或动作。
+- helper SHA256=`38afa26bc22e398222fe1b3060d7a89542ce0084f8de77cf75a71c33ce9a28d4`；测试SHA256=`de1d5286d8e9537a69eba7907fff9976283a6ec84277c295f911a29f8497a5c0`；`src/app_entry.c` SHA256=`a8b2587abce0faab1c2837cd87cb8985b3785f93637aabd909c492781b4bc1cc`。
+- **R10仍未通过**：输出guard生产构建和离板测试通过，但customer profile仍绕过该guard；新反馈阶段planner尚未接入，实体双路桥脚/速度、零速切断和无反向再加速还未测。下一步为新planner建立受保护的生产入口并构建显式候选；之后才适合首个中段低能量板测。

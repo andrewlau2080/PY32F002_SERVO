@@ -33,6 +33,11 @@
 - **连板前状态：**可以准备首个低能量的观察性板测候选，但在接入guard、复核HBridge duty限幅/硬截止并完成Ubuntu构建前不下载。上板首步应只在中段做限时、限占空的单向运动，采同步速度/位置/signed-duty/两桥脚；先确认换向空档和输出映射，再试目标前主动刹车。不得跳到端点或长行程。
 - 本轮哈希：`tools/r16_host_sim/test_usbee_brake_boundary_vectors.c`=`a22e65b092c114c01e8b9ebaf7ddc16113740d706a0c2288aa8609a9bdcb9771`；更新后的仿真器=`fb73edaf77a578ffaa782935073c0b8af33bd17e295c78b10a19f55920dfdd48`。决策层/基础向量哈希分别见上节复测记录。R10/R16整项仍未通过，完整物理门槛见各项下一步。
 
+### 2026-11-25 普通LCDM输出guard已抽取并构建
+
+- 8ms换向空档与slew现由`inc/lcdm_output_guard.h`提供，并已用于普通`app_entry.c`输出路径；C99/C11 + UBSan 9/9，Ubuntu TSSOP20 production-LCDM build通过，BIN SHA256=`a9541b7b7011d9e01156d68f443145b356e1a951e1698ef334f909211adde1b0`，未下载。
+- 这是连板前工程门槛的一部分：guard无需再从普通路径重写，但新planner尚未接入它，customer timed-direct仍绕过它。R16尚缺planner生产集成、真实速度/制动标定与我方实体桥脚同步波形；本轮没有操作仿真板。
+
 ### 2026-11-25 离板阶段决策器初版
 
 - 新增`inc/lcdm_motion_phase.h`纯决策层：输入有效性、位置误差Q4、速度Q4/ms、预测停车距离、上一阶段、模型资格和硬超时；输出`DRIVE`、`REVERSE_BRAKE`、`SETTLE`、`COAST`或失败/超时状态及signed duty。只在速度与误差方向相反、或合格停车距离已覆盖剩余行程、或未训练模型进入配置的保守回退距离时开始反向制动；制动阶段在速度进入停止带前保持，避免预测距离随速度下降时阶段抖动。到位后小误差收敛，输入失效/配置不合法/硬超时则输出零duty。
