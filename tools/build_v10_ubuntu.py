@@ -44,6 +44,8 @@ def main():
                         help='lcdm: TSSOP20 field build; generic: SOP8 pinout build')
     parser.add_argument('--production-lcdm', action='store_true',
                         help='build the TJC LCDM application path without the runtime-UI test harness')
+    parser.add_argument('--lcdm-motion-phase-test', action='store_true',
+                        help='build a SWD-armed LCDM phase test, capped at 200 permille, 8 ADC counts, and 500 ms')
     parser.add_argument('--production-loop-r01-test', action='store_true',
                         help='build production TJC LCDM and Servo_Control with an explicitly armed internal 1500/1510 us source')
     parser.add_argument('--r01-center-return-test', action='store_true',
@@ -128,6 +130,10 @@ def main():
         parser.error('--production-lcdm requires --profile lcdm')
     if args.production_lcdm and (args.internal_step_test or args.r04_ui_redraw_stress):
         parser.error('--production-lcdm cannot be combined with diagnostic test modes')
+    if args.lcdm_motion_phase_test and (args.profile != 'lcdm' or args.production_lcdm or
+                                        args.internal_step_test or args.production_loop_r01_test or
+                                        args.force_coast or args.r01_touch_jog):
+        parser.error('--lcdm-motion-phase-test requires the LCDM runtime feedback loop and cannot combine with other motion diagnostics')
     if args.production_loop_r01_test and (args.profile != 'lcdm' or args.internal_step_test or args.production_lcdm or args.r04_ui_redraw_stress):
         parser.error('--production-loop-r01-test selects its own production LCDM and internal step flags')
     if args.r01_touch_jog and not args.production_loop_r01_test:
@@ -178,6 +184,10 @@ def main():
             flags.append('SERVO_R01_LCD_ONLY_TEST=1')
         if args.r01_center_return_test:
             flags.append('SERVO_R01_CENTER_RETURN_TEST=1')
+    if args.lcdm_motion_phase_test:
+        flags = [flag for flag in flags if flag != 'SERVO_TJC_RX_ENABLE=1']
+        flags += ['SERVO_TJC_RX_ENABLE=0', 'SERVO_ENABLE_LCDM_MOTION_PHASE_TEST=1',
+                  'SERVO_LCDM_MOTION_PHASE_TIMEOUT_MS=500']
     if args.pa6_single_pulse:
         flags = ['LTO=1', 'BOARD_TSSOP20_DEBUG_PINS=1', 'SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=0',
                  'SERVO_ENABLE_TJC_LCDM=0', 'SERVO_ENABLE_COMM=0',
@@ -219,8 +229,9 @@ def main():
             parser.error('--adc-pair-time-tag requires --vrefint-settle-fix and --direction-probe')
         flags = flags + ['SERVO_ADC_PAIR_TIME_TAG=1']
     default_name = ('V10.6_TSSOP20_PA6_SINGLE_PULSE_100US' if args.pa6_single_pulse else
+                    ('V10.6_R10_R16_MOTION_PHASE_CANDIDATE_20261125' if args.lcdm_motion_phase_test else
                     (version + '_internal_step' if args.internal_step_test else
-                     (version if args.profile == 'lcdm' else version + '_generic')))
+                     (version if args.profile == 'lcdm' else version + '_generic'))))
     out = args.output or ROOT / 'build/releases' / default_name
     out.mkdir(parents=True, exist_ok=False)
     sdk_dir = ROOT / 'firmware/toolchains'
@@ -266,6 +277,10 @@ def main():
         print((out / 'build.log').read_text()[-4000:])
         raise SystemExit(result.returncode)
     build_log = (out / 'build.log').read_text(errors='replace')
+    if args.lcdm_motion_phase_test and (
+            '-DSERVO_ENABLE_LCDM_MOTION_PHASE_TEST=1' not in build_log or
+            '-DSERVO_ENABLE_LCDM_RUNTIME_UI_TEST=1' not in build_log):
+        raise SystemExit('Motion-phase candidate is missing its feature or runtime-feedback compiler macro; candidate rejected')
     if args.r01_lcd_only_test and '-DSERVO_R01_LCD_ONLY_TEST=1' not in build_log:
         raise SystemExit('Requested LCD-only test macro is absent from the compiler command; candidate rejected')
     if args.production_loop_r01_test and f'-DSERVO_R01_TEST_POSITION_LIMIT_ADC={args.r01_position_limit_adc}' not in build_log:
@@ -295,14 +310,16 @@ def main():
     versions = re.findall(rb'P50 V[0-9A-Za-z.]+', image)
     direction_suffix = ('SIMB2P' + str(args.probe_pulse_us) +
                         ('H' if args.adc_pair_time_tag else ('G' if args.vrefint_settle_fix else 'F')))
-    expected_suffix = ('SIMB2PA6P' if args.pa6_single_pulse else
+    expected_suffix = ('R10R16P' if args.lcdm_motion_phase_test else
+                       ('SIMB2PA6P' if args.pa6_single_pulse else
                        ('SIMB2R30D' if args.r01_explicit_arm else
                        (direction_suffix if args.direction_probe else
                        ('SIMB2C' if args.force_coast else ('SIMB2' if args.internal_step_test else '')))
-                       ))
-    expected_version_text = ('P50 V10.6LCDP50' if args.r01_lcd_only_test else
+                       )))
+    expected_version_text = ('P50 V10.6R10R16P' if args.lcdm_motion_phase_test else
+                             ('P50 V10.6LCDP50' if args.r01_lcd_only_test else
                              ('P50 V10.6R13LCD' if args.production_loop_r01_test else
-                              'P50 ' + version + ('' if args.production_lcdm else expected_suffix)))
+                              'P50 ' + version + ('' if args.production_lcdm else expected_suffix))))
     expected_version = expected_version_text.encode()
     if (args.profile == 'lcdm' and not args.pa6_single_pulse and versions != [expected_version]) or (
             args.pa6_single_pulse and versions not in ([], [expected_version])) or (

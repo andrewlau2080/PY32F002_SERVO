@@ -49,3 +49,14 @@ R01–R09 未通过项留待后续统一复核，本轮未重跑。
 - Ubuntu TSSOP20生产LCDM构建通过：`build/releases/V10.6_R10_OUTPUT_GUARD_20261125_R1/`；BIN 16,360B，SHA256=`a9541b7b7011d9e01156d68f443145b356e1a951e1698ef334f909211adde1b0`。manifest逐文件记录SDK、flags和源码哈希；`flashed=false`。这次只构建，没有下载或动作。
 - helper SHA256=`38afa26bc22e398222fe1b3060d7a89542ce0084f8de77cf75a71c33ce9a28d4`；测试SHA256=`de1d5286d8e9537a69eba7907fff9976283a6ec84277c295f911a29f8497a5c0`；`src/app_entry.c` SHA256=`a8b2587abce0faab1c2837cd87cb8985b3785f93637aabd909c492781b4bc1cc`。
 - **R10仍未通过**：输出guard生产构建和离板测试通过，但customer profile仍绕过该guard；新反馈阶段planner尚未接入，实体双路桥脚/速度、零速切断和无反向再加速还未测。下一步为新planner建立受保护的生产入口并构建显式候选；之后才适合首个中段低能量板测。
+
+### 2026-11-25 快环接入检查与镜像容量
+
+- `src/app_entry.c`增加默认关闭的`SERVO_ENABLE_LCDM_MOTION_PHASE_TEST`路径：复用反馈速度、已学习的制动样本/停车距离，阶段输出走普通方向换向空档、duty slew和方向报警；使用500ms绝对H桥截止。未训练模型时驱动请求为0。试验占空配置200‰/制动200‰/收敛80‰，仅用于受限候选构建，不是标定参数或产品默认值。
+- `Makefile`增加特性开关并要求LCDM运行快环；`tools/build_v10_ubuntu.py`增加独立构建选项、关闭本试验不需要的触摸RX，并校验编译日志中的运行快环与阶段器宏。曾误用`--production-lcdm`构建，结果不包含位置控制快环且BIN与普通镜像相同；已识别并修正，不能把该次构建当成阶段器验证。
+- 首次快环镜像超Flash 628字节。随后为阶段测试关闭触摸菜单/接收路径、保留只读诊断页并重建，得到可链接候选：`build/releases/V10.6_R10_R16_MOTION_PHASE_CANDIDATE_20261125_R10/`，BIN 17,452B，SHA256=`04b773f82bb6c8ef3e73dd415e21c50f34eab952fa110e55f05d4a9fc753ddef`，manifest=`flashed:false`。构建日志确认快环和阶段器宏均实际进入编译；代码区余量2,644B。镜像通过SWD写`g_lcdm_motion_phase_arm_request=0x50484153`单次arm，等待≥400µs命令变化后运行；200‰占空上限、8 ADC count位移锁存和500ms绝对截止。LCD页显示PWM/目标/反馈/误差/duty/阶段/arm状态。未下载。
+- LCDM初始化与每次整页绘制落实固定顺序：切`page 0`并等待，`ref_stop`，`vis 255,0`，`tsw 255,0`，`sendxy=1`，自绘，`ref_star`后立即`ref_stop`；试验页按字段变化更新，避免高频重绘。R54既有触屏防花屏确认仍适用。
+- 离板检查：客户制动算术12/12；阶段器C99/C11 + UBSan各25/25；输出guard C99/C11 + UBSan各9/9；阶段器+guard联合C99/C11 + UBSan各6/6；USBee切换边界8/8；合成对象13/13。均不构成R10实机通过。
+- 联合用例覆盖反馈方向需反刹、反向前8ms coast、到期后允许反向输出、500ms截止和反馈无效零输出；源文件`tools/r16_host_sim/test_lcdm_motion_phase_guard.c`。
+- 本轮输入哈希：`src/app_entry.c`=`6225fa6cbad1480e6af0012ae2b94eb2ef1e37a5591032ac50c60e793fb83408`；`Makefile`=`c505e7a81734ec5f999dab05d38e8908863c229ed9d6cd64bcc7f7f4eb15fd6c`；`tools/build_v10_ubuntu.py`=`54dc29bc8b1a52312ee6612128f62a374791322ac9d7749572d9410f92af049c`；联合测试=`e0ce34711df355526d4062d46c8d4d877fd7fb2ec2762e026afa22e3ccefde1a`；最终候选BIN=`04b773f82bb6c8ef3e73dd415e21c50f34eab952fa110e55f05d4a9fc753ddef`。
+- **R10未通过**：候选已能构建，但仍未下载；还缺板上目标—反馈—速度—signed duty与双桥脚同步证据，以及零速归零/不反向再加速核验。无需用户操作；下一步先只读识别并备份板上整片，再选择这份候选做单次中段受限动作。
