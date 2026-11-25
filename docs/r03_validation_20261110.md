@@ -1,5 +1,11 @@
 # R03 速度时间基准验证记录
 
+## 2026-11-25 快观察器起停滞后离线表征
+
+- 新增`tools/r03_host_sim/characterize_velocity_observer_latency.c`，直接调用生产`inc/lcdm_velocity_observer.h`；输入斜坡为+2 ADC/ms运行30ms后停止，采样1ms，记录位置以1 ADC量化。C99 `-Wall -Wextra -Werror -fsanitize=undefined`编译运行成功。
+- 输出速度到达理论32 Q4/ms的90%（≥29）需要14ms；停止后速度降至8 Q4/ms以内需要7ms。该结果只量化数字滤波延迟，不是电机/齿轮箱的机械响应或真实反馈抖动。
+- 表征工具SHA256=`b036de66378f7ebdb39b499b7219da98fc66103e195ca7a7c03bd8ee6edec22d`。在R16合成闭环中启用该生产观察器后，13组压力工况有6组未收敛，说明不能把观察器输出当作无延迟速度；R03仍未通过。相关联测见`docs/r16_validation_20261111.md`。
+
 日期：2026-11-10  
 对象：V10.5 板上基线及未下载的 V10.6 候选  
 结论：**通用路径部分修正；LCDM 现场观察器和加速度/制动实测尚未完成，R03 未通过。**
