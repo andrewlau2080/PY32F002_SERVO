@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "lcdm_motion_phase.h"
+#include "lcdm_brake_predictor.h"
 #include "lcdm_velocity_observer.h"
 
 typedef struct
@@ -87,13 +88,13 @@ static int run_case(const PlantCase *plant)
       int32_t error_q4 = target_q4 - measured_position_q4;
       uint32_t speed_q4 = (measured_velocity_q4 < 0) ?
                           (uint32_t)(-measured_velocity_q4) : (uint32_t)measured_velocity_q4;
-      uint32_t stop_distance_q4 = 0U;
-      if (plant->brake_decel_estimate_q4 != 0U)
-      {
-        uint32_t denom = (uint32_t)plant->brake_decel_estimate_q4 * 2U;
-        stop_distance_q4 = ((speed_q4 * speed_q4) + denom - 1U) / denom;
-        stop_distance_q4 += speed_q4 * plant->latency_ms;
-      }
+      uint16_t brake_accel_q8 = (uint16_t)(plant->brake_decel_estimate_q4 * 16U);
+      uint32_t stop_distance_q4 = LcdmBrakePredictor_StoppingDistanceQ4(
+          (speed_q4 > UINT16_MAX) ? UINT16_MAX : (uint16_t)speed_q4,
+          brake_accel_q8,
+          (plant->brake_decel_estimate_q4 != 0U) ? 8U : 0U,
+          8U,
+          plant->latency_ms);
       LcdmMotionPhaseInput input = {
         elapsed_ms,
         error_q4,

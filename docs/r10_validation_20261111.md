@@ -35,3 +35,9 @@ R01–R09 未通过项留待后续统一复核，本轮未重跑。
 - 新增的`inc/lcdm_motion_phase.h`把反向制动开始/结束从customer profile固定阶段时间改为决策接口：由signed位置误差、反馈速度、qualified stopping distance/保守回退距离选择阶段，并在速度进入停止带前锁住BRAKE阶段；硬超时独立coast。该层尚未接入生产路径。
 - 阶段决策器边界向量现为C99/C11及UBSan **25/25通过**，覆盖反号撤刹、BRAKE_COAST、距离相关驱动斜坡和残差按误差收敛。先前固定驱动版本压力扫掠7/13收敛；增加两级斜坡后同一13组固定合成工况13/13收敛，参数仅用于该合成模型，不是产品默认值；详见`docs/r16_validation_20261111.md`。
 - **R10仍未通过**：离板决策器及合成对象子测试通过，但算法尚未接入生产路径，也没有本候选构建/下载、实体双路桥脚波形和真实零速附近速度证据。下一步先完成客户波形回放边界与生产接入审查，再安排受限实板验证；不是重新怀疑已确认的H桥硬件方向。
+
+### 2026-11-25 输出路径安全门复核
+
+- `src/app_entry.c`中customer-active分支设`customer_profile_direct=true`，因此跳过普通输出分支的`LCDM_SERVO_REVERSE_DEAD_MS=8`换向空档、`lcdm_servo_apply_slew()`和方向报警检查。它直接用定时profile换向，不适合作为新反馈决策器的接入点。
+- 新决策器若进入板测，必须走普通输出guard；反向dead-time期间要继续保留BRAKE阶段状态，但不得把这段零输出等待计入主动制动持续时间。接入前需有主机测试覆盖FWD→deadtime→REV、REV→deadtime→FWD、超时/无效反馈coast及duty限幅。
+- 这轮未修改生产`app_entry.c`、未构建或下载。USBee四个归一化制动边界向量8/8通过，见`docs/r16_validation_20261111.md`；这只验证决策阈值及正反方向符号，不验证物理空档。
