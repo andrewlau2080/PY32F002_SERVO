@@ -150,7 +150,7 @@ static uint32_t s_r01_touch_jog_start_ms;
 static uint16_t s_r01_touch_jog_anchor_adc;
 static uint16_t s_r01_touch_jog_live_adc;
 __attribute__((used)) volatile uint8_t g_r01_touch_jog_trace_count;
-__attribute__((used)) volatile uint8_t g_r01_touch_jog_trace[20][16];
+__attribute__((used)) volatile uint8_t g_r01_touch_jog_trace[32][16];
 __attribute__((used)) volatile uint32_t g_r01_touch_jog_trace_start_ms;
 static uint32_t s_r01_touch_jog_trace_last_ms;
 static uint8_t s_r01_touch_jog_trace_active;
@@ -166,7 +166,7 @@ static void r01_touch_jog_trace_begin(uint32_t now_ms)
 {
   g_r01_touch_jog_trace_count = 0U;
   g_r01_touch_jog_trace_start_ms = now_ms;
-  s_r01_touch_jog_trace_last_ms = now_ms - 3U;
+  s_r01_touch_jog_trace_last_ms = now_ms - 6U;
   s_r01_touch_jog_trace_active = 1U;
 }
 
@@ -182,16 +182,17 @@ static void r01_touch_jog_trace_sample(uint32_t now_ms, uint16_t command_us)
     return;
   }
   elapsed_ms = (uint32_t)(now_ms - g_r01_touch_jog_trace_start_ms);
-  if ((elapsed_ms - (uint32_t)(s_r01_touch_jog_trace_last_ms - g_r01_touch_jog_trace_start_ms)) < 3U)
+  if ((elapsed_ms - (uint32_t)(s_r01_touch_jog_trace_last_ms - g_r01_touch_jog_trace_start_ms)) < 6U)
   {
     return;
   }
-  if ((elapsed_ms >= 200U) || (g_r01_touch_jog_trace_count >= 20U))
+  if ((elapsed_ms >= 200U) || (g_r01_touch_jog_trace_count >= 32U))
   {
     s_r01_touch_jog_trace_active = 0U;
     return;
   }
-  raw_adc = ADC_Feedback_ReadRaw();
+  raw_adc = (g_r01_production_test_active != 0U) ? s_r01_touch_jog_live_adc :
+                                                    ADC_Feedback_ReadRaw();
   direction = s_r01_touch_jog_direction;
   active = g_r01_production_test_active;
   index = g_r01_touch_jog_trace_count;
@@ -5158,6 +5159,11 @@ int entry(void)
       {
         if (touch.event == 1U)
         {
+          if ((g_r01_production_test_active != 0U) ||
+              (s_r01_touch_jog_trace_active != 0U))
+          {
+            continue;
+          }
           if ((touch.x >= 342U) && (touch.x <= 470U) &&
               (touch.y >= 58U) && (touch.y <= 104U))
             s_r01_touch_jog_direction = 1;
@@ -5190,6 +5196,10 @@ int entry(void)
         }
         else
         {
+          if (g_r01_production_test_active == 0U)
+          {
+            continue;
+          }
           s_r01_touch_jog_direction = 0;
           LcdmR01Jog_Abort(&s_r01_touch_jog_control);
           g_r01_production_test_active = 0U;
@@ -5482,7 +5492,8 @@ int entry(void)
       /* LCDM UART writes can block the main loop long enough to invalidate
        * the velocity sample during a short jog. Publish the final values
        * immediately after the bounded move has coasted. */
-      if (g_r01_production_test_active == 0U)
+      if ((g_r01_production_test_active == 0U) &&
+          (s_r01_touch_jog_trace_active == 0U))
       {
         TJC_LCDM_ShowR01Status(Servo_Control_MapAdcToPulse(feedback),
                                feedback, target, error,

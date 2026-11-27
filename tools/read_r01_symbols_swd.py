@@ -151,7 +151,7 @@ try:
                     offsets = (0, 2, 4, 6, 8, 10, 12)
                     out["symbols"][name] = dict(zip(fields, [int.from_bytes(data[o:o + (1 if o == 12 else 2)], "little", signed=o in (8, 10)) for o in offsets]))
                 elif name == "g_r01_touch_jog_trace":
-                    count = min(20, int.from_bytes(target.read_memory_block8(
+                    count = min(32, int.from_bytes(target.read_memory_block8(
                         cfg["symbols"]["g_r01_touch_jog_trace_count"][0], 1)[0:1], "little"))
                     out["symbols"][name] = [list(data[i * 16:(i + 1) * 16]) for i in range(count)]
                 else:
@@ -327,7 +327,7 @@ def main():
         ("s_touch_consumed_seq", 1, False),
         ("g_r01_touch_jog_trace_count", 1, False),
         ("g_r01_touch_jog_trace_start_ms", 4, False),
-        ("g_r01_touch_jog_trace", 320, False),
+        ("g_r01_touch_jog_trace", 512, False),
         ("g_r01_bridge_forward_on_ticks", 4, False),
         ("g_r01_bridge_reverse_on_ticks", 4, False),
         ("g_motion_phase_forward_pa6_high_ticks", 4, False),

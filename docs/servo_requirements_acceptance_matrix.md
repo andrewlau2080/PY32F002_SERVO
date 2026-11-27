@@ -6,6 +6,8 @@
 
 ### 2026-11-27 当前板与验收结论（R54按钮/屏蔽版）
 
+- **当前板R74（覆盖R73）**：按用户建议，LCD状态刷新在整段轨迹采集期间暂停，最多200ms/32帧，完成后再更新页面；采集raw和控制器共用同一ADC样本。R74 under-reset写入后整片SHA256=`1e3d75b6de4a319d7d92502d9d7d9ef6a8d33c2c1aac6442c31d3e22c8e3ffe2`，14,864B应用匹配BIN SHA256=`50bae0d5dfab84d5464ddfd30a6d98fd337be00f6d78fa4606d0343395025301`，尾384B保持、核心Running。只读确认raw2497稳定、active=0、duty=0、正反桥tick=0；未动作。暂停/恢复显示的实动作时序尚待一次受限动作验证；R01仍未通过。详情见[R01记录](r01_validation_20261110.md)。
+
 - **当前板况R73（覆盖R66及R68–R72）**：R73 under-reset下载已整片读回通过，20,480B SHA256=`6dad0a88b1087386b21721127b1073b1d3026271cdfd9acc450ce2bc2e786682`，14,832B应用匹配BIN、尾384B保留、核心Running。FWD短测总计正向8 tick/反向30 tick，raw约2489→2498、停后约2497；REV测试后计数总值正向23/反向302，扣除FWD后的基线，REV驱动272 tick、正向制动15 tick，raw最终2494。随后只读9.08秒 raw稳定2494、VDD 3121mV、active=0、duty=0。固件PWM tick为软件计数，非PA脚电气证据；点动停点仍未建立重复性，R01未通过。当前R73桥coast。轨迹见`firmware/evidence/r01_r73_jog_brake_20261127.json`及[R01记录](r01_validation_20261110.md)。
 
 - **R67下载错误与恢复（已关闭）**：`servo_swd_ssh.py flash`attach写入在Flash算法失败并部分擦写，已用2MHz under-reset恢复R66且读回哈希匹配。之后改用under-reset专用下载脚本，已成功下载R68及后续候选。事件和恢复证据见[R01记录](r01_validation_20261110.md)。
