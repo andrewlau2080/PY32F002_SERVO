@@ -76,11 +76,11 @@ TSSOP20 临时 LCDM 接线，编译时需加 `SERVO_TJC_UART_ALT_PINS=1`：
 
 1. 发送 `page <id>` 切到目标页并等待页面切换完成。
 2. 发送 `ref_stop` 停止**当前页**控件刷新。必须在切页之后发送，因为切页会恢复页面刷新。
-3. 发送 `cls`、`fill`、`xstr` 等整页绘图命令。
-4. 全部绘图命令完成后发送 `ref_star`，提交画面。
-5. 若要遮住屏端原有控件/背景，在自绘前发送 `vis 255,0` 隐藏当前页所有控件、`tsw 255,0` 关闭原控件触摸，再启用`sendxy=1`接收自定义坐标；提交后立即再次发送 `ref_stop`，防止页面刷新覆盖直绘层。后续动态值仍通过 USART 直接写入对应区域。R54已在TSSOP20实板确认触摸后不再花屏。
+3. 发送 `vis 255,0` 隐藏原页面控件，再发送 `tsw 255,0` 禁用原控件触摸，之后发送 `sendxy=1` 接收自定义触摸坐标。覆盖旧页面时这些步骤不可省略。
+4. 发送 `cls`、`fill`、`xstr` 等整页绘图命令。
+5. 绘制完成后发送 `ref_star` 提交画面，然后**立即再次发送 `ref_stop`**，阻止原页面背景/控件刷新覆盖自绘内容。R54按此顺序实板确认触摸后画面正常。
 
-不要在切页前发送`ref_stop`（换页后会失效）；也不要省略`ref_star`提交步骤。覆盖原页面时，`ref_stop`不能代替隐藏原控件；触摸事件可能使原控件外观重绘。R54按上述规则实现，已实板确认触摸显示正常。TJC指令语义参考[Nextion/TJC指令集](https://forum.arduino.ir/attachments/3083d1477725352-nmaishgrhaaye-hmi-nextion-instruction-set-itead-wiki.pdf)。
+不要在切页前发送`ref_stop`（换页后会失效），也不要省略`ref_star`。`ref_stop`只停止控件周期刷新，不能代替`vis/tsw`；触摸事件仍可能使原控件重绘。R34恢复版缺少屏蔽步骤，点触后会跳回原页面；后续从R54复用已验证顺序。TJC指令语义参考[Nextion/TJC指令集](https://forum.arduino.ir/attachments/3083d1477725352-nmaishgrhaaye-hmi-nextion-instruction-set-itead-wiki.pdf)。
 
 ### 2.2 触摸期间的动态页刷新（固定规则）
 
@@ -233,3 +233,10 @@ TJC_LCDM_BAUD_OVERRIDE=9600 \
 TJC_LCDM_VISUAL_TEST_MS_OVERRIDE=200 \
 HBRIDGE_PWM_TICK_US_OVERRIDE=100
 ```
+
+## 10. LCDM回归防错（必须执行）
+
+- 修改或下载LCDM固件前，先用**完整release目录名**锁定当前板镜像和最后一个实屏确认通过的基线；禁止用`*Rxx*`这类通配符选镜像，因为不同测试线会复用R编号。逐项比较manifest里的`src/tjc_lcdm.c`、`src/app_hal_msp.c`、`src/app_entry.c`、USART引脚与波特率，再决定是否有LCD相关回归。
+- R34是已由用户实屏确认有显示的简洁直绘/PA7硬件USART/230400/H桥force-coast基线。LCD异常时按完整目录名恢复R34并读回核验；恢复后才从该基线逐项加改动。R54曾确认触摸后不花屏，但本轮恢复R54仍无显示，因此不能把R54作为“显示一定可见”的当前回退基线。
+- MCU的TX调用数、HAL错误数、`page_drawn`和软件page值都不能作为屏幕显示通过证据。用户报告无显示时，不凭这些计数声称修复；必要时用示波器确认PA7到屏端RX的真实串口波形。
+- 马达电源状态与LCD状态分别记录；马达供电缺失时的桥tick不得解释成机构动作失败，LCD发送计数也不得解释成屏幕收到命令。

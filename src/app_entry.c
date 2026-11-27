@@ -15,6 +15,7 @@
 #include "lcdm_format.h"
 #include "lcdm_brake_predictor.h"
 #include "lcdm_customer_brake.h"
+#include "lcdm_r01_jog_control.h"
 #include "lcdm_motion_phase.h"
 #include "lcdm_output_guard.h"
 #include "lcdm_rx_ring.h"
@@ -149,16 +150,23 @@ static uint32_t s_r01_touch_jog_start_ms;
 static uint16_t s_r01_touch_jog_anchor_adc;
 static uint16_t s_r01_touch_jog_live_adc;
 __attribute__((used)) volatile uint8_t g_r01_touch_jog_trace_count;
-__attribute__((used)) volatile uint8_t g_r01_touch_jog_trace[20][8];
+__attribute__((used)) volatile uint8_t g_r01_touch_jog_trace[20][16];
 __attribute__((used)) volatile uint32_t g_r01_touch_jog_trace_start_ms;
 static uint32_t s_r01_touch_jog_trace_last_ms;
 static uint8_t s_r01_touch_jog_trace_active;
+static LcdmR01JogState s_r01_touch_jog_control;
+static const LcdmR01JogConfig s_r01_touch_jog_config = {
+  8U, 3U, SERVO_R01_TOUCH_JOG_POSITION_LIMIT_ADC,
+  SERVO_R01_TOUCH_JOG_MAX_DUTY, 120U, 80U, 1U, 100U,
+  SERVO_R01_TOUCH_JOG_MAX_MS, 35U, 15U, 3U
+};
+static uint32_t s_r01_touch_jog_update_ms;
 
 static void r01_touch_jog_trace_begin(uint32_t now_ms)
 {
   g_r01_touch_jog_trace_count = 0U;
   g_r01_touch_jog_trace_start_ms = now_ms;
-  s_r01_touch_jog_trace_last_ms = now_ms - 10U;
+  s_r01_touch_jog_trace_last_ms = now_ms - 3U;
   s_r01_touch_jog_trace_active = 1U;
 }
 
@@ -174,7 +182,7 @@ static void r01_touch_jog_trace_sample(uint32_t now_ms, uint16_t command_us)
     return;
   }
   elapsed_ms = (uint32_t)(now_ms - g_r01_touch_jog_trace_start_ms);
-  if ((elapsed_ms - (uint32_t)(s_r01_touch_jog_trace_last_ms - g_r01_touch_jog_trace_start_ms)) < 10U)
+  if ((elapsed_ms - (uint32_t)(s_r01_touch_jog_trace_last_ms - g_r01_touch_jog_trace_start_ms)) < 3U)
   {
     return;
   }
@@ -195,6 +203,14 @@ static void r01_touch_jog_trace_sample(uint32_t now_ms, uint16_t command_us)
   g_r01_touch_jog_trace[index][5] = (uint8_t)(command_us >> 8);
   g_r01_touch_jog_trace[index][6] = (uint8_t)direction;
   g_r01_touch_jog_trace[index][7] = active;
+  g_r01_touch_jog_trace[index][8] = (uint8_t)s_r01_touch_jog_control.phase;
+  g_r01_touch_jog_trace[index][9] = (uint8_t)s_r01_touch_jog_control.last_duty_permille;
+  g_r01_touch_jog_trace[index][10] = (uint8_t)((uint16_t)s_r01_touch_jog_control.last_duty_permille >> 8);
+  g_r01_touch_jog_trace[index][11] = (uint8_t)s_r01_touch_jog_control.velocity_q4_per_ms;
+  g_r01_touch_jog_trace[index][12] = (uint8_t)((uint32_t)s_r01_touch_jog_control.velocity_q4_per_ms >> 8);
+  g_r01_touch_jog_trace[index][13] = (uint8_t)s_r01_touch_jog_control.target_adc;
+  g_r01_touch_jog_trace[index][14] = (uint8_t)(s_r01_touch_jog_control.target_adc >> 8);
+  g_r01_touch_jog_trace[index][15] = 0U;
   g_r01_touch_jog_trace_count = (uint8_t)(index + 1U);
   s_r01_touch_jog_trace_last_ms = now_ms;
 }
@@ -5153,14 +5169,29 @@ int entry(void)
           s_r01_touch_jog_anchor_adc = ADC_Feedback_ReadRaw();
           s_r01_touch_jog_live_adc = s_r01_touch_jog_anchor_adc;
           s_r01_touch_jog_start_ms = now_ms;
-          r01_touch_jog_trace_begin(now_ms);
-          HBridge_SetHardCoastDeadline(now_ms + SERVO_R01_TOUCH_JOG_MAX_MS);
-          g_r01_production_test_active = 1U;
-          g_r01_active_test_arm_request = 1U;
+          s_r01_touch_jog_update_ms = now_ms - 1U;
+          if (LcdmR01Jog_Begin(&s_r01_touch_jog_control,
+                               s_r01_touch_jog_anchor_adc,
+                               s_r01_touch_jog_direction, now_ms,
+                               &s_r01_touch_jog_config))
+          {
+            r01_touch_jog_trace_begin(now_ms);
+            HBridge_SetHardCoastDeadline(now_ms + SERVO_R01_TOUCH_JOG_MAX_MS);
+            g_r01_production_test_active = 1U;
+            g_r01_active_test_arm_request = 1U;
+          }
+          else
+          {
+            s_r01_touch_jog_direction = 0;
+            g_r01_production_test_active = 0U;
+            g_r01_active_test_arm_request = 2U;
+            HBridge_Coast();
+          }
         }
         else
         {
           s_r01_touch_jog_direction = 0;
+          LcdmR01Jog_Abort(&s_r01_touch_jog_control);
           g_r01_production_test_active = 0U;
           g_r01_active_test_arm_request = 2U;
           HBridge_Coast();
@@ -5169,20 +5200,25 @@ int entry(void)
 
       if (g_r01_production_test_active != 0U)
       {
-        int32_t delta;
-        s_r01_touch_jog_live_adc = ADC_Feedback_ReadRaw();
-        delta = (int32_t)s_r01_touch_jog_live_adc - (int32_t)s_r01_touch_jog_anchor_adc;
-        if (((delta < 0) ? -delta : delta) >= SERVO_R01_TOUCH_JOG_POSITION_LIMIT_ADC ||
-            ((uint32_t)(now_ms - s_r01_touch_jog_start_ms) >= SERVO_R01_TOUCH_JOG_MAX_MS))
+        if (now_ms != s_r01_touch_jog_update_ms)
         {
-          s_r01_touch_jog_direction = 0;
-          g_r01_production_test_active = 0U;
-          g_r01_active_test_arm_request = 2U;
-          HBridge_Coast();
-        }
-        else
-        {
-          HBridge_SetSignedDuty((int16_t)(s_r01_touch_jog_direction * SERVO_R01_TOUCH_JOG_MAX_DUTY));
+          LcdmR01JogOutput jog_output;
+          s_r01_touch_jog_live_adc = ADC_Feedback_ReadRaw();
+          jog_output = LcdmR01Jog_Update(&s_r01_touch_jog_control,
+                                         s_r01_touch_jog_live_adc, now_ms,
+                                         &s_r01_touch_jog_config);
+          s_r01_touch_jog_update_ms = now_ms;
+          if (jog_output.active == 0U)
+          {
+            s_r01_touch_jog_direction = 0;
+            g_r01_production_test_active = 0U;
+            g_r01_active_test_arm_request = 2U;
+            HBridge_Coast();
+          }
+          else
+          {
+            HBridge_SetSignedDuty(jog_output.duty_permille);
+          }
         }
       }
       else
@@ -5331,14 +5367,7 @@ int entry(void)
       HBridge_Coast();
 #else
 #if SERVO_R01_TOUCH_JOG_TEST
-      if (g_r01_production_test_active != 0U)
-      {
-        HBridge_SetSignedDuty((int16_t)(s_r01_touch_jog_direction * SERVO_R01_TOUCH_JOG_MAX_DUTY));
-      }
-      else
-      {
-        HBridge_Coast();
-      }
+      /* Touch-jog controller updates signed duty on each distinct ms tick. */
 #else
       if (g_r01_production_test_active != 0U)
       {
@@ -5450,10 +5479,15 @@ int entry(void)
       int16_t error = (int16_t)((int32_t)feedback - (int32_t)target);
       uint16_t in1, in2, in3, in4;
       HBridge_GetInputDutyPermille(&in1, &in2, &in3, &in4);
-      TJC_LCDM_ShowR01Status(Servo_Control_MapAdcToPulse(feedback),
-                             feedback, target, error,
-                             in3, in4, in1, in2,
-                             g_r01_production_test_active);
+      /* LCDM UART writes can block the main loop long enough to invalidate
+       * the velocity sample during a short jog. Publish the final values
+       * immediately after the bounded move has coasted. */
+      if (g_r01_production_test_active == 0U)
+      {
+        TJC_LCDM_ShowR01Status(Servo_Control_MapAdcToPulse(feedback),
+                               feedback, target, error,
+                               in3, in4, in1, in2, 0U);
+      }
 #else
       ServoStatus status = Servo_Control_GetStatus();
       uint16_t in1, in2, in3, in4;

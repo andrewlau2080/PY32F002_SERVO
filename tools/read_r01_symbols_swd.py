@@ -69,6 +69,55 @@ try:
         target.write32(arm, 0x50484153)
         print(json.dumps({"event": "MOTION_PHASE_ARM_SENT", "before": current,
                           "internal_pwm_source": "1500/1550us alternating every 4s"}), flush=True)
+    if cfg["inject_touch_jog"]:
+        direction = cfg["inject_touch_jog"]
+        required = ("g_r01_production_test_active", "g_r01_active_test_arm_request",
+                    "s_duty", "s_touch_x", "s_touch_y", "s_touch_event",
+                    "s_touch_seq", "s_touch_consumed_seq")
+        if any(cfg["symbols"].get(name, [None])[0] is None for name in required):
+            raise SystemExit("Selected ELF lacks guarded LCDM touch-jog symbols")
+        addr = {name: cfg["symbols"][name][0] for name in required}
+        active = target.read8(addr["g_r01_production_test_active"])
+        arm = target.read32(addr["g_r01_active_test_arm_request"])
+        duty = int.from_bytes(target.read_memory_block8(addr["s_duty"], 2), "little", signed=True)
+        seq = target.read8(addr["s_touch_seq"])
+        consumed = target.read8(addr["s_touch_consumed_seq"])
+        core = str(target.get_state())
+        before = {"core": core, "active": active, "arm_request": arm,
+                  "duty": duty, "touch_seq": seq, "touch_consumed_seq": consumed}
+        if ("running" not in core.lower() or active != 0 or duty != 0 or
+                arm not in (0, 2) or seq != consumed):
+            raise SystemExit("Touch-jog injection refused unless core is running, coasted, disarmed, and touch queue empty: " +
+                             json.dumps(before))
+        x, y = (406, 81) if direction == "fwd" else (406, 135)
+        target.write_memory_block8(addr["s_touch_x"], list(x.to_bytes(2, "little")))
+        target.write_memory_block8(addr["s_touch_y"], list(y.to_bytes(2, "little")))
+        target.write_memory_block8(addr["s_touch_event"], [1])
+        target.write_memory_block8(addr["s_touch_seq"], [(seq + 1) & 0xff])
+        print(json.dumps({"event": "R01_TOUCH_JOG_INJECTED", "direction": direction,
+                          "coordinates": [x, y], "before": before}), flush=True)
+        time.sleep(0.24)
+    if cfg["redraw_r01_lcd"]:
+        required = ("g_r01_production_test_active", "s_duty", "page_drawn.7",
+                    "s_page", "s_tjc_tx_cmd_count")
+        if any(cfg["symbols"].get(name, [None])[0] is None for name in required):
+            raise SystemExit("Selected ELF lacks R01 LCD redraw symbols")
+        addr = {name: cfg["symbols"][name][0] for name in required}
+        active = target.read8(addr["g_r01_production_test_active"])
+        duty = int.from_bytes(target.read_memory_block8(addr["s_duty"], 2), "little", signed=True)
+        page = target.read8(addr["s_page"])
+        tx_before = target.read32(addr["s_tjc_tx_cmd_count"])
+        core = str(target.get_state())
+        if "running" not in core.lower() or active != 0 or duty != 0 or page != 0:
+            raise SystemExit("LCD redraw refused unless core is running, motor coasted, and page 0 active")
+        target.write_memory_block8(addr["page_drawn.7"], [0])
+        time.sleep(0.60)
+        print(json.dumps({"event": "R01_LCD_REDRAW_REQUESTED", "before":
+                          {"core": core, "active": active, "duty": duty, "page": page,
+                           "tx_count": tx_before}, "after":
+                          {"core": str(target.get_state()),
+                           "page_drawn": target.read8(addr["page_drawn.7"]),
+                           "tx_count": target.read32(addr["s_tjc_tx_cmd_count"])}}), flush=True)
     if cfg["enable_motion_phase_input"]:
         internal = cfg["symbols"].get("g_lcdm_motion_phase_use_internal_pwm", [None])[0]
         armed = cfg["symbols"].get("s_lcdm_motion_phase_armed", [None])[0]
@@ -101,6 +150,10 @@ try:
                     fields = ("state", "input_us", "target_adc", "feedback_adc", "error_adc", "motor_duty", "input_valid")
                     offsets = (0, 2, 4, 6, 8, 10, 12)
                     out["symbols"][name] = dict(zip(fields, [int.from_bytes(data[o:o + (1 if o == 12 else 2)], "little", signed=o in (8, 10)) for o in offsets]))
+                elif name == "g_r01_touch_jog_trace":
+                    count = min(20, int.from_bytes(target.read_memory_block8(
+                        cfg["symbols"]["g_r01_touch_jog_trace_count"][0], 1)[0:1], "little"))
+                    out["symbols"][name] = [list(data[i * 16:(i + 1) * 16]) for i in range(count)]
                 else:
                     out["symbols"][name] = int.from_bytes(data, "little", signed=signed)
             except Exception as exc:
@@ -129,6 +182,10 @@ def main():
                         help="enable internal 1500/1550 us PWM and one-shot 8-count/500ms motion after zero-duty checks")
     parser.add_argument("--enable-motion-phase-input", action="store_true",
                         help="enable internal 1500/1550 us command source only; refuses unless motion is disarmed/coasted")
+    parser.add_argument("--inject-touch-jog", choices=("fwd", "rev"),
+                        help="inject one decoded LCDM jog press; requires a running, coasted, disarmed touch-jog image")
+    parser.add_argument("--redraw-r01-lcd", action="store_true",
+                        help="request a safe page-0 redraw; refuses unless motor is coasted")
     parser.add_argument("--summary", action="store_true", help="summarize repeated remote snapshots instead of printing every frame")
     parser.add_argument("--pack", default="/home/andrew/ARTERY/DQ110_FW/1.2.8.pack")
     parser.add_argument("--compat", default="/home/andrew/.local/share/servo_swd/dq110_pyocd_hid_compat.py")
@@ -247,8 +304,18 @@ def main():
         ("s_duty", 2, True),
         ("s_state", 1, False),
         ("s_tjc_tx_cmd_count", 4, False),
+        ("s_page", 1, False),
+        ("s_tjc_debug_page", 1, False),
+        ("page_drawn.7", 1, False),
         ("s_tjc_rx_byte_count", 4, False),
         ("s_tjc_rx_packet_count", 4, False),
+        ("s_rx_byte", 1, False),
+        ("s_rx_len", 1, False),
+        ("s_rx_ff_count", 1, False),
+        ("s_r01_touch_jog_direction", 1, True),
+        ("s_r01_touch_jog_anchor_adc", 2, False),
+        ("s_r01_touch_jog_start_ms", 4, False),
+        ("uwTick", 4, False),
         ("s_tjc_last_packet_len", 1, False),
         ("s_tjc_last_packet0", 1, False),
         ("s_tjc_last_packet1", 1, False),
@@ -257,10 +324,19 @@ def main():
         ("s_touch_y", 2, False),
         ("s_touch_event", 1, False),
         ("s_touch_seq", 1, False),
+        ("s_touch_consumed_seq", 1, False),
+        ("g_r01_touch_jog_trace_count", 1, False),
+        ("g_r01_touch_jog_trace_start_ms", 4, False),
+        ("g_r01_touch_jog_trace", 320, False),
+        ("g_r01_bridge_forward_on_ticks", 4, False),
+        ("g_r01_bridge_reverse_on_ticks", 4, False),
+        ("g_motion_phase_forward_pa6_high_ticks", 4, False),
+        ("g_motion_phase_forward_pb0_high_ticks", 4, False),
+        ("g_motion_phase_forward_pad_mismatch_ticks", 4, False),
         ("s_tjc_tx_error_count", 4, False),
         ("s_tjc_uart_error_count", 4, False),
     )
-    if args.motion_phase or args.arm_motion_phase or args.enable_motion_phase_input:
+    if args.motion_phase or args.arm_motion_phase or args.enable_motion_phase_input or args.inject_touch_jog or args.redraw_r01_lcd:
         phase_names = {
             "g_lcdm_motion_phase_arm_request", "g_lcdm_motion_phase_use_internal_pwm",
             "g_lcdm_motion_phase_requested_duty", "g_lcdm_motion_phase_final_duty",
@@ -274,6 +350,14 @@ def main():
             "g_motion_phase_forward_pwm_ticks", "g_motion_phase_reverse_pwm_ticks",
             "g_motion_phase_forward_pa6_high_ticks", "g_motion_phase_forward_pb0_high_ticks",
             "g_motion_phase_forward_pad_mismatch_ticks",
+            "g_r01_touch_jog_trace_count", "g_r01_touch_jog_trace_start_ms",
+            "g_r01_touch_jog_trace", "g_r01_bridge_forward_on_ticks",
+            "g_r01_bridge_reverse_on_ticks", "s_touch_x", "s_touch_y",
+            "s_touch_event", "s_touch_seq", "s_touch_consumed_seq",
+            "g_r01_production_test_active", "g_r01_active_test_arm_request",
+            "s_last_raw",
+            "page_drawn.7", "s_page", "s_tjc_debug_page",
+            "s_tjc_tx_cmd_count",
             "s_lcdm_motion_phase", "s_lcdm_motion_phase_armed",
             "s_lcdm_motion_phase_start_adc", "s_lcdm_servo_customer_active",
             "s_lcdm_servo_last_control_pulse_us", "s_lcdm_servo_filtered_feedback_adc",
@@ -290,6 +374,8 @@ def main():
             raise SystemExit("Selected ELF lacks R01 stop symbols")
         cfg = {"uid": args.uid, "pack": args.pack, "compat": args.compat,
                "stop": args.stop, "arm_motion": args.arm_r01_motion,
+               "inject_touch_jog": args.inject_touch_jog,
+               "redraw_r01_lcd": args.redraw_r01_lcd,
                "arm_motion_phase": args.arm_motion_phase,
                "enable_motion_phase_input": args.enable_motion_phase_input,
                "samples": args.samples, "interval_ms": args.interval_ms,

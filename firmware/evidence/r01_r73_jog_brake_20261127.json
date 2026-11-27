@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-27",
+  "board": "TSSOP20 PY32F002A",
+  "firmware": "R73 PWM hold and bounded brake",
+  "bin_bytes": 14832,
+  "bin_sha256": "f8b2f77278e9c21aacdf0a60b7c610d4305806b0ee5e5f158a0bcf1d056c31b9",
+  "flash_readback_bytes": 20480,
+  "flash_readback_sha256": "6dad0a88b1087386b21721127b1073b1d3026271cdfd9acc450ce2bc2e786682",
+  "application_matches_bin": true,
+  "reserved_tail_384_bytes_preserved": true,
+  "core_running": true,
+  "limits": {
+    "drive_duty_permille": 150,
+    "position_limit_adc": 8,
+    "hard_timeout_ms": 60,
+    "brake_duty_cap_permille": 120,
+    "minimum_brake_duty_permille": 100,
+    "minimum_brake_ms": 3,
+    "max_drive_ms": 35,
+    "max_brake_ms": 15
+  },
+  "fwd": {
+    "touch_event_injected_over_swd": true,
+    "trace_samples_elapsed_ms_raw_adc_phase_duty_q4_velocity_target_adc": [
+      [0, 2489, 1, 150, 0, 2499],
+      [3, 2498, 2, -100, 1, 2499],
+      [6, 2493, 2, -100, 5, 2499],
+      [28, 2493, 3, 0, -5, 2499]
+    ],
+    "bridge_tick_counters_after_fwd_total": {
+      "forward": 8,
+      "reverse": 30
+    },
+    "raw_after_action": 2497,
+    "approx_raw_delta_from_trace_anchor": 8
+  },
+  "rev": {
+    "touch_event_injected_over_swd": true,
+    "trace_samples_elapsed_ms_raw_adc_phase_duty_q4_velocity_target_adc": [
+      [0, 2490, 1, -150, 0, 2482],
+      [3, 2493, 1, -150, 3, 2482],
+      [36, 2494, 2, 100, -1, 2482],
+      [59, 2493, 3, 0, -1, 2482]
+    ],
+    "bridge_tick_counters_after_rev_total": {
+      "forward": 23,
+      "reverse": 302
+    },
+    "bridge_tick_counter_delta_for_rev_action": {
+      "forward_brake": 15,
+      "reverse_drive": 272
+    },
+    "raw_after_action": 2494
+  },
+  "coast_read_only_after_s": 9.08,
+  "raw_adc_min_max": [2494, 2494],
+  "vdd_mv_min_max": [3121, 3121],
+  "active": 0,
+  "duty_permille": 0,
+  "core_after": "State.RUNNING",
+  "acceptance": "R01 not passed: one FWD final offset is at the 8-count boundary; repeatability and electrical PA pin waveform are not established. Software bridge counters are not oscilloscope evidence.",
+  "physical_lcd_touch": "not tested; SWD injected the already-decoded touch event"
+}
