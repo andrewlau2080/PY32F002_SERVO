@@ -454,6 +454,7 @@ static uint8_t s_lcdm_servo_customer_active;
 static LcdmMotionPhase s_lcdm_motion_phase = LCDM_MOTION_PHASE_COAST;
 static uint8_t s_lcdm_motion_phase_armed;
 static uint16_t s_lcdm_motion_phase_start_adc;
+static uint8_t s_lcdm_motion_phase_position_guard_latched;
 static int16_t s_lcdm_motion_phase_target_offset_adc = 32767;
 __attribute__((used)) volatile uint32_t g_lcdm_motion_phase_arm_request;
 __attribute__((used)) volatile uint8_t g_lcdm_motion_phase_use_internal_pwm;
@@ -3190,6 +3191,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
   {
     g_lcdm_motion_phase_arm_request = 0U;
     s_lcdm_motion_phase_armed = 1U;
+    s_lcdm_motion_phase_position_guard_latched = 0U;
     g_lcdm_motion_phase_active_loops = 0U;
     g_lcdm_motion_phase_seen_mask = 0U;
     g_lcdm_motion_phase_request_min = INT16_MAX;
@@ -3272,6 +3274,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
         s_lcdm_servo_customer_start_ms = now_ms;
         s_lcdm_motion_phase_armed = 0U;
         s_lcdm_motion_phase_start_adc = feedback;
+        s_lcdm_motion_phase_position_guard_latched = 0U;
         s_lcdm_motion_phase = LCDM_MOTION_PHASE_COAST;
       }
 #else
@@ -3624,15 +3627,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
       uint16_t displacement = (feedback >= s_lcdm_motion_phase_start_adc) ?
           (uint16_t)(feedback - s_lcdm_motion_phase_start_adc) :
           (uint16_t)(s_lcdm_motion_phase_start_adc - feedback);
-      if (displacement >= 8U)
-      {
-        phase_output.phase = LCDM_MOTION_PHASE_COAST;
-        phase_output.signed_duty_permille = 0;
-      }
-      else
-      {
-        phase_output = LcdmMotionPhase_Update(&phase_input, &phase_config);
-      }
+      phase_output = LcdmMotionPhase_UpdatePositionGuarded(
+          &phase_input, &phase_config, displacement, 8U,
+          &s_lcdm_motion_phase_position_guard_latched);
     }
     s_lcdm_motion_phase = phase_output.phase;
     duty_calc = phase_output.signed_duty_permille;

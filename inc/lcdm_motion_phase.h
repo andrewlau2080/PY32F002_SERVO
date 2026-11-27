@@ -253,4 +253,74 @@ static inline LcdmMotionPhaseOutput LcdmMotionPhase_Update(
   return output;
 }
 
+/*
+ * Apply the diagnostic displacement guard without throwing away the measured
+ * momentum. Below the guard this is the normal phase controller. At/above the
+ * guard it requests the same speed-scaled reverse brake used by the motion
+ * phase; once velocity reaches the configured stop band it coasts and stays
+ * latched. This preserves the hard travel limit while avoiding a drive-to-coast
+ * transition that lets the mechanism roll past the limit.
+ */
+static inline LcdmMotionPhaseOutput LcdmMotionPhase_UpdatePositionGuarded(
+    const LcdmMotionPhaseInput *input,
+    const LcdmMotionPhaseConfig *config,
+    uint16_t displacement_adc,
+    uint16_t position_limit_adc,
+    uint8_t *position_guard_latched)
+{
+  LcdmMotionPhaseOutput output = {LCDM_MOTION_PHASE_FAULT, 0};
+  LcdmMotionPhaseInput guarded_input;
+  uint32_t speed_q4;
+  bool guard_active;
+
+  if ((input == 0) || (config == 0))
+  {
+    return output;
+  }
+  guard_active = (position_limit_adc != 0U) &&
+                 (displacement_adc >= position_limit_adc);
+  if (position_guard_latched != 0)
+  {
+    if (guard_active)
+    {
+      *position_guard_latched = 1U;
+    }
+    guard_active = (*position_guard_latched != 0U);
+  }
+  if (!guard_active)
+  {
+    return LcdmMotionPhase_Update(input, config);
+  }
+
+  /* Preserve the phase controller's fault/timeout reporting even when the
+   * guard is latched and the measured speed is already inside the stop band. */
+  if (!input->feedback_valid || (config->hard_timeout_ms == 0U) ||
+      (config->stop_error_band_q4 > config->settle_error_band_q4) ||
+      (config->stop_velocity_band_q4 >= config->max_velocity_q4) ||
+      (input->elapsed_ms >= config->hard_timeout_ms))
+  {
+    return LcdmMotionPhase_Update(input, config);
+  }
+
+  speed_q4 = (input->velocity_q4 < 0) ?
+      (uint32_t)(-(int64_t)input->velocity_q4) :
+      (uint32_t)input->velocity_q4;
+  if (speed_q4 <= config->stop_velocity_band_q4)
+  {
+    output.phase = LCDM_MOTION_PHASE_COAST;
+    return output;
+  }
+
+  guarded_input = *input;
+  guarded_input.stop_distance_q4 = UINT32_MAX;
+  guarded_input.stop_model_valid = true;
+  output = LcdmMotionPhase_Update(&guarded_input, config);
+  if ((output.phase == LCDM_MOTION_PHASE_FAULT) ||
+      (output.phase == LCDM_MOTION_PHASE_TIMEOUT))
+  {
+    return output;
+  }
+  return output;
+}
+
 #endif
