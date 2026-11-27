@@ -33,6 +33,15 @@ int main(void)
   LcdmOutputGuardResult guard_result;
   int16_t applied = 0;
 
+  check("sub-step input edge does not consume the one-shot arm",
+        !LcdmMotionPhase_ArmEdgeReady(39U, 40U, 100U, 8U));
+  check("neutral error does not consume the one-shot arm",
+        !LcdmMotionPhase_ArmEdgeReady(50U, 40U, 1U, 8U));
+  check("error at the position guard remains coasted",
+        !LcdmMotionPhase_ArmEdgeReady(50U, 40U, 8U, 8U));
+  check("meaningful target step may consume the one-shot arm",
+        LcdmMotionPhase_ArmEdgeReady(50U, 40U, 9U, 8U));
+
   phase = LcdmMotionPhase_Update(&input, &config);
   check("moving-away phase requests reverse braking",
         phase.phase == LCDM_MOTION_PHASE_REVERSE_BRAKE && phase.signed_duty_permille < 0);
@@ -129,6 +138,6 @@ int main(void)
   check("guard coasts when speed falls below one quarter of observed peak",
         phase.phase == LCDM_MOTION_PHASE_COAST && phase.signed_duty_permille == 0);
 
-  printf("Motion phase + output guard: 14 checks, %d failures\n", failures);
+  printf("Motion phase + output guard: %d checks, %d failures\n", 18, failures);
   return failures ? 1 : 0;
 }

@@ -53,6 +53,15 @@ typedef struct
   int16_t signed_duty_permille;
 } LcdmMotionPhaseOutput;
 
+static inline bool LcdmMotionPhase_ArmEdgeReady(uint16_t pulse_delta_us,
+                                                uint16_t minimum_step_us,
+                                                uint16_t abs_error_adc,
+                                                uint16_t minimum_error_adc)
+{
+  return (pulse_delta_us >= minimum_step_us) &&
+         (abs_error_adc > minimum_error_adc);
+}
+
 static inline uint16_t LcdmMotionPhase_SettleDuty(
     uint32_t abs_error_q4,
     const LcdmMotionPhaseConfig *config,

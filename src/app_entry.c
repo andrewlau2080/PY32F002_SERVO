@@ -3332,7 +3332,10 @@ static int16_t lcdm_servo_loop_update_fast(void)
         (s_lcdm_servo_move_dir != 0))
     {
 #if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
-      if (s_lcdm_motion_phase_armed != 0U)
+      if ((s_lcdm_motion_phase_armed != 0U) &&
+          LcdmMotionPhase_ArmEdgeReady(pulse_delta,
+                                       LCDM_SERVO_CUSTOMER_STEP_US,
+                                       motion_error, 8U))
       {
         s_lcdm_servo_customer_active = 1U;
         s_lcdm_servo_customer_dir = s_lcdm_servo_move_dir;
