@@ -4,6 +4,7 @@
 
 static const LcdmR01JogConfig cfg = {6U, 3U, 8U, 185U, 70U, 80U, 1U, 30U, 60U, 35U, 15U, 3U};
 static const LcdmR01JogConfig cfg_full_window = {8U, 3U, 8U, 185U, 120U, 80U, 1U, 100U, 60U, 35U, 15U, 3U};
+static const LcdmR01JogConfig cfg_r74 = {8U, 3U, 8U, 150U, 120U, 80U, 1U, 100U, 60U, 35U, 15U, 3U};
 
 static void run_direction(int8_t direction)
 {
@@ -83,6 +84,36 @@ static void test_full_position_window_and_noise_margin(void)
   assert(o.phase == LCDM_R01_JOG_DRIVE && o.duty_permille == 185);
 }
 
+static void test_r74_trace_discrepancy_reproduction(void)
+{
+  LcdmR01JogState s = {0};
+  LcdmR01JogOutput o;
+  assert(LcdmR01Jog_Begin(&s, 2496U, 1, 119025U, &cfg_r74));
+  o = LcdmR01Jog_Update(&s, 2496U, 119031U, &cfg_r74);
+  assert(o.target_adc == 2504U);
+  assert(o.phase == LCDM_R01_JOG_DRIVE);
+  assert(o.duty_permille == 150);
+  assert(s.brake_reason == LCDM_R01_JOG_BRAKE_NONE);
+}
+
+static void test_brake_reason_telemetry(void)
+{
+  LcdmR01JogState s = {0};
+  LcdmR01JogOutput o;
+  assert(LcdmR01Jog_Begin(&s, 2000U, 1, 0U, &cfg_r74));
+  o = LcdmR01Jog_Update(&s, 2008U, 1U, &cfg_r74);
+  assert(s.brake_reason == LCDM_R01_JOG_BRAKE_POSITION_LIMIT);
+  assert(o.phase == LCDM_R01_JOG_BRAKE || o.phase == LCDM_R01_JOG_COAST);
+  assert(LcdmR01Jog_Begin(&s, 2000U, 1, 0U, &cfg_r74));
+  o = LcdmR01Jog_Update(&s, 2005U, 1U, &cfg_r74);
+  assert(s.brake_reason == LCDM_R01_JOG_BRAKE_TARGET_MARGIN);
+  assert(o.phase == LCDM_R01_JOG_BRAKE);
+  assert(LcdmR01Jog_Begin(&s, 2000U, 1, 0U, &cfg_r74));
+  o = LcdmR01Jog_Update(&s, 2000U, 35U, &cfg_r74);
+  assert(s.brake_reason == LCDM_R01_JOG_BRAKE_DRIVE_TIMEOUT);
+  assert(o.phase == LCDM_R01_JOG_BRAKE);
+}
+
 int main(void)
 {
   run_direction(1);
@@ -91,6 +122,8 @@ int main(void)
   test_stale_sample_still_brakes();
   test_zero_speed_brake_kick_is_bounded();
   test_full_position_window_and_noise_margin();
-  puts("R01 jog brake host vectors: 11/11 passed (controller arithmetic only)");
+  test_r74_trace_discrepancy_reproduction();
+  test_brake_reason_telemetry();
+  puts("R01 jog brake host vectors: 19/19 passed (controller arithmetic only)");
   return 0;
 }

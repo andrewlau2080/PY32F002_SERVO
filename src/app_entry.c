@@ -170,7 +170,7 @@ static void r01_touch_jog_trace_begin(uint32_t now_ms)
   s_r01_touch_jog_trace_active = 1U;
 }
 
-static void r01_touch_jog_trace_sample(uint32_t now_ms, uint16_t command_us)
+static void r01_touch_jog_trace_sample(uint32_t now_ms)
 {
   uint32_t elapsed_ms;
   uint8_t index;
@@ -200,8 +200,8 @@ static void r01_touch_jog_trace_sample(uint32_t now_ms, uint16_t command_us)
   g_r01_touch_jog_trace[index][1] = (uint8_t)(elapsed_ms >> 8);
   g_r01_touch_jog_trace[index][2] = (uint8_t)raw_adc;
   g_r01_touch_jog_trace[index][3] = (uint8_t)(raw_adc >> 8);
-  g_r01_touch_jog_trace[index][4] = (uint8_t)command_us;
-  g_r01_touch_jog_trace[index][5] = (uint8_t)(command_us >> 8);
+  g_r01_touch_jog_trace[index][4] = (uint8_t)s_r01_touch_jog_control.anchor_adc;
+  g_r01_touch_jog_trace[index][5] = (uint8_t)(s_r01_touch_jog_control.anchor_adc >> 8);
   g_r01_touch_jog_trace[index][6] = (uint8_t)direction;
   g_r01_touch_jog_trace[index][7] = active;
   g_r01_touch_jog_trace[index][8] = (uint8_t)s_r01_touch_jog_control.phase;
@@ -211,7 +211,7 @@ static void r01_touch_jog_trace_sample(uint32_t now_ms, uint16_t command_us)
   g_r01_touch_jog_trace[index][12] = (uint8_t)((uint32_t)s_r01_touch_jog_control.velocity_q4_per_ms >> 8);
   g_r01_touch_jog_trace[index][13] = (uint8_t)s_r01_touch_jog_control.target_adc;
   g_r01_touch_jog_trace[index][14] = (uint8_t)(s_r01_touch_jog_control.target_adc >> 8);
-  g_r01_touch_jog_trace[index][15] = 0U;
+  g_r01_touch_jog_trace[index][15] = s_r01_touch_jog_control.brake_reason;
   g_r01_touch_jog_trace_count = (uint8_t)(index + 1U);
   s_r01_touch_jog_trace_last_ms = now_ms;
 }
@@ -5239,7 +5239,7 @@ int entry(void)
                       ((s_r01_touch_jog_direction < 0) ? 1450U : 1500U);
       g_r01_production_test_pulse_us = test_pulse_us;
       PWM_Input_SetTestPulse(test_pulse_us, now_ms);
-      r01_touch_jog_trace_sample(now_ms, test_pulse_us);
+      r01_touch_jog_trace_sample(now_ms);
     }
 #else
 #if SERVO_R01_CENTER_RETURN_TEST

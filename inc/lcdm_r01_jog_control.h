@@ -18,6 +18,14 @@ typedef enum
   LCDM_R01_JOG_ADC_FAULT
 } LcdmR01JogPhase;
 
+typedef enum
+{
+  LCDM_R01_JOG_BRAKE_NONE = 0,
+  LCDM_R01_JOG_BRAKE_POSITION_LIMIT,
+  LCDM_R01_JOG_BRAKE_TARGET_MARGIN,
+  LCDM_R01_JOG_BRAKE_DRIVE_TIMEOUT
+} LcdmR01JogBrakeReason;
+
 typedef struct
 {
   uint16_t target_step_adc;
@@ -48,6 +56,7 @@ typedef struct
   int8_t direction;
   uint8_t observer_seeded;
   uint8_t active;
+  uint8_t brake_reason;
   LcdmR01JogPhase phase;
 } LcdmR01JogState;
 
@@ -110,6 +119,7 @@ static inline bool LcdmR01Jog_Begin(LcdmR01JogState *state,
   state->direction = direction;
   state->observer_seeded = 1U;
   state->active = 1U;
+  state->brake_reason = LCDM_R01_JOG_BRAKE_NONE;
   state->phase = LCDM_R01_JOG_DRIVE;
   return true;
 }
@@ -189,6 +199,7 @@ static inline LcdmR01JogOutput LcdmR01Jog_Update(LcdmR01JogState *state,
     {
       state->phase = LCDM_R01_JOG_BRAKE;
       state->brake_start_ms = now_ms;
+      state->brake_reason = LCDM_R01_JOG_BRAKE_POSITION_LIMIT;
     }
   }
   else if ((state->phase == LCDM_R01_JOG_DRIVE) &&
@@ -197,6 +208,8 @@ static inline LcdmR01JogOutput LcdmR01Jog_Update(LcdmR01JogState *state,
   {
     state->phase = LCDM_R01_JOG_BRAKE;
     state->brake_start_ms = now_ms;
+    state->brake_reason = (remaining <= (int32_t)config->brake_start_remaining_adc) ?
+        LCDM_R01_JOG_BRAKE_TARGET_MARGIN : LCDM_R01_JOG_BRAKE_DRIVE_TIMEOUT;
   }
 
   if (state->phase == LCDM_R01_JOG_DRIVE)

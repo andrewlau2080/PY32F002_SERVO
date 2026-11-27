@@ -4,10 +4,11 @@
 
 ## 最新状态（2026-11-25，覆盖下方较早板况）
 
-### 2026-11-27 当前板与验收结论（R54按钮/屏蔽版）
+### 2026-11-27 当前板与验收结论（R75采集诊断版）
 
-- **当前板R74（覆盖R73）**：按用户建议，LCD状态刷新在整段轨迹采集期间暂停，最多200ms/32帧，完成后再更新页面；采集raw和控制器共用同一ADC样本。R74 under-reset写入后整片SHA256=`1e3d75b6de4a319d7d92502d9d7d9ef6a8d33c2c1aac6442c31d3e22c8e3ffe2`，14,864B应用匹配BIN SHA256=`50bae0d5dfab84d5464ddfd30a6d98fd337be00f6d78fa4606d0343395025301`，尾384B保持、核心Running。只读确认raw2497稳定、active=0、duty=0、正反桥tick=0；未动作。暂停/恢复显示的实动作时序尚待一次受限动作验证；R01仍未通过。详情见[R01记录](r01_validation_20261110.md)。
+- **当前板R75（覆盖R74）**：LCD状态刷新在整段轨迹采集期间暂停，最长200ms/32帧，采集结束后恢复刷新；采集raw复用控制器样本。R75 under-reset写入后整片SHA256=`6fe3f32c8f5f926014dae5392b9466ce0b161d5ceb0f2fa577bf5d00e06f604b`，14,916B应用匹配BIN SHA256=`97af2c0fab6e7c2947d3fdd17b546d16169d20af574bed007d5b3e3252663e81`，尾384B保持、核心Running。idle raw=2497、active=0、duty=0。单次SWD注入FWD：锚点2493、目标2501；0/6ms记录为DRIVE +150‰，12ms记录COAST；brake_reason=2（目标剩余量≤3 ADC），说明控制器在6ms轨迹帧之间进入制动。软件桥计数本次增加正向64、反向15；动作后active=0、duty=0、核心Running。稀疏轨迹不能代表PA引脚波形；停点重复性和LCD暂停/恢复时序的独立计数验收仍未完成，R01未通过。轨迹见`firmware/evidence/r01_r75_onboard_trace_20261127.jsonl`及[R01记录](r01_validation_20261110.md)。
 
+- **R74采集方案结果（已被R75覆盖）**：用户提出采集期间暂停LCDM刷新以避免阻塞反馈循环。R74把刷新禁用延伸至整段200ms轨迹窗口；首轮记录曾因把6ms稀疏帧当作每毫秒控制采样，误把相邻帧的状态/ADC作直接因果比较。R75在轨迹中加入锚点和制动原因后，显示制动门槛可在两帧间触发；控制循环每毫秒运行、轨迹每6ms记录，不能由6ms记录排除中间ADC样本跨过门槛。采集期LCD不调用状态刷新由源码条件保证，尚未用TX计数的同步轨迹独立量测暂停与恢复边界。
 - **当前板况R73（覆盖R66及R68–R72）**：R73 under-reset下载已整片读回通过，20,480B SHA256=`6dad0a88b1087386b21721127b1073b1d3026271cdfd9acc450ce2bc2e786682`，14,832B应用匹配BIN、尾384B保留、核心Running。FWD短测总计正向8 tick/反向30 tick，raw约2489→2498、停后约2497；REV测试后计数总值正向23/反向302，扣除FWD后的基线，REV驱动272 tick、正向制动15 tick，raw最终2494。随后只读9.08秒 raw稳定2494、VDD 3121mV、active=0、duty=0。固件PWM tick为软件计数，非PA脚电气证据；点动停点仍未建立重复性，R01未通过。当前R73桥coast。轨迹见`firmware/evidence/r01_r73_jog_brake_20261127.json`及[R01记录](r01_validation_20261110.md)。
 
 - **R67下载错误与恢复（已关闭）**：`servo_swd_ssh.py flash`attach写入在Flash算法失败并部分擦写，已用2MHz under-reset恢复R66且读回哈希匹配。之后改用under-reset专用下载脚本，已成功下载R68及后续候选。事件和恢复证据见[R01记录](r01_validation_20261110.md)。
