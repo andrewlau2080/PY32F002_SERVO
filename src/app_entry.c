@@ -55,6 +55,9 @@
 #ifndef SERVO_R01_TOUCH_JOG_MAX_MS
 #define SERVO_R01_TOUCH_JOG_MAX_MS 150U
 #endif
+#ifndef SERVO_R01_TOUCH_JOG_MAX_DRIVE_MS
+#define SERVO_R01_TOUCH_JOG_MAX_DRIVE_MS 35U
+#endif
 #ifndef SERVO_R01_LCD_ONLY_TEST
 #define SERVO_R01_LCD_ONLY_TEST 0
 #endif
@@ -158,7 +161,7 @@ static LcdmR01JogState s_r01_touch_jog_control;
 static const LcdmR01JogConfig s_r01_touch_jog_config = {
   8U, 3U, SERVO_R01_TOUCH_JOG_POSITION_LIMIT_ADC,
   SERVO_R01_TOUCH_JOG_MAX_DUTY, 120U, 80U, 1U, 100U,
-  SERVO_R01_TOUCH_JOG_MAX_MS, 35U, 15U, 3U
+  SERVO_R01_TOUCH_JOG_MAX_MS, SERVO_R01_TOUCH_JOG_MAX_DRIVE_MS, 15U, 3U
 };
 static uint32_t s_r01_touch_jog_update_ms;
 
@@ -174,36 +177,37 @@ static void r01_touch_jog_trace_sample(uint32_t now_ms)
 {
   uint32_t elapsed_ms;
   uint8_t index;
+  uint8_t sample_interval_ms;
   uint16_t raw_adc;
-  int8_t direction;
-  uint8_t active;
   if (s_r01_touch_jog_trace_active == 0U)
   {
     return;
   }
   elapsed_ms = (uint32_t)(now_ms - g_r01_touch_jog_trace_start_ms);
-  if ((elapsed_ms - (uint32_t)(s_r01_touch_jog_trace_last_ms - g_r01_touch_jog_trace_start_ms)) < 6U)
-  {
-    return;
-  }
   if ((elapsed_ms >= 200U) || (g_r01_touch_jog_trace_count >= 32U))
   {
     s_r01_touch_jog_trace_active = 0U;
     return;
   }
+  index = g_r01_touch_jog_trace_count;
+  /* Capture each controller tick through the expected drive/brake transition,
+   * then sample the coast tail sparsely without growing the fixed 32-frame RAM
+   * buffer. LCD status output stays paused for this entire window. */
+  sample_interval_ms = (index < 16U) ? 1U : 11U;
+  if ((elapsed_ms - (uint32_t)(s_r01_touch_jog_trace_last_ms - g_r01_touch_jog_trace_start_ms)) < sample_interval_ms)
+  {
+    return;
+  }
   raw_adc = (g_r01_production_test_active != 0U) ? s_r01_touch_jog_live_adc :
                                                     ADC_Feedback_ReadRaw();
-  direction = s_r01_touch_jog_direction;
-  active = g_r01_production_test_active;
-  index = g_r01_touch_jog_trace_count;
   g_r01_touch_jog_trace[index][0] = (uint8_t)elapsed_ms;
   g_r01_touch_jog_trace[index][1] = (uint8_t)(elapsed_ms >> 8);
   g_r01_touch_jog_trace[index][2] = (uint8_t)raw_adc;
   g_r01_touch_jog_trace[index][3] = (uint8_t)(raw_adc >> 8);
   g_r01_touch_jog_trace[index][4] = (uint8_t)s_r01_touch_jog_control.anchor_adc;
   g_r01_touch_jog_trace[index][5] = (uint8_t)(s_r01_touch_jog_control.anchor_adc >> 8);
-  g_r01_touch_jog_trace[index][6] = (uint8_t)direction;
-  g_r01_touch_jog_trace[index][7] = active;
+  g_r01_touch_jog_trace[index][6] = (uint8_t)s_r01_touch_jog_control.previous_adc;
+  g_r01_touch_jog_trace[index][7] = (uint8_t)(s_r01_touch_jog_control.previous_adc >> 8);
   g_r01_touch_jog_trace[index][8] = (uint8_t)s_r01_touch_jog_control.phase;
   g_r01_touch_jog_trace[index][9] = (uint8_t)s_r01_touch_jog_control.last_duty_permille;
   g_r01_touch_jog_trace[index][10] = (uint8_t)((uint16_t)s_r01_touch_jog_control.last_duty_permille >> 8);

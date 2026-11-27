@@ -50,6 +50,8 @@ typedef struct
   uint16_t anchor_adc;
   uint16_t target_adc;
   uint16_t previous_adc;
+  uint16_t median_older_adc;
+  uint16_t median_newer_adc;
   int32_t position_q4;
   int32_t velocity_q4_per_ms;
   int16_t last_duty_permille;
@@ -74,6 +76,27 @@ typedef struct
 static inline uint16_t LcdmR01Jog_AbsDiff(uint16_t a, uint16_t b)
 {
   return (a >= b) ? (uint16_t)(a - b) : (uint16_t)(b - a);
+}
+
+static inline uint16_t LcdmR01Jog_Median3(uint16_t a, uint16_t b, uint16_t c)
+{
+  if (a > b)
+  {
+    uint16_t swap = a;
+    a = b;
+    b = swap;
+  }
+  if (b > c)
+  {
+    uint16_t swap = b;
+    b = c;
+    c = swap;
+  }
+  if (a > b)
+  {
+    b = a;
+  }
+  return b;
 }
 
 static inline bool LcdmR01Jog_Begin(LcdmR01JogState *state,
@@ -113,6 +136,8 @@ static inline bool LcdmR01Jog_Begin(LcdmR01JogState *state,
   state->anchor_adc = raw_adc;
   state->target_adc = (uint16_t)target;
   state->previous_adc = raw_adc;
+  state->median_older_adc = raw_adc;
+  state->median_newer_adc = raw_adc;
   state->position_q4 = (int32_t)raw_adc << 4;
   state->velocity_q4_per_ms = 0;
   state->last_duty_permille = 0;
@@ -134,6 +159,7 @@ static inline LcdmR01JogOutput LcdmR01Jog_Update(LcdmR01JogState *state,
   uint32_t sample_gap_ms;
   int32_t sample_delta_adc;
   int32_t remaining;
+  uint16_t control_adc;
 
   if ((state == 0) || (config == 0))
   {
@@ -174,8 +200,12 @@ static inline LcdmR01JogOutput LcdmR01Jog_Update(LcdmR01JogState *state,
   }
 
   sample_gap_ms = now_ms - state->observer.tick_ms;
-  sample_delta_adc = (int32_t)raw_adc - (int32_t)state->previous_adc;
-  (void)LcdmVelocityObserver_Update(&state->observer, raw_adc, now_ms, true,
+  control_adc = LcdmR01Jog_Median3(state->median_older_adc,
+                                   state->median_newer_adc, raw_adc);
+  sample_delta_adc = (int32_t)control_adc - (int32_t)state->previous_adc;
+  state->median_older_adc = state->median_newer_adc;
+  state->median_newer_adc = raw_adc;
+  (void)LcdmVelocityObserver_Update(&state->observer, control_adc, now_ms, true,
                                     &state->previous_adc,
                                     &state->observer_seeded,
                                     &state->position_q4,
@@ -190,10 +220,10 @@ static inline LcdmR01JogOutput LcdmR01Jog_Update(LcdmR01JogState *state,
     if (average_velocity < -512) average_velocity = -512;
     state->velocity_q4_per_ms = average_velocity;
   }
-  remaining = ((int32_t)state->target_adc - (int32_t)raw_adc) *
+  remaining = ((int32_t)state->target_adc - (int32_t)control_adc) *
               (int32_t)state->direction;
 
-  if (LcdmR01Jog_AbsDiff(raw_adc, state->anchor_adc) >= config->position_limit_adc)
+  if (LcdmR01Jog_AbsDiff(control_adc, state->anchor_adc) >= config->position_limit_adc)
   {
     if (state->phase == LCDM_R01_JOG_DRIVE)
     {
@@ -234,7 +264,7 @@ static inline LcdmR01JogOutput LcdmR01Jog_Update(LcdmR01JogState *state,
       state->active = 0U;
       state->last_duty_permille = 0;
     }
-    else
+    else if (speed_along > (int32_t)config->stop_velocity_q4)
     {
       uint16_t brake_duty = LcdmCustomerBrake_ScaleDuty(
           config->brake_duty_permille, state->velocity_q4_per_ms,
@@ -245,6 +275,14 @@ static inline LcdmR01JogOutput LcdmR01Jog_Update(LcdmR01JogState *state,
       }
       state->last_duty_permille = (int16_t)(-(int16_t)state->direction *
                                              (int16_t)brake_duty);
+    }
+    else
+    {
+      /* Never apply the minimum reverse pulse at zero speed or after the
+       * mechanism has already reversed. The configured floor is only useful
+       * while measured motion still needs braking; otherwise it can kick the
+       * gear train in the opposite direction. */
+      state->last_duty_permille = 0;
     }
   }
 
