@@ -68,7 +68,7 @@ try:
         target.write8(internal, 1)
         target.write32(arm, 0x50484153)
         print(json.dumps({"event": "MOTION_PHASE_ARM_SENT", "before": current,
-                          "internal_pwm_source": "1500/1550us alternating every 4s"}), flush=True)
+                          "internal_pwm_source": "configured alternating command; verify input_pulse_us telemetry"}), flush=True)
     if cfg["inject_touch_jog"]:
         direction = cfg["inject_touch_jog"]
         required = ("g_r01_production_test_active", "g_r01_active_test_arm_request",
@@ -195,9 +195,9 @@ def main():
     parser.add_argument("--motion-phase", action="store_true",
                         help="read only the limited LCDM motion-phase telemetry symbols")
     parser.add_argument("--arm-motion-phase", action="store_true",
-                        help="enable internal 1500/1550 us PWM and one-shot 8-count/500ms motion after zero-duty checks")
+                        help="enable the configured internal alternating PWM and one-shot guarded motion after zero-duty checks")
     parser.add_argument("--enable-motion-phase-input", action="store_true",
-                        help="enable internal 1500/1550 us command source only; refuses unless motion is disarmed/coasted")
+                        help="enable the configured internal alternating command source only; refuses unless motion is disarmed/coasted")
     parser.add_argument("--inject-touch-jog", choices=("fwd", "rev"),
                         help="inject one decoded LCDM jog press; requires a running, coasted, disarmed touch-jog image")
     parser.add_argument("--redraw-r01-lcd", action="store_true",

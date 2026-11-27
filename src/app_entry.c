@@ -76,6 +76,15 @@
 #ifndef SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE
 #define SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE 200U
 #endif
+#ifndef SERVO_LCDM_MOTION_PHASE_STEP_US
+#define SERVO_LCDM_MOTION_PHASE_STEP_US 50U
+#endif
+#ifndef SERVO_LCDM_MOTION_PHASE_BASE_PULSE_US
+#define SERVO_LCDM_MOTION_PHASE_BASE_PULSE_US 1500U
+#endif
+#ifndef SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC
+#define SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC 8U
+#endif
 #define SERVO_LCDM_MOTION_PHASE_ARM_MAGIC 0x50484153UL
 #ifndef SERVO_PA6_SINGLE_PULSE_TEST
 #define SERVO_PA6_SINGLE_PULSE_TEST 0
@@ -456,6 +465,8 @@ static uint8_t s_lcdm_motion_phase_armed;
 static uint16_t s_lcdm_motion_phase_start_adc;
 static uint8_t s_lcdm_motion_phase_position_guard_latched;
 static uint16_t s_lcdm_motion_phase_peak_velocity_q4;
+static uint32_t s_lcdm_motion_phase_brake_hold_until_ms;
+static int8_t s_lcdm_motion_phase_brake_dir;
 static int16_t s_lcdm_motion_phase_target_offset_adc = 32767;
 __attribute__((used)) volatile uint32_t g_lcdm_motion_phase_arm_request;
 __attribute__((used)) volatile uint8_t g_lcdm_motion_phase_use_internal_pwm;
@@ -508,13 +519,13 @@ static void lcdm_motion_phase_trace_sample(uint32_t now_ms,
     return;
   }
   elapsed_ms = now_ms - g_lcdm_motion_phase_trace_start_ms;
-  if ((elapsed_ms > 180U) || (g_lcdm_motion_phase_trace_count >= 24U))
+  if ((elapsed_ms > 480U) || (g_lcdm_motion_phase_trace_count >= 24U))
   {
     s_lcdm_motion_phase_trace_active = 0U;
     return;
   }
   index = g_lcdm_motion_phase_trace_count;
-  interval_ms = (index < 12U) ? 1U : 8U;
+  interval_ms = (index < 3U) ? 1U : 10U;
   if ((now_ms - s_lcdm_motion_phase_trace_last_ms) < interval_ms)
   {
     return;
@@ -1414,6 +1425,9 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_MOVING_FF_DUTY 120
 #define LCDM_SERVO_REVERSE_DEAD_MS 8U
 #define LCDM_SERVO_REVERSE_MIN_DUTY 180
+#if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST && (SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE < LCDM_SERVO_REVERSE_MIN_DUTY)
+#error Motion-phase brake hold must meet the H-bridge reversal threshold
+#endif
 #define LCDM_SERVO_TRACK_ERR_LIMIT_Q4 640
 #define LCDM_SERVO_HOLD_QUIET_EXTRA 12U
 #define LCDM_SERVO_HOLD_CONFIRM_NEAR 2U
@@ -2345,7 +2359,8 @@ static void lcdm_runtime_pwm_test_sample(PWM_InputSample *sample)
 #else
 #if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
   phase = (elapsed / 4000UL) % 2UL;
-  pulse = (phase == 0UL) ? 1500U : 1550U;
+  pulse = (phase == 0UL) ? SERVO_LCDM_MOTION_PHASE_BASE_PULSE_US :
+      (uint16_t)(SERVO_LCDM_MOTION_PHASE_BASE_PULSE_US + SERVO_LCDM_MOTION_PHASE_STEP_US);
 #else
   phase = (elapsed / 4000UL) % 2UL;
   pulse = (phase == 0UL) ? 1000U : 2000U;
@@ -3344,6 +3359,8 @@ static int16_t lcdm_servo_loop_update_fast(void)
         s_lcdm_motion_phase_start_adc = feedback;
         s_lcdm_motion_phase_position_guard_latched = 0U;
         s_lcdm_motion_phase_peak_velocity_q4 = 0U;
+        s_lcdm_motion_phase_brake_hold_until_ms = 0U;
+        s_lcdm_motion_phase_brake_dir = 0;
         s_lcdm_motion_phase = LCDM_MOTION_PHASE_COAST;
         lcdm_motion_phase_trace_begin(now_ms);
       }
@@ -3662,6 +3679,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     uint32_t settle_band_q4 = ((uint32_t)hold_release_band + motion_hold_band) * 16U;
     uint32_t approach_distance_q4 = (uint32_t)approach_band * 16U;
     uint32_t max_velocity = max_vel_q4;
+    uint32_t phase_velocity_limit;
 
     if (stop_band_q4 > 65535U) stop_band_q4 = 65535U;
     if (settle_band_q4 > 65535U) settle_band_q4 = 65535U;
@@ -3669,6 +3687,15 @@ static int16_t lcdm_servo_loop_update_fast(void)
     if (approach_distance_q4 > 65535U) approach_distance_q4 = 65535U;
     if (max_velocity > 65535U) max_velocity = 65535U;
     if (max_velocity < 2U) max_velocity = 2U;
+    phase_velocity_limit = max_velocity;
+    if ((s_lcdm_motion_phase_peak_velocity_q4 > (motion_hold_vel_q4 + 1U)) &&
+        (s_lcdm_motion_phase_peak_velocity_q4 < phase_velocity_limit))
+    {
+      /* Scale diagnostic counter-torque against this mechanism's measured
+       * speed, not the product-wide speed ceiling. At low-speed bench motion,
+       * the latter collapsed brake duty below the H-bridge reversal threshold. */
+      phase_velocity_limit = s_lcdm_motion_phase_peak_velocity_q4;
+    }
 
     phase_input.elapsed_ms = now_ms - s_lcdm_servo_customer_start_ms;
     phase_input.error_q4 = (int32_t)error * 16;
@@ -3693,9 +3720,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
     phase_config.hard_timeout_ms = SERVO_LCDM_MOTION_PHASE_TIMEOUT_MS;
     phase_config.stop_error_band_q4 = (uint16_t)stop_band_q4;
     phase_config.settle_error_band_q4 = (uint16_t)settle_band_q4;
-    phase_config.stop_velocity_band_q4 = (motion_hold_vel_q4 < (max_velocity - 1U)) ?
-                                         motion_hold_vel_q4 : (uint16_t)(max_velocity - 1U);
-    phase_config.max_velocity_q4 = (uint16_t)max_velocity;
+    phase_config.stop_velocity_band_q4 = (motion_hold_vel_q4 < (phase_velocity_limit - 1U)) ?
+                                         motion_hold_vel_q4 : (uint16_t)(phase_velocity_limit - 1U);
+    phase_config.max_velocity_q4 = (uint16_t)phase_velocity_limit;
     phase_config.brake_margin_q4 = 0U;
     phase_config.fallback_brake_distance_q4 = (uint16_t)approach_distance_q4;
     phase_config.max_duty_permille = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE;
@@ -3711,9 +3738,39 @@ static int16_t lcdm_servo_loop_update_fast(void)
           (uint16_t)(feedback - s_lcdm_motion_phase_start_adc) :
           (uint16_t)(s_lcdm_motion_phase_start_adc - feedback);
       phase_output = LcdmMotionPhase_UpdatePositionGuarded(
-          &phase_input, &phase_config, displacement, 8U,
+          &phase_input, &phase_config, displacement,
+          SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC,
           s_lcdm_motion_phase_peak_velocity_q4,
           &s_lcdm_motion_phase_position_guard_latched);
+    }
+    if (phase_output.phase == LCDM_MOTION_PHASE_REVERSE_BRAKE)
+    {
+      if (s_lcdm_motion_phase_brake_hold_until_ms == 0U)
+      {
+        s_lcdm_motion_phase_brake_hold_until_ms = now_ms +
+            LCDM_SERVO_REVERSE_DEAD_MS + 16U;
+        s_lcdm_motion_phase_brake_dir = (s_lcdm_servo_customer_dir > 0) ? -1 : 1;
+      }
+    }
+    if (phase_input.feedback_valid &&
+        (s_lcdm_motion_phase_brake_hold_until_ms != 0U) &&
+        ((int32_t)(now_ms - s_lcdm_motion_phase_brake_hold_until_ms) < 0))
+    {
+      uint16_t brake_duty = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE;
+      if (brake_duty < LCDM_SERVO_REVERSE_MIN_DUTY)
+      {
+        brake_duty = LCDM_SERVO_REVERSE_MIN_DUTY;
+      }
+      phase_output.phase = LCDM_MOTION_PHASE_REVERSE_BRAKE;
+      phase_output.signed_duty_permille = (int16_t)(s_lcdm_motion_phase_brake_dir *
+                                                     (int16_t)brake_duty);
+    }
+    else if (!phase_input.feedback_valid ||
+             ((s_lcdm_motion_phase_brake_hold_until_ms != 0U) &&
+              ((int32_t)(now_ms - s_lcdm_motion_phase_brake_hold_until_ms) >= 0)))
+    {
+      s_lcdm_motion_phase_brake_hold_until_ms = 0U;
+      s_lcdm_motion_phase_brake_dir = 0;
     }
     s_lcdm_motion_phase = phase_output.phase;
     duty_calc = phase_output.signed_duty_permille;

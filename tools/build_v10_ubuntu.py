@@ -47,9 +47,15 @@ def main():
     parser.add_argument('--lcdm-motion-phase-test', action='store_true',
                         help='build a SWD-armed LCDM phase test, capped at 250 permille, 8 ADC counts, and 500 ms')
     parser.add_argument('--motion-phase-duty', type=int, default=200,
-                        help='motion-phase test drive/brake cap in permille (100..300; default 200)')
+                        help='motion-phase test drive/brake cap in permille (180..300; default 200; 180 is the reversal gate)')
     parser.add_argument('--motion-phase-timeout-ms', type=int, default=500,
                         help='motion-phase test hard cutoff in ms (60..500; default 500)')
+    parser.add_argument('--motion-phase-step-us', type=int, default=50,
+                        help='internal motion-phase PWM offset from 1500 us (40..300; default 50)')
+    parser.add_argument('--motion-phase-base-pulse-us', type=int, default=1500,
+                        help='first internal command pulse (500..2200 us; default 1500)')
+    parser.add_argument('--motion-phase-position-limit-adc', type=int, default=8,
+                        help='motion-phase absolute ADC displacement guard (8..500; default 8)')
     parser.add_argument('--production-loop-r01-test', action='store_true',
                         help='build production TJC LCDM and Servo_Control with an explicitly armed internal 1500/1510 us source')
     parser.add_argument('--r01-center-return-test', action='store_true',
@@ -140,10 +146,16 @@ def main():
                                         args.internal_step_test or args.production_loop_r01_test or
                                         args.force_coast or args.r01_touch_jog):
         parser.error('--lcdm-motion-phase-test requires the LCDM runtime feedback loop and cannot combine with other motion diagnostics')
-    if not 100 <= args.motion_phase_duty <= 300:
-        parser.error('--motion-phase-duty must be in 100..300 permille')
+    if not 180 <= args.motion_phase_duty <= 300:
+        parser.error('--motion-phase-duty must be in 180..300 permille to pass the H-bridge reversal gate')
     if not 60 <= args.motion_phase_timeout_ms <= 500:
         parser.error('--motion-phase-timeout-ms must be in 60..500 ms')
+    if not 40 <= args.motion_phase_step_us <= 300:
+        parser.error('--motion-phase-step-us must be in 40..300 us')
+    if not 500 <= args.motion_phase_base_pulse_us <= 2200 or args.motion_phase_base_pulse_us + args.motion_phase_step_us > 2500:
+        parser.error('--motion-phase-base-pulse-us plus step must stay within 500..2500 us')
+    if not 8 <= args.motion_phase_position_limit_adc <= 500:
+        parser.error('--motion-phase-position-limit-adc must be in 8..500 counts')
     if args.production_loop_r01_test and (args.profile != 'lcdm' or args.internal_step_test or args.production_lcdm or args.r04_ui_redraw_stress):
         parser.error('--production-loop-r01-test selects its own production LCDM and internal step flags')
     if args.r01_touch_jog and not args.production_loop_r01_test:
@@ -201,7 +213,10 @@ def main():
         flags = [flag for flag in flags if flag != 'SERVO_TJC_RX_ENABLE=1']
         flags += ['SERVO_TJC_RX_ENABLE=0', 'SERVO_ENABLE_LCDM_MOTION_PHASE_TEST=1',
                   f'SERVO_LCDM_MOTION_PHASE_TIMEOUT_MS={args.motion_phase_timeout_ms}',
-                  f'SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE={args.motion_phase_duty}']
+                  f'SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE={args.motion_phase_duty}',
+                  f'SERVO_LCDM_MOTION_PHASE_STEP_US={args.motion_phase_step_us}',
+                  f'SERVO_LCDM_MOTION_PHASE_BASE_PULSE_US={args.motion_phase_base_pulse_us}',
+                  f'SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC={args.motion_phase_position_limit_adc}']
     if args.pa6_single_pulse:
         flags = ['LTO=1', 'BOARD_TSSOP20_DEBUG_PINS=1', 'SERVO_ENABLE_LCDM_RUNTIME_UI_TEST=0',
                  'SERVO_ENABLE_TJC_LCDM=0', 'SERVO_ENABLE_COMM=0',
@@ -297,6 +312,11 @@ def main():
             f'-DSERVO_LCDM_MOTION_PHASE_TIMEOUT_MS={args.motion_phase_timeout_ms}U' not in build_log or
             f'-DSERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE={args.motion_phase_duty}U' not in build_log):
         raise SystemExit('Motion-phase candidate is missing its feature, timeout, duty cap, or runtime-feedback macro; candidate rejected')
+    if args.lcdm_motion_phase_test and (
+            f'-DSERVO_LCDM_MOTION_PHASE_STEP_US={args.motion_phase_step_us}U' not in build_log or
+            f'-DSERVO_LCDM_MOTION_PHASE_BASE_PULSE_US={args.motion_phase_base_pulse_us}U' not in build_log or
+            f'-DSERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC={args.motion_phase_position_limit_adc}U' not in build_log):
+        raise SystemExit('Motion-phase candidate is missing its PWM step or ADC travel guard; candidate rejected')
     if args.r01_lcd_only_test and '-DSERVO_R01_LCD_ONLY_TEST=1' not in build_log:
         raise SystemExit('Requested LCD-only test macro is absent from the compiler command; candidate rejected')
     if args.production_loop_r01_test and f'-DSERVO_R01_TEST_POSITION_LIMIT_ADC={args.r01_position_limit_adc}' not in build_log:
