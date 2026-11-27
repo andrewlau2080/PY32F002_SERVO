@@ -266,11 +266,15 @@ static inline LcdmMotionPhaseOutput LcdmMotionPhase_UpdatePositionGuarded(
     const LcdmMotionPhaseConfig *config,
     uint16_t displacement_adc,
     uint16_t position_limit_adc,
+    uint16_t measured_peak_velocity_q4,
     uint8_t *position_guard_latched)
 {
   LcdmMotionPhaseOutput output = {LCDM_MOTION_PHASE_FAULT, 0};
   LcdmMotionPhaseInput guarded_input;
+  LcdmMotionPhaseConfig guarded_config;
   uint32_t speed_q4;
+  uint16_t guard_stop_velocity_q4;
+  uint16_t guard_max_velocity_q4;
   bool guard_active;
 
   if ((input == 0) || (config == 0))
@@ -305,16 +309,30 @@ static inline LcdmMotionPhaseOutput LcdmMotionPhase_UpdatePositionGuarded(
   speed_q4 = (input->velocity_q4 < 0) ?
       (uint32_t)(-(int64_t)input->velocity_q4) :
       (uint32_t)input->velocity_q4;
-  if (speed_q4 <= config->stop_velocity_band_q4)
+  guard_stop_velocity_q4 = measured_peak_velocity_q4 / 4U;
+  if (guard_stop_velocity_q4 == 0U)
+  {
+    guard_stop_velocity_q4 = 1U;
+  }
+  if (guard_stop_velocity_q4 > config->stop_velocity_band_q4)
+  {
+    guard_stop_velocity_q4 = config->stop_velocity_band_q4;
+  }
+  if (speed_q4 <= guard_stop_velocity_q4)
   {
     output.phase = LCDM_MOTION_PHASE_COAST;
     return output;
   }
 
+  guard_max_velocity_q4 = (measured_peak_velocity_q4 > guard_stop_velocity_q4) ?
+      measured_peak_velocity_q4 : (uint16_t)(guard_stop_velocity_q4 + 1U);
+  guarded_config = *config;
+  guarded_config.stop_velocity_band_q4 = guard_stop_velocity_q4;
+  guarded_config.max_velocity_q4 = guard_max_velocity_q4;
   guarded_input = *input;
   guarded_input.stop_distance_q4 = UINT32_MAX;
   guarded_input.stop_model_valid = true;
-  output = LcdmMotionPhase_Update(&guarded_input, config);
+  output = LcdmMotionPhase_Update(&guarded_input, &guarded_config);
   if ((output.phase == LCDM_MOTION_PHASE_FAULT) ||
       (output.phase == LCDM_MOTION_PHASE_TIMEOUT))
   {

@@ -455,9 +455,13 @@ static LcdmMotionPhase s_lcdm_motion_phase = LCDM_MOTION_PHASE_COAST;
 static uint8_t s_lcdm_motion_phase_armed;
 static uint16_t s_lcdm_motion_phase_start_adc;
 static uint8_t s_lcdm_motion_phase_position_guard_latched;
+static uint16_t s_lcdm_motion_phase_peak_velocity_q4;
 static int16_t s_lcdm_motion_phase_target_offset_adc = 32767;
 __attribute__((used)) volatile uint32_t g_lcdm_motion_phase_arm_request;
 __attribute__((used)) volatile uint8_t g_lcdm_motion_phase_use_internal_pwm;
+__attribute__((used)) volatile uint8_t g_lcdm_motion_phase_trace_count;
+__attribute__((used)) volatile uint8_t g_lcdm_motion_phase_trace[24][12];
+__attribute__((used)) volatile uint32_t g_lcdm_motion_phase_trace_start_ms;
 __attribute__((used)) volatile int16_t g_lcdm_motion_phase_requested_duty;
 __attribute__((used)) volatile int16_t g_lcdm_motion_phase_final_duty;
 __attribute__((used)) volatile int16_t g_lcdm_motion_phase_error_adc;
@@ -473,6 +477,66 @@ __attribute__((used)) volatile int16_t g_lcdm_motion_phase_error_max;
 __attribute__((used)) volatile uint16_t g_lcdm_motion_phase_feedback_min;
 __attribute__((used)) volatile uint16_t g_lcdm_motion_phase_feedback_max;
 __attribute__((used)) volatile uint16_t g_lcdm_motion_phase_valid_loops;
+
+static uint32_t s_lcdm_motion_phase_trace_last_ms;
+static uint8_t s_lcdm_motion_phase_trace_active;
+
+static void lcdm_motion_phase_trace_begin(uint32_t now_ms)
+{
+  g_lcdm_motion_phase_trace_count = 0U;
+  g_lcdm_motion_phase_trace_start_ms = now_ms;
+  s_lcdm_motion_phase_trace_last_ms = now_ms - 1U;
+  s_lcdm_motion_phase_trace_active = 1U;
+}
+
+static void lcdm_motion_phase_trace_sample(uint32_t now_ms,
+                                           uint16_t raw_adc,
+                                           uint16_t feedback_adc,
+                                           int32_t velocity_q4,
+                                           int16_t requested_duty,
+                                           int16_t final_duty,
+                                           LcdmMotionPhase phase)
+{
+  uint32_t elapsed_ms;
+  uint8_t index;
+  volatile uint8_t *sample;
+  uint32_t interval_ms;
+  int16_t velocity_sample;
+
+  if (s_lcdm_motion_phase_trace_active == 0U)
+  {
+    return;
+  }
+  elapsed_ms = now_ms - g_lcdm_motion_phase_trace_start_ms;
+  if ((elapsed_ms > 180U) || (g_lcdm_motion_phase_trace_count >= 24U))
+  {
+    s_lcdm_motion_phase_trace_active = 0U;
+    return;
+  }
+  index = g_lcdm_motion_phase_trace_count;
+  interval_ms = (index < 12U) ? 1U : 8U;
+  if ((now_ms - s_lcdm_motion_phase_trace_last_ms) < interval_ms)
+  {
+    return;
+  }
+  sample = &g_lcdm_motion_phase_trace[index][0];
+  velocity_sample = (velocity_q4 > INT16_MAX) ? INT16_MAX :
+                    ((velocity_q4 < INT16_MIN) ? INT16_MIN : (int16_t)velocity_q4);
+  sample[0] = (uint8_t)elapsed_ms;
+  sample[1] = (uint8_t)raw_adc;
+  sample[2] = (uint8_t)(raw_adc >> 8);
+  sample[3] = (uint8_t)feedback_adc;
+  sample[4] = (uint8_t)(feedback_adc >> 8);
+  sample[5] = (uint8_t)velocity_sample;
+  sample[6] = (uint8_t)((uint16_t)velocity_sample >> 8);
+  sample[7] = (uint8_t)requested_duty;
+  sample[8] = (uint8_t)((uint16_t)requested_duty >> 8);
+  sample[9] = (uint8_t)final_duty;
+  sample[10] = (uint8_t)((uint16_t)final_duty >> 8);
+  sample[11] = (uint8_t)phase;
+  g_lcdm_motion_phase_trace_count = (uint8_t)(index + 1U);
+  s_lcdm_motion_phase_trace_last_ms = now_ms;
+}
 #endif
 static int8_t s_lcdm_servo_customer_dir;
 static LcdmVelocityObserver s_lcdm_velocity_observer;
@@ -3192,6 +3256,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
     g_lcdm_motion_phase_arm_request = 0U;
     s_lcdm_motion_phase_armed = 1U;
     s_lcdm_motion_phase_position_guard_latched = 0U;
+    s_lcdm_motion_phase_peak_velocity_q4 = 0U;
     g_lcdm_motion_phase_active_loops = 0U;
     g_lcdm_motion_phase_seen_mask = 0U;
     g_lcdm_motion_phase_request_min = INT16_MAX;
@@ -3275,7 +3340,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
         s_lcdm_motion_phase_armed = 0U;
         s_lcdm_motion_phase_start_adc = feedback;
         s_lcdm_motion_phase_position_guard_latched = 0U;
+        s_lcdm_motion_phase_peak_velocity_q4 = 0U;
         s_lcdm_motion_phase = LCDM_MOTION_PHASE_COAST;
+        lcdm_motion_phase_trace_begin(now_ms);
       }
 #else
       s_lcdm_servo_customer_active = 1U;
@@ -3299,6 +3366,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
   motion_phase_override = (s_lcdm_servo_customer_active != 0U);
   if (!motion_phase_override)
   {
+    lcdm_motion_phase_trace_sample(now_ms, raw_adc, feedback,
+        s_lcdm_servo_vel_q4, g_lcdm_motion_phase_requested_duty,
+        HBridge_GetDuty(), s_lcdm_motion_phase);
     return lcdm_servo_stop_publish(control_pulse_us, raw_adc,
                                    s_lcdm_servo_cmd_target_adc, feedback,
                                    (int16_t)((int32_t)s_lcdm_servo_cmd_target_adc - feedback),
@@ -3600,6 +3670,16 @@ static int16_t lcdm_servo_loop_update_fast(void)
     phase_input.elapsed_ms = now_ms - s_lcdm_servo_customer_start_ms;
     phase_input.error_q4 = (int32_t)error * 16;
     phase_input.velocity_q4 = s_lcdm_servo_vel_q4;
+    {
+      uint32_t abs_velocity_q4 = (phase_input.velocity_q4 < 0) ?
+          (uint32_t)(-(int64_t)phase_input.velocity_q4) :
+          (uint32_t)phase_input.velocity_q4;
+      if (abs_velocity_q4 > s_lcdm_motion_phase_peak_velocity_q4)
+      {
+        s_lcdm_motion_phase_peak_velocity_q4 =
+            (abs_velocity_q4 > UINT16_MAX) ? UINT16_MAX : (uint16_t)abs_velocity_q4;
+      }
+    }
     phase_input.stop_distance_q4 = predicted_stop_distance_q4;
     phase_input.previous_phase = s_lcdm_motion_phase;
     phase_input.previous_signed_duty_permille = HBridge_GetDuty();
@@ -3629,6 +3709,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
           (uint16_t)(s_lcdm_motion_phase_start_adc - feedback);
       phase_output = LcdmMotionPhase_UpdatePositionGuarded(
           &phase_input, &phase_config, displacement, 8U,
+          s_lcdm_motion_phase_peak_velocity_q4,
           &s_lcdm_motion_phase_position_guard_latched);
     }
     s_lcdm_motion_phase = phase_output.phase;
@@ -4067,6 +4148,9 @@ static int16_t lcdm_servo_loop_update_fast(void)
     if (g_lcdm_motion_phase_final_duty > g_lcdm_motion_phase_final_max)
       g_lcdm_motion_phase_final_max = g_lcdm_motion_phase_final_duty;
   }
+  lcdm_motion_phase_trace_sample(now_ms, raw_adc, feedback,
+      s_lcdm_servo_vel_q4, g_lcdm_motion_phase_requested_duty,
+      g_lcdm_motion_phase_final_duty, s_lcdm_motion_phase);
 #endif
 #if SERVO_ENABLE_INTERNAL_STEP_TEST && SERVO_ADC_SUBSAMPLE_DIAGNOSTIC
   lcdm_r01_stage_record(control_pulse_us, raw_adc, feedback, HBridge_GetDuty());

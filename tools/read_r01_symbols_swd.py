@@ -154,6 +154,22 @@ try:
                     count = min(32, int.from_bytes(target.read_memory_block8(
                         cfg["symbols"]["g_r01_touch_jog_trace_count"][0], 1)[0:1], "little"))
                     out["symbols"][name] = [list(data[i * 16:(i + 1) * 16]) for i in range(count)]
+                elif name == "g_lcdm_motion_phase_trace":
+                    count = min(24, int.from_bytes(target.read_memory_block8(
+                        cfg["symbols"]["g_lcdm_motion_phase_trace_count"][0], 1)[0:1], "little"))
+                    records = []
+                    for i in range(count):
+                        row = data[i * 12:(i + 1) * 12]
+                        records.append({
+                            "elapsed_ms": row[0],
+                            "raw_adc": int.from_bytes(row[1:3], "little"),
+                            "feedback_adc": int.from_bytes(row[3:5], "little"),
+                            "velocity_q4": int.from_bytes(row[5:7], "little", signed=True),
+                            "requested_duty": int.from_bytes(row[7:9], "little", signed=True),
+                            "final_duty": int.from_bytes(row[9:11], "little", signed=True),
+                            "phase": row[11],
+                        })
+                    out["symbols"][name] = records
                 else:
                     out["symbols"][name] = int.from_bytes(data, "little", signed=signed)
             except Exception as exc:
@@ -272,6 +288,9 @@ def main():
         ("s_lcdm_servo_current_state", 1, False),
         ("g_lcdm_motion_phase_arm_request", 4, False),
         ("g_lcdm_motion_phase_use_internal_pwm", 1, False),
+        ("g_lcdm_motion_phase_trace_count", 1, False),
+        ("g_lcdm_motion_phase_trace", 24 * 12, False),
+        ("g_lcdm_motion_phase_trace_start_ms", 4, False),
         ("g_lcdm_motion_phase_requested_duty", 2, True),
         ("g_lcdm_motion_phase_final_duty", 2, True),
         ("g_lcdm_motion_phase_error_adc", 2, True),
@@ -339,6 +358,8 @@ def main():
     if args.motion_phase or args.arm_motion_phase or args.enable_motion_phase_input or args.inject_touch_jog or args.redraw_r01_lcd:
         phase_names = {
             "g_lcdm_motion_phase_arm_request", "g_lcdm_motion_phase_use_internal_pwm",
+            "g_lcdm_motion_phase_trace_count", "g_lcdm_motion_phase_trace",
+            "g_lcdm_motion_phase_trace_start_ms",
             "g_lcdm_motion_phase_requested_duty", "g_lcdm_motion_phase_final_duty",
             "g_lcdm_motion_phase_error_adc", "g_lcdm_motion_phase_feedback_valid",
             "g_lcdm_motion_phase_active_loops", "g_lcdm_motion_phase_seen_mask",
@@ -412,6 +433,8 @@ def main():
                     "motion_error_adc_min_max": [min(series("g_lcdm_motion_phase_error_adc")), max(series("g_lcdm_motion_phase_error_adc"))] if series("g_lcdm_motion_phase_error_adc") else [],
                     "motion_active_loops": max(series("g_lcdm_motion_phase_active_loops"), default=0),
                     "motion_phase_seen_mask": sorted(set(series("g_lcdm_motion_phase_seen_mask"))),
+                    "motion_trace": next((row["symbols"].get("g_lcdm_motion_phase_trace") for row in reversed(frames)
+                                          if row["symbols"].get("g_lcdm_motion_phase_trace")), []),
                     "motion_request_duty_min_max": [min(series("g_lcdm_motion_phase_request_min")), max(series("g_lcdm_motion_phase_request_max"))] if series("g_lcdm_motion_phase_request_min") and series("g_lcdm_motion_phase_request_max") else [],
                     "motion_final_duty_min_max": [min(series("g_lcdm_motion_phase_final_min")), max(series("g_lcdm_motion_phase_final_max"))] if series("g_lcdm_motion_phase_final_min") and series("g_lcdm_motion_phase_final_max") else [],
                     "motion_error_range_min_max": [min(series("g_lcdm_motion_phase_error_min")), max(series("g_lcdm_motion_phase_error_max"))] if series("g_lcdm_motion_phase_error_min") and series("g_lcdm_motion_phase_error_max") else [],

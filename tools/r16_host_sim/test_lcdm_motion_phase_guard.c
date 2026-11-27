@@ -71,12 +71,12 @@ int main(void)
   input.previous_phase = LCDM_MOTION_PHASE_DRIVE;
   input.previous_signed_duty_permille = 200;
   input.stop_model_valid = true;
-  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 7U, 8U,
+  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 7U, 8U, 80U,
                                                 &position_guard_latched);
   check("below position guard keeps normal drive phase",
         phase.phase == LCDM_MOTION_PHASE_DRIVE && phase.signed_duty_permille > 0);
 
-  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 8U, 8U,
+  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 8U, 8U, 80U,
                                                 &position_guard_latched);
   check("position guard changes drive to active reverse braking",
         phase.phase == LCDM_MOTION_PHASE_REVERSE_BRAKE && phase.signed_duty_permille < 0 &&
@@ -85,31 +85,50 @@ int main(void)
   input.previous_phase = phase.phase;
   input.previous_signed_duty_permille = phase.signed_duty_permille;
   input.velocity_q4 = -24;
-  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 9U, 8U,
+  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 9U, 8U, 80U,
                                                 &position_guard_latched);
   check("guarded brake releases torque after speed crosses zero",
         phase.phase == LCDM_MOTION_PHASE_BRAKE_COAST && phase.signed_duty_permille == 0);
 
   input.previous_phase = phase.phase;
   input.velocity_q4 = 8;
-  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 7U, 8U,
+  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 7U, 8U, 80U,
                                                 &position_guard_latched);
   check("latched guard stays coasted after speed falls below limit",
         phase.phase == LCDM_MOTION_PHASE_COAST && phase.signed_duty_permille == 0);
 
   input.feedback_valid = false;
-  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 8U, 8U,
+  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 8U, 8U, 80U,
                                                 &position_guard_latched);
   check("latched guard still reports invalid feedback as fault",
         phase.phase == LCDM_MOTION_PHASE_FAULT && phase.signed_duty_permille == 0);
 
   input.feedback_valid = true;
   input.elapsed_ms = config.hard_timeout_ms;
-  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 8U, 8U,
+  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 8U, 8U, 80U,
                                                 &position_guard_latched);
   check("latched guard still reports hard timeout",
         phase.phase == LCDM_MOTION_PHASE_TIMEOUT && phase.signed_duty_permille == 0);
 
-  printf("Motion phase + output guard: 12 checks, %d failures\n", failures);
+  position_guard_latched = 0U;
+  input.elapsed_ms = 40U;
+  input.previous_phase = LCDM_MOTION_PHASE_DRIVE;
+  input.previous_signed_duty_permille = 200;
+  input.velocity_q4 = 14;
+  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 8U, 8U, 14U,
+                                                &position_guard_latched);
+  check("position guard uses observed low-speed peak to brake before nominal stop band",
+        phase.phase == LCDM_MOTION_PHASE_REVERSE_BRAKE &&
+        phase.signed_duty_permille == -200);
+
+  input.previous_phase = phase.phase;
+  input.previous_signed_duty_permille = phase.signed_duty_permille;
+  input.velocity_q4 = 3;
+  phase = LcdmMotionPhase_UpdatePositionGuarded(&input, &config, 9U, 8U, 14U,
+                                                &position_guard_latched);
+  check("guard coasts when speed falls below one quarter of observed peak",
+        phase.phase == LCDM_MOTION_PHASE_COAST && phase.signed_duty_permille == 0);
+
+  printf("Motion phase + output guard: 14 checks, %d failures\n", failures);
   return failures ? 1 : 0;
 }
