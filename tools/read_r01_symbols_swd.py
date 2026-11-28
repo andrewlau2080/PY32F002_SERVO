@@ -196,6 +196,8 @@ def main():
                         help="read only the limited LCDM motion-phase telemetry symbols")
     parser.add_argument("--arm-motion-phase", action="store_true",
                         help="enable the configured internal alternating PWM and one-shot guarded motion after zero-duty checks")
+    parser.add_argument("--arm-motion-phase-only", action="store_true",
+                        help="arm once and disconnect immediately so SWD polling cannot interrupt the motion loop")
     parser.add_argument("--enable-motion-phase-input", action="store_true",
                         help="enable the configured internal alternating command source only; refuses unless motion is disarmed/coasted")
     parser.add_argument("--inject-touch-jog", choices=("fwd", "rev"),
@@ -206,8 +208,10 @@ def main():
     parser.add_argument("--pack", default="/home/andrew/ARTERY/DQ110_FW/1.2.8.pack")
     parser.add_argument("--compat", default="/home/andrew/.local/share/servo_swd/dq110_pyocd_hid_compat.py")
     args = parser.parse_args()
-    if args.samples < 1 or args.interval_ms < 10:
-        parser.error("samples must be positive and interval-ms at least 10")
+    if args.arm_motion_phase_only and not args.arm_motion_phase:
+        parser.error("--arm-motion-phase-only requires --arm-motion-phase")
+    if args.samples < (0 if args.arm_motion_phase_only else 1) or args.interval_ms < 10:
+        parser.error("samples must be positive (or zero for arm-only) and interval-ms at least 10")
     nm_output = subprocess.check_output(["arm-none-eabi-nm", "-n", args.elf], text=True)
     addresses = {}
     for line in nm_output.splitlines():
@@ -306,6 +310,16 @@ def main():
         ("g_lcdm_motion_phase_feedback_min", 2, False),
         ("g_lcdm_motion_phase_feedback_max", 2, False),
         ("g_lcdm_motion_phase_valid_loops", 2, False),
+        ("g_lcdm_motion_phase_exit_reason", 1, False),
+        ("g_lcdm_motion_phase_exit_phase", 1, False),
+        ("g_lcdm_motion_phase_exit_state", 1, False),
+        ("g_lcdm_motion_phase_exit_elapsed_ms", 2, False),
+        ("g_lcdm_motion_phase_exit_feedback_adc", 2, False),
+        ("g_lcdm_motion_phase_exit_hbridge_duty", 2, True),
+        ("g_lcdm_motion_phase_exit_count", 2, False),
+        ("g_r04_scheduler_dropped_tick_count", 4, False),
+        ("g_r04_scheduler_max_dropped_ticks", 2, False),
+        ("g_r04_scheduler_overrun_context_nibbles", 2, False),
         ("g_motion_phase_forward_pwm_ticks", 4, False),
         ("g_motion_phase_reverse_pwm_ticks", 4, False),
         ("g_motion_phase_forward_pa6_high_ticks", 4, False),
@@ -367,7 +381,15 @@ def main():
             "g_lcdm_motion_phase_final_min", "g_lcdm_motion_phase_final_max",
             "g_lcdm_motion_phase_error_min", "g_lcdm_motion_phase_error_max",
             "g_lcdm_motion_phase_feedback_min", "g_lcdm_motion_phase_feedback_max",
-            "g_lcdm_motion_phase_valid_loops",
+            "g_lcdm_motion_phase_valid_loops", "g_lcdm_motion_phase_exit_reason",
+            "g_lcdm_motion_phase_exit_phase", "g_lcdm_motion_phase_exit_state",
+            "g_lcdm_motion_phase_exit_elapsed_ms",
+            "g_lcdm_motion_phase_exit_feedback_adc",
+            "g_lcdm_motion_phase_exit_hbridge_duty",
+            "g_lcdm_motion_phase_exit_count",
+            "g_r04_scheduler_dropped_tick_count",
+            "g_r04_scheduler_max_dropped_ticks",
+            "g_r04_scheduler_overrun_context_nibbles",
             "g_motion_phase_forward_pwm_ticks", "g_motion_phase_reverse_pwm_ticks",
             "g_motion_phase_forward_pa6_high_ticks", "g_motion_phase_forward_pb0_high_ticks",
             "g_motion_phase_forward_pad_mismatch_ticks",
@@ -399,7 +421,8 @@ def main():
                "redraw_r01_lcd": args.redraw_r01_lcd,
                "arm_motion_phase": args.arm_motion_phase,
                "enable_motion_phase_input": args.enable_motion_phase_input,
-               "samples": args.samples, "interval_ms": args.interval_ms,
+               "samples": 0 if args.arm_motion_phase_only else args.samples,
+               "interval_ms": args.interval_ms,
                "symbols": {name: [addresses.get(name), size, signed]
                            for name, size, signed in names}}
         encoded = base64.b64encode(json.dumps(cfg).encode()).decode()
