@@ -58,6 +58,12 @@ static uint32_t s_reverse_pause_until_ms;
 static uint32_t s_reverse_brake_until_ms;
 static uint32_t s_stall_ms;
 static uint32_t s_recover_until_ms;
+#if BOARD_TSSOP20_DEBUG_PINS
+static uint16_t s_breakaway_command_us;
+static uint16_t s_breakaway_origin_adc;
+static uint32_t s_breakaway_start_ms;
+static bool s_breakaway_available;
+#endif
 
 #if SERVO_R01_PRODUCTION_LOOP_TEST
 extern volatile uint8_t g_r01_production_test_active;
@@ -457,6 +463,10 @@ void Servo_Control_Update1ms(void)
 
   if (!input_valid)
   {
+#if BOARD_TSSOP20_DEBUG_PINS
+    s_breakaway_available = false;
+    s_breakaway_command_us = 0U;
+#endif
     /* 失信号分支：按参数选择滑行、锁原位置，或回到 1500us 中位。 */
     if (!Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_LOSE_PPM_LOCK))
     {
@@ -693,6 +703,33 @@ void Servo_Control_Update1ms(void)
                                0,
                                params->max_duty);
   }
+
+#if BOARD_TSSOP20_DEBUG_PINS
+  /* Give a new command one bounded chance to overcome static friction.
+   * Use the un-ramped input command to avoid rearming on every ramp tick. */
+  if (input_valid && (s_breakaway_command_us == 0U ||
+      abs_i16((int16_t)((int32_t)input_us - s_breakaway_command_us)) >= 8U))
+  {
+    s_breakaway_command_us = input_us;
+    s_breakaway_origin_adc = feedback;
+    s_breakaway_start_ms = now_ms;
+    s_breakaway_available = true;
+  }
+  if (!input_valid || now_ms - s_breakaway_start_ms >= 65U ||
+      abs_i16((int16_t)((int32_t)feedback - s_breakaway_origin_adc)) >= 4U)
+  {
+    s_breakaway_available = false;
+  }
+  if (s_breakaway_available && velocity_valid &&
+      abs_i16((int16_t)velocity_q4) <= 8U && abs_error >= 24U && duty != 0)
+  {
+    uint16_t floor = params->max_duty < 220U ? params->max_duty : 220U;
+    if (abs_i16(duty) < floor)
+    {
+      duty = duty > 0 ? (int16_t)floor : -(int16_t)floor;
+    }
+  }
+#endif
 
   if (Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_MOTOR_REVERSE))
   {

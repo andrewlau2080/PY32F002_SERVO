@@ -67,7 +67,7 @@ def main():
     parser.add_argument('--r01-position-limit-adc', type=int, default=8,
                         help='latched coast limit from the measured R01 start position (1..32 ADC counts)')
     parser.add_argument('--r01-anchor-pulse-us', type=int, choices=[1500, 1550], default=1500,
-                        help='pulse mapped to the live ADC anchor; use 1550 to test the 1550-to-1500 direction')
+                        help='pulse mapped to the live ADC anchor; use 1550 for a downward step of the configured size')
     parser.add_argument('--r01-explicit-arm', action='store_true',
                         help='disable automatic R01 motion and wait for a live SWD arm request; capped at 150 permille')
     parser.add_argument('--r01-test-step-us', type=int, default=None,

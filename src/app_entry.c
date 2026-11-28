@@ -5641,15 +5641,26 @@ int entry(void)
       }
       else if (SERVO_R01_TEST_ANCHOR_PULSE_US == 1550U)
       {
-        test_pulse_us = 1500U;
+        test_pulse_us = (uint16_t)(1550U - SERVO_R01_TEST_STEP_US);
       }
       else
       {
         test_pulse_us = (uint16_t)(1500U + SERVO_R01_TEST_STEP_US);
       }
 #endif
+#if !SERVO_R01_TEST_STAIRCASE
+      if (elapsed_ms >= 250U && elapsed_ms < 550U &&
+          g_r01_prod_motion_locked == 0U)
+      {
+        HBridge_SetHardCoastDeadline(s_r01_production_test_start_ms + 550U);
+      }
+#endif
       if ((g_r01_prod_motion_locked != 0U) ||
+#if SERVO_R01_TEST_STAIRCASE
           (elapsed_ms >= SERVO_R01_TEST_TIMEOUT_MS))
+#else
+          (elapsed_ms >= 550U))
+#endif
       {
         g_r01_production_test_active = 0U;
         g_r01_active_test_arm_request = 2U;
@@ -5753,6 +5764,13 @@ int entry(void)
       else
       {
         HBridge_Coast();
+#if !SERVO_R01_TEST_STAIRCASE && !SERVO_R01_CENTER_RETURN_TEST
+        /* Keep the stopped position observable after the control window ends. */
+        if ((now_ms % 20U) == 0U)
+        {
+          (void)ADC_Feedback_ReadRaw();
+        }
+#endif
       }
 #endif /* SERVO_R01_TOUCH_JOG_TEST */
 #endif /* SERVO_R01_LCD_ONLY_TEST */
@@ -5798,10 +5816,12 @@ int entry(void)
       ServoStatus status = Servo_Control_GetStatus();
       uint16_t in1, in2, in3, in4;
       HBridge_GetInputDutyPermille(&in1, &in2, &in3, &in4);
-      TJC_LCDM_ShowR01Status(test_pulse_us, status.feedback_adc,
-                             status.target_adc, status.error_adc,
-                             in3, in4, in1, in2,
-                             g_r01_production_test_active);
+      if (g_r01_production_test_active == 0U)
+      {
+        TJC_LCDM_ShowR01Status(test_pulse_us, status.feedback_adc,
+                               status.target_adc, status.error_adc,
+                               in3, in4, in1, in2, 0U);
+      }
 #endif
     }
 #endif

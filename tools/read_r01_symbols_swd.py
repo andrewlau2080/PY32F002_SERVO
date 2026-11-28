@@ -211,6 +211,8 @@ def main():
     parser.add_argument("--interval-ms", type=int, default=100, help="delay between snapshots")
     parser.add_argument("--arm-r01-motion", action="store_true",
                         help="explicitly arm the preconfigured, limited R01 production motion test")
+    parser.add_argument("--arm-r01-motion-only", action="store_true",
+                        help="arm the production-loop one-shot and disconnect before reading telemetry")
     parser.add_argument("--motion-phase", action="store_true",
                         help="read only the limited LCDM motion-phase telemetry symbols")
     parser.add_argument("--arm-motion-phase", action="store_true",
@@ -229,6 +231,8 @@ def main():
     parser.add_argument("--pack", default="/home/andrew/ARTERY/DQ110_FW/1.2.8.pack")
     parser.add_argument("--compat", default="/home/andrew/.local/share/servo_swd/dq110_pyocd_hid_compat.py")
     args = parser.parse_args()
+    if args.arm_r01_motion_only and (not args.arm_r01_motion or args.arm_motion_phase):
+        parser.error("--arm-r01-motion-only requires --arm-r01-motion without motion-phase arming")
     if args.arm_motion_phase_only and not args.arm_motion_phase:
         parser.error("--arm-motion-phase-only requires --arm-motion-phase")
     if args.motion_phase_arm_from_us is not None and (
@@ -449,7 +453,7 @@ def main():
                "arm_motion_phase": args.arm_motion_phase,
                "motion_phase_arm_from_us": args.motion_phase_arm_from_us,
                "enable_motion_phase_input": args.enable_motion_phase_input,
-               "samples": 0 if args.arm_motion_phase_only else args.samples,
+               "samples": 0 if (args.arm_motion_phase_only or args.arm_r01_motion_only) else args.samples,
                "interval_ms": args.interval_ms,
                "symbols": {name: [addresses.get(name), size, signed]
                            for name, size, signed in names}}
