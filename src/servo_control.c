@@ -63,6 +63,9 @@ static uint16_t s_breakaway_command_us;
 static uint16_t s_breakaway_origin_adc;
 static uint32_t s_breakaway_start_ms;
 static bool s_breakaway_available;
+static bool s_breakaway_fine;
+static int8_t s_breakaway_direction;
+static uint8_t s_breakaway_motion_samples;
 static uint16_t s_precoast_target_adc;
 static uint16_t s_precoast_origin_adc;
 static uint16_t s_precoast_velocity_adc;
@@ -96,6 +99,11 @@ volatile int16_t g_r01_prod_lock_bridge_duty;
 volatile uint16_t g_r01_prod_anchor_adc;
 __attribute__((used)) volatile uint16_t g_r01_prod_precoast_adc;
 __attribute__((used)) volatile int16_t g_r01_prod_precoast_velocity_q4;
+__attribute__((used)) volatile uint16_t g_r01_prod_fine_pwm_samples;
+__attribute__((used)) volatile uint16_t g_r01_prod_fine_pwm_longest_ms;
+__attribute__((used)) volatile uint8_t g_r01_prod_fine_exit;
+static uint32_t s_r01_prod_fine_pwm_last_ms;
+static uint16_t s_r01_prod_fine_pwm_run_ms;
 volatile int16_t g_r01_prod_center_offset_adc;
 volatile uint32_t g_r01_prod_nonzero_duty_count;
 volatile uint16_t g_r01_prod_max_abs_duty;
@@ -352,6 +360,9 @@ void Servo_Control_Init(void)
 #if BOARD_TSSOP20_DEBUG_PINS
   s_breakaway_command_us = 0U;
   s_breakaway_available = false;
+  s_breakaway_fine = false;
+  s_breakaway_direction = 0;
+  s_breakaway_motion_samples = 0U;
   s_precoast_target_adc = UINT16_MAX;
   s_precoast_velocity_ms = 0U;
   s_precoast_until_ms = 0U;
@@ -369,6 +380,11 @@ void Servo_Control_Init(void)
   g_r01_prod_last_duty = 0;
   g_r01_prod_precoast_adc = UINT16_MAX;
   g_r01_prod_precoast_velocity_q4 = 0;
+  g_r01_prod_fine_pwm_samples = 0U;
+  g_r01_prod_fine_pwm_longest_ms = 0U;
+  g_r01_prod_fine_exit = 0U;
+  s_r01_prod_fine_pwm_last_ms = 0U;
+  s_r01_prod_fine_pwm_run_ms = 0U;
 #endif
   /* 驱动频率属于可调参数，不同马达可能对噪声和效率有不同表现。 */
   HBridge_SetFrequency(Servo_Params_Get()->drive_frequency_hz);
@@ -496,6 +512,7 @@ void Servo_Control_Update1ms(void)
 #if BOARD_TSSOP20_DEBUG_PINS
     s_breakaway_available = false;
     s_breakaway_command_us = 0U;
+    s_breakaway_direction = 0;
 #endif
     /* 失信号分支：按参数选择滑行、锁原位置，或回到 1500us 中位。 */
     if (!Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_LOSE_PPM_LOCK))
@@ -632,6 +649,18 @@ void Servo_Control_Update1ms(void)
   s_status.target_adc = effective_target;
   s_status.error_adc = error;
   uint16_t abs_error = abs_i16(error);
+#if BOARD_TSSOP20_DEBUG_PINS
+  bool fine_boost_requested = false;
+  if (s_breakaway_fine && s_breakaway_direction != 0 &&
+      (abs_error <= deadband_count || (int32_t)error * s_breakaway_direction <= 0))
+  {
+    s_breakaway_available = false;
+    s_breakaway_direction = 0;
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+    g_r01_prod_fine_exit = 3U; /* arrival or target crossed */
+#endif
+  }
+#endif
 #if BOARD_TSSOP20_DEBUG_PINS
   if (s_precoast_target_adc != target || !input_valid)
   {
@@ -795,26 +824,64 @@ void Servo_Control_Update1ms(void)
     s_breakaway_origin_adc = feedback;
     s_breakaway_start_ms = now_ms;
     s_breakaway_available = true;
+    s_breakaway_fine = abs_i16((int16_t)((int32_t)target - feedback)) < 24U;
+    s_breakaway_direction = 0;
+    s_breakaway_motion_samples = 0U;
   }
-  bool fine_step = abs_error < 24U;
-  uint32_t breakaway_window_ms = fine_step ? 55U : 65U;
-  uint16_t breakaway_move_limit = fine_step ? 3U : 4U;
-  if (!input_valid || now_ms - s_breakaway_start_ms >= breakaway_window_ms ||
-      abs_i16((int16_t)((int32_t)feedback - s_breakaway_origin_adc)) >= breakaway_move_limit)
+  if (s_breakaway_available && s_breakaway_fine)
   {
-    s_breakaway_available = false;
-  }
-  if (s_breakaway_available && velocity_valid &&
-      abs_i16((int16_t)velocity_q4) <= 8U &&
-      abs_error >= (fine_step ? (uint32_t)deadband_count + 4U : 24U) &&
-      duty != 0)
-  {
-    uint16_t floor = params->max_duty < 220U ? params->max_duty : 220U;
-    if (abs_i16(duty) < floor)
+    int8_t direction = (error > 0) ? 1 : -1;
+    if (s_breakaway_direction != 0)
     {
-      duty = duty > 0 ? (int16_t)floor : -(int16_t)floor;
+      int32_t travel = ((int32_t)feedback - s_breakaway_origin_adc) * s_breakaway_direction;
+      s_breakaway_motion_samples = (travel >= 3) ?
+          (uint8_t)(s_breakaway_motion_samples + 1U) : 0U;
+    }
+    uint8_t end_reason = 0U;
+    if (s_breakaway_motion_samples >= 2U)
+      end_reason = 1U;
+    else if (!input_valid || now_ms - s_breakaway_start_ms >= 55U)
+      end_reason = 2U;
+    if (end_reason != 0U)
+    {
+      s_breakaway_available = false;
+      s_breakaway_direction = 0;
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+      g_r01_prod_fine_exit = end_reason;
+#endif
+    }
+    else if (duty != 0 &&
+        (s_breakaway_direction != 0 ||
+         (velocity_valid && abs_i16((int16_t)velocity_q4) <= 8U &&
+          abs_error >= (uint32_t)deadband_count + 4U)))
+    {
+      const uint16_t floor = params->max_duty < 220U ? params->max_duty : 220U;
+      s_breakaway_direction = direction;
+      if (abs_i16(duty) < floor)
+      {
+        duty = (int16_t)(floor * direction);
+        fine_boost_requested = true;
+      }
     }
   }
+  else if (s_breakaway_available)
+  {
+    if (!input_valid || now_ms - s_breakaway_start_ms >= 65U ||
+        abs_i16((int16_t)((int32_t)feedback - s_breakaway_origin_adc)) >= 4U)
+    {
+      s_breakaway_available = false;
+    }
+    else if (velocity_valid && abs_i16((int16_t)velocity_q4) <= 8U &&
+             abs_error >= 24U && duty != 0)
+    {
+      const uint16_t floor = params->max_duty < 220U ? params->max_duty : 220U;
+      if (abs_i16(duty) < floor)
+        duty = duty > 0 ? (int16_t)floor : -(int16_t)floor;
+    }
+  }
+#if !SERVO_R01_PRODUCTION_LOOP_TEST
+  (void)fine_boost_requested;
+#endif
 #endif
 
   if (Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_MOTOR_REVERSE))
@@ -916,6 +983,19 @@ void Servo_Control_Update1ms(void)
   }
 #endif
   HBridge_SetSignedDuty(duty);
+#if SERVO_R01_PRODUCTION_LOOP_TEST && BOARD_TSSOP20_DEBUG_PINS
+  if (fine_boost_requested && HBridge_GetDuty() != 0 &&
+      now_ms != s_r01_prod_fine_pwm_last_ms)
+  {
+    s_r01_prod_fine_pwm_run_ms =
+        (now_ms - s_r01_prod_fine_pwm_last_ms == 1U) ?
+        (uint16_t)(s_r01_prod_fine_pwm_run_ms + 1U) : 1U;
+    s_r01_prod_fine_pwm_last_ms = now_ms;
+    g_r01_prod_fine_pwm_samples++;
+    if (s_r01_prod_fine_pwm_run_ms > g_r01_prod_fine_pwm_longest_ms)
+      g_r01_prod_fine_pwm_longest_ms = s_r01_prod_fine_pwm_run_ms;
+  }
+#endif
   s_last_drive_dir = new_dir;
   s_status.state = SERVO_STATE_DRIVE;
   s_status.motor_duty = duty;
