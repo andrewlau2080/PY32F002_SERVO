@@ -3776,6 +3776,26 @@ static int16_t lcdm_servo_loop_update_fast(void)
           SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC,
           s_lcdm_motion_phase_peak_velocity_q4,
           &s_lcdm_motion_phase_position_guard_latched);
+      if ((phase_output.phase == LCDM_MOTION_PHASE_DRIVE) &&
+          ((g_lcdm_motion_phase_seen_mask & (1U << LCDM_MOTION_PHASE_REVERSE_BRAKE)) != 0U))
+      {
+        /* After braking, bound the energy of residual correction by the space
+         * left to the target or travel guard, whichever comes first. */
+        uint16_t remaining = (displacement < SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC) ?
+            (uint16_t)(SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC - displacement) : 0U;
+        const uint16_t taper_adc = 32U;
+        if (remaining > abs_error) remaining = abs_error;
+        if (remaining < taper_adc)
+        {
+          const uint16_t floor = LCDM_SERVO_REVERSE_MIN_DUTY;
+          int16_t cap = (int16_t)(floor +
+              ((SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE - floor) * remaining) / taper_adc);
+          if (phase_output.signed_duty_permille > cap)
+            phase_output.signed_duty_permille = cap;
+          else if (phase_output.signed_duty_permille < -cap)
+            phase_output.signed_duty_permille = (int16_t)-cap;
+        }
+      }
     }
     if (phase_output.phase == LCDM_MOTION_PHASE_REVERSE_BRAKE)
     {
