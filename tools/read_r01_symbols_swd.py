@@ -180,13 +180,13 @@ try:
                     for i in range(count):
                         row = data[i * 12:(i + 1) * 12]
                         records.append({
-                            "elapsed_ms": row[0],
+                            "elapsed_ms": row[0] + (256 if row[11] & 0x80 else 0),
                             "raw_adc": int.from_bytes(row[1:3], "little"),
                             "feedback_adc": int.from_bytes(row[3:5], "little"),
                             "velocity_q4": int.from_bytes(row[5:7], "little", signed=True),
                             "requested_duty": int.from_bytes(row[7:9], "little", signed=True),
                             "final_duty": int.from_bytes(row[9:11], "little", signed=True),
-                            "phase": row[11],
+                            "phase": row[11] & 0x7f,
                         })
                     out["symbols"][name] = records
                 else:
@@ -341,6 +341,8 @@ def main():
         ("g_lcdm_motion_phase_exit_feedback_adc", 2, False),
         ("g_lcdm_motion_phase_exit_hbridge_duty", 2, True),
         ("g_lcdm_motion_phase_exit_count", 2, False),
+        ("g_lcdm_motion_phase_target_adc", 2, False),
+        ("g_lcdm_motion_phase_stop_flags", 1, False),
         ("g_r04_scheduler_dropped_tick_count", 4, False),
         ("g_r04_scheduler_max_dropped_ticks", 2, False),
         ("g_r04_scheduler_overrun_context_nibbles", 2, False),
@@ -410,7 +412,8 @@ def main():
             "g_lcdm_motion_phase_exit_elapsed_ms",
             "g_lcdm_motion_phase_exit_feedback_adc",
             "g_lcdm_motion_phase_exit_hbridge_duty",
-            "g_lcdm_motion_phase_exit_count",
+            "g_lcdm_motion_phase_exit_count", "g_lcdm_motion_phase_target_adc",
+            "g_lcdm_motion_phase_stop_flags",
             "g_r04_scheduler_dropped_tick_count",
             "g_r04_scheduler_max_dropped_ticks",
             "g_r04_scheduler_overrun_context_nibbles",

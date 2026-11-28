@@ -51,7 +51,7 @@ def main():
     parser.add_argument('--motion-phase-timeout-ms', type=int, default=500,
                         help='motion-phase test hard cutoff in ms (60..500; default 500)')
     parser.add_argument('--motion-phase-step-us', type=int, default=50,
-                        help='internal motion-phase PWM offset from 1500 us (40..300; default 50)')
+                        help='internal motion-phase PWM offset from 1500 us (20..300; default 50)')
     parser.add_argument('--motion-phase-base-pulse-us', type=int, default=1500,
                         help='first internal command pulse (500..2200 us; default 1500)')
     parser.add_argument('--motion-phase-position-limit-adc', type=int, default=8,
@@ -150,8 +150,8 @@ def main():
         parser.error('--motion-phase-duty must be in 180..300 permille to pass the H-bridge reversal gate')
     if not 60 <= args.motion_phase_timeout_ms <= 500:
         parser.error('--motion-phase-timeout-ms must be in 60..500 ms')
-    if not 40 <= args.motion_phase_step_us <= 300:
-        parser.error('--motion-phase-step-us must be in 40..300 us')
+    if not 20 <= args.motion_phase_step_us <= 300:
+        parser.error('--motion-phase-step-us must be in 20..300 us')
     if not 500 <= args.motion_phase_base_pulse_us <= 2200 or args.motion_phase_base_pulse_us + args.motion_phase_step_us > 2500:
         parser.error('--motion-phase-base-pulse-us plus step must stay within 500..2500 us')
     if not 8 <= args.motion_phase_position_limit_adc <= 500:

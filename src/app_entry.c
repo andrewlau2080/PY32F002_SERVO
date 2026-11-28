@@ -465,6 +465,11 @@ static uint8_t s_lcdm_motion_phase_armed;
 static uint16_t s_lcdm_motion_phase_start_adc;
 static uint8_t s_lcdm_motion_phase_position_guard_latched;
 static bool s_lcdm_motion_phase_guard_waiting;
+static bool s_lcdm_motion_phase_soft_brake;
+static bool s_lcdm_motion_phase_corrected;
+static uint32_t s_lcdm_motion_phase_correction_ms;
+__attribute__((used)) volatile uint16_t g_lcdm_motion_phase_target_adc;
+__attribute__((used)) volatile uint8_t g_lcdm_motion_phase_stop_flags;
 static uint16_t s_lcdm_motion_phase_guard_quiet_adc;
 static uint32_t s_lcdm_motion_phase_guard_quiet_ms;
 static uint32_t s_lcdm_motion_phase_guard_coast_ms;
@@ -555,7 +560,7 @@ static void lcdm_motion_phase_trace_sample(uint32_t now_ms,
   sample[8] = (uint8_t)((uint16_t)requested_duty >> 8);
   sample[9] = (uint8_t)final_duty;
   sample[10] = (uint8_t)((uint16_t)final_duty >> 8);
-  sample[11] = (uint8_t)phase;
+  sample[11] = (uint8_t)phase | ((elapsed_ms >= 256U) ? 0x80U : 0U);
   g_lcdm_motion_phase_trace_count = (uint8_t)(index + 1U);
   s_lcdm_motion_phase_trace_last_ms = now_ms;
 }
@@ -1509,7 +1514,7 @@ static void run_pa7_tjc_test(void)
 #define LCDM_SERVO_V7_DRIVE_ERR_DIV 4U
 #define LCDM_SERVO_V7_LOAD_CONFIRM_MS 30U
 #if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
-#define LCDM_SERVO_CUSTOMER_STEP_US 40U
+#define LCDM_SERVO_CUSTOMER_STEP_US SERVO_LCDM_MOTION_PHASE_STEP_US
 #else
 #define LCDM_SERVO_CUSTOMER_STEP_US 400U
 #endif
@@ -3412,6 +3417,10 @@ static int16_t lcdm_servo_loop_update_fast(void)
         s_lcdm_servo_customer_start_ms = now_ms;
         s_lcdm_motion_phase_armed = 0U;
         s_lcdm_motion_phase_start_adc = feedback;
+        g_lcdm_motion_phase_target_adc = target_adc;
+        g_lcdm_motion_phase_stop_flags = 0U;
+        s_lcdm_motion_phase_soft_brake = false;
+        s_lcdm_motion_phase_corrected = false;
         s_lcdm_motion_phase_guard_waiting = false;
         s_lcdm_motion_phase_position_guard_latched = 0U;
         s_lcdm_motion_phase_peak_velocity_q4 = 0U;
@@ -3737,6 +3746,15 @@ static int16_t lcdm_servo_loop_update_fast(void)
     uint32_t max_velocity = max_vel_q4;
     uint32_t phase_velocity_limit;
 
+    const uint16_t position_limit = SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC;
+    const uint16_t displacement = (feedback >= s_lcdm_motion_phase_start_adc) ?
+        (uint16_t)(feedback - s_lcdm_motion_phase_start_adc) :
+        (uint16_t)(s_lcdm_motion_phase_start_adc - feedback);
+    const int32_t remaining_along = (int32_t)error * s_lcdm_servo_customer_dir;
+    const int32_t speed_along_q4 = s_lcdm_servo_vel_q4 * s_lcdm_servo_customer_dir;
+
+    /* Use a tighter stop band for the diagnostic than the production HOLD release. */
+    if (stop_band_q4 > 5U * 16U) stop_band_q4 = 5U * 16U;
     if (stop_band_q4 > 65535U) stop_band_q4 = 65535U;
     if (settle_band_q4 > 65535U) settle_band_q4 = 65535U;
     if (settle_band_q4 < stop_band_q4) settle_band_q4 = stop_band_q4;
@@ -3790,43 +3808,39 @@ static int16_t lcdm_servo_loop_update_fast(void)
     phase_config.approach_distance_q4 = (uint16_t)approach_distance_q4;
     phase_config.approach_min_duty_permille = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE;
 
+    if (displacement >= position_limit)
     {
-      uint16_t displacement = (feedback >= s_lcdm_motion_phase_start_adc) ?
-          (uint16_t)(feedback - s_lcdm_motion_phase_start_adc) :
-          (uint16_t)(s_lcdm_motion_phase_start_adc - feedback);
-      uint16_t brake_limit = SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC;
-      int32_t along_q4 = phase_input.velocity_q4 * (int32_t)s_lcdm_servo_customer_dir;
-      /* Reserve travel through the reversal blanking and the first part of
-       * deceleration. The extra 8 ms is a bench estimate, pending calibration. */
-      if (along_q4 > 0)
-      {
-        const uint16_t max_advance = (uint16_t)(((uint32_t)brake_limit * 2U) / 5U);
-        uint32_t advance = ((uint32_t)along_q4 * (LCDM_SERVO_REVERSE_DEAD_MS + 8U) + 15U) / 16U;
-        brake_limit -= (advance < max_advance) ? (uint16_t)advance : max_advance;
-      }
+      s_lcdm_motion_phase_position_guard_latched = 1U;
+      g_lcdm_motion_phase_stop_flags |= 2U;
+    }
+    if (speed_along_q4 >= 8 && remaining_along <=
+        (speed_along_q4 * (int32_t)(LCDM_SERVO_REVERSE_DEAD_MS + 8U) + 15) / 16)
+    {
+      s_lcdm_motion_phase_soft_brake = true;
+    }
+    if (s_lcdm_motion_phase_corrected &&
+        (remaining_along <= 5 || now_ms - s_lcdm_motion_phase_correction_ms >= 55U))
+    {
+      s_lcdm_motion_phase_soft_brake = true;
+    }
+
+    if (s_lcdm_motion_phase_position_guard_latched || s_lcdm_motion_phase_soft_brake)
+    {
+      /* The soft brake requests deceleration without writing the travel latch. */
       phase_output = LcdmMotionPhase_UpdatePositionGuarded(
-          &phase_input, &phase_config, displacement, brake_limit,
-          s_lcdm_motion_phase_peak_velocity_q4,
-          &s_lcdm_motion_phase_position_guard_latched);
-      if ((phase_output.phase == LCDM_MOTION_PHASE_DRIVE) &&
-          ((g_lcdm_motion_phase_seen_mask & (1U << LCDM_MOTION_PHASE_REVERSE_BRAKE)) != 0U))
+          &phase_input, &phase_config, 1U, 1U,
+          s_lcdm_motion_phase_peak_velocity_q4, 0);
+    }
+    else
+    {
+      phase_output = LcdmMotionPhase_Update(&phase_input, &phase_config);
+      if (s_lcdm_motion_phase_corrected && remaining_along > 5 &&
+          (phase_output.phase == LCDM_MOTION_PHASE_DRIVE ||
+           phase_output.phase == LCDM_MOTION_PHASE_SETTLE))
       {
-        /* After braking, bound the energy of residual correction by the space
-         * left to the target or travel guard, whichever comes first. */
-        uint16_t remaining = (displacement < SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC) ?
-            (uint16_t)(SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC - displacement) : 0U;
-        const uint16_t taper_adc = 32U;
-        if (remaining > abs_error) remaining = abs_error;
-        if (remaining < taper_adc)
-        {
-          const uint16_t floor = LCDM_SERVO_REVERSE_MIN_DUTY;
-          int16_t cap = (int16_t)(floor +
-              ((SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE - floor) * remaining) / taper_adc);
-          if (phase_output.signed_duty_permille > cap)
-            phase_output.signed_duty_permille = cap;
-          else if (phase_output.signed_duty_permille < -cap)
-            phase_output.signed_duty_permille = (int16_t)-cap;
-        }
+        const uint16_t cap = SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE < 220U ?
+            SERVO_LCDM_MOTION_PHASE_MAX_DUTY_PERMILLE : 220U;
+        phase_output.signed_duty_permille = (int16_t)(cap * s_lcdm_servo_customer_dir);
       }
     }
     if (phase_output.phase == LCDM_MOTION_PHASE_REVERSE_BRAKE)
@@ -3835,7 +3849,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
       {
         s_lcdm_motion_phase_brake_hold_until_ms = now_ms +
             LCDM_SERVO_REVERSE_DEAD_MS + 16U;
-        s_lcdm_motion_phase_brake_dir = (s_lcdm_servo_customer_dir > 0) ? -1 : 1;
+        s_lcdm_motion_phase_brake_dir = (phase_output.signed_duty_permille > 0) ? 1 : -1;
       }
     }
     if (phase_input.feedback_valid &&
@@ -3860,11 +3874,10 @@ static int16_t lcdm_servo_loop_update_fast(void)
       s_lcdm_motion_phase_brake_hold_until_ms = 0U;
       s_lcdm_motion_phase_brake_dir = 0;
     }
-    if (s_lcdm_motion_phase_position_guard_latched != 0U &&
+    if ((s_lcdm_motion_phase_position_guard_latched || s_lcdm_motion_phase_soft_brake) &&
         phase_output.phase != LCDM_MOTION_PHASE_TIMEOUT &&
         phase_output.phase != LCDM_MOTION_PHASE_FAULT)
     {
-      int32_t speed_along_q4 = phase_input.velocity_q4 * s_lcdm_servo_customer_dir;
       bool braking = phase_output.phase == LCDM_MOTION_PHASE_REVERSE_BRAKE &&
                      speed_along_q4 > 0 &&
                      (!s_lcdm_motion_phase_guard_waiting ||
@@ -3891,6 +3904,18 @@ static int16_t lcdm_servo_loop_update_fast(void)
         phase_output.signed_duty_permille = 0;
         phase_output.phase = (now_ms - s_lcdm_motion_phase_guard_quiet_ms >= 20U) ?
             LCDM_MOTION_PHASE_COAST : LCDM_MOTION_PHASE_BRAKE_COAST;
+        if (phase_output.phase == LCDM_MOTION_PHASE_COAST &&
+            !s_lcdm_motion_phase_position_guard_latched &&
+            !s_lcdm_motion_phase_corrected && remaining_along > 5 &&
+            (uint32_t)displacement + 12U < position_limit)
+        {
+          s_lcdm_motion_phase_guard_waiting = false;
+          s_lcdm_motion_phase_soft_brake = false;
+          s_lcdm_motion_phase_corrected = true;
+          s_lcdm_motion_phase_correction_ms = now_ms;
+          g_lcdm_motion_phase_stop_flags |= 1U;
+          phase_output.phase = LCDM_MOTION_PHASE_BRAKE_COAST;
+        }
       }
     }
     s_lcdm_motion_phase = phase_output.phase;
