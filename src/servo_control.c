@@ -63,6 +63,13 @@ static uint16_t s_breakaway_command_us;
 static uint16_t s_breakaway_origin_adc;
 static uint32_t s_breakaway_start_ms;
 static bool s_breakaway_available;
+static uint16_t s_precoast_target_adc;
+static uint16_t s_precoast_origin_adc;
+static uint16_t s_precoast_velocity_adc;
+static uint32_t s_precoast_velocity_ms;
+static uint32_t s_precoast_until_ms;
+static int16_t s_precoast_velocity_q4;
+static bool s_precoast_used;
 #endif
 
 #if SERVO_R01_PRODUCTION_LOOP_TEST
@@ -87,6 +94,8 @@ volatile uint16_t g_r01_prod_lock_target_adc;
 volatile int16_t g_r01_prod_lock_error_adc;
 volatile int16_t g_r01_prod_lock_bridge_duty;
 volatile uint16_t g_r01_prod_anchor_adc;
+__attribute__((used)) volatile uint16_t g_r01_prod_precoast_adc;
+__attribute__((used)) volatile int16_t g_r01_prod_precoast_velocity_q4;
 volatile int16_t g_r01_prod_center_offset_adc;
 volatile uint32_t g_r01_prod_nonzero_duty_count;
 volatile uint16_t g_r01_prod_max_abs_duty;
@@ -340,6 +349,27 @@ void Servo_Control_Init(void)
   s_reverse_brake_until_ms = 0U;
   s_stall_ms = 0U;
   s_recover_until_ms = 0U;
+#if BOARD_TSSOP20_DEBUG_PINS
+  s_breakaway_command_us = 0U;
+  s_breakaway_available = false;
+  s_precoast_target_adc = UINT16_MAX;
+  s_precoast_velocity_ms = 0U;
+  s_precoast_until_ms = 0U;
+  s_precoast_velocity_q4 = 0;
+  s_precoast_used = false;
+#endif
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+  s_r01_prod_anchor_seeded = 0U;
+  g_r01_prod_motion_locked = 0U;
+  g_r01_prod_motion_lock_reason = 0U;
+  g_r01_prod_nonzero_duty_count = 0U;
+  g_r01_prod_max_abs_duty = 0U;
+  g_r01_prod_feedback_min = UINT16_MAX;
+  g_r01_prod_feedback_max = 0U;
+  g_r01_prod_last_duty = 0;
+  g_r01_prod_precoast_adc = UINT16_MAX;
+  g_r01_prod_precoast_velocity_q4 = 0;
+#endif
   /* 驱动频率属于可调参数，不同马达可能对噪声和效率有不同表现。 */
   HBridge_SetFrequency(Servo_Params_Get()->drive_frequency_hz);
 }
@@ -602,6 +632,57 @@ void Servo_Control_Update1ms(void)
   s_status.target_adc = effective_target;
   s_status.error_adc = error;
   uint16_t abs_error = abs_i16(error);
+#if BOARD_TSSOP20_DEBUG_PINS
+  if (s_precoast_target_adc != target || !input_valid)
+  {
+    s_precoast_target_adc = target;
+    s_precoast_origin_adc = feedback;
+    s_precoast_velocity_adc = feedback;
+    s_precoast_velocity_ms = now_ms;
+    s_precoast_velocity_q4 = 0;
+    s_precoast_until_ms = 0U;
+    s_precoast_used = false;
+  }
+  uint32_t coast_sample_ms = now_ms - s_precoast_velocity_ms;
+  if (coast_sample_ms >= 6U)
+  {
+    s_precoast_velocity_q4 = (coast_sample_ms <= 12U) ?
+        (int16_t)(((int32_t)feedback - s_precoast_velocity_adc) * 16 /
+                  (int32_t)coast_sample_ms) : 0;
+    s_precoast_velocity_adc = feedback;
+    s_precoast_velocity_ms = now_ms;
+  }
+
+  int32_t velocity_along_q4 = error > 0 ? s_precoast_velocity_q4 :
+                                           -(int32_t)s_precoast_velocity_q4;
+  /* Bench data show that longer travel toward lower ADC needs more room
+   * to coast than short moves on this TSSOP20 mechanism. */
+  bool longer_move = abs_i16((int16_t)((int32_t)s_precoast_origin_adc - target)) >= 48U;
+  bool longer_reverse = longer_move && target < s_precoast_origin_adc;
+  uint32_t coast_prediction_ms = longer_reverse ? 16U : 10U;
+  if (input_valid && effective_target == target && !s_precoast_used &&
+      abs_error > deadband_count && velocity_along_q4 >= 8 &&
+      abs_error <= (uint32_t)deadband_count + (longer_move ? 5U : 0U) +
+                   ((uint32_t)velocity_along_q4 * coast_prediction_ms + 15U) / 16U)
+  {
+    s_precoast_used = true;
+#if SERVO_R01_PRODUCTION_LOOP_TEST
+    g_r01_prod_precoast_adc = feedback;
+    g_r01_prod_precoast_velocity_q4 = s_precoast_velocity_q4;
+#endif
+    s_precoast_until_ms = now_ms + (longer_reverse ? 18U : 12U);
+  }
+  if (s_precoast_until_ms != 0U && time_before(now_ms, s_precoast_until_ms))
+  {
+    HBridge_Coast();
+    s_status.state = SERVO_STATE_DRIVE;
+    s_status.motor_duty = 0;
+    s_hold_active = 0U;
+    s_last_feedback = feedback;
+    return;
+  }
+  s_precoast_until_ms = 0U;
+#endif
 #if SERVO_R01_PRODUCTION_LOOP_TEST
   /* The guarded R01 diagnostic deliberately parks at its anchor before the
    * command step.  The production boost_duty is a minimum drive once the
@@ -715,13 +796,18 @@ void Servo_Control_Update1ms(void)
     s_breakaway_start_ms = now_ms;
     s_breakaway_available = true;
   }
-  if (!input_valid || now_ms - s_breakaway_start_ms >= 65U ||
-      abs_i16((int16_t)((int32_t)feedback - s_breakaway_origin_adc)) >= 4U)
+  bool fine_step = abs_error < 24U;
+  uint32_t breakaway_window_ms = fine_step ? 55U : 65U;
+  uint16_t breakaway_move_limit = fine_step ? 3U : 4U;
+  if (!input_valid || now_ms - s_breakaway_start_ms >= breakaway_window_ms ||
+      abs_i16((int16_t)((int32_t)feedback - s_breakaway_origin_adc)) >= breakaway_move_limit)
   {
     s_breakaway_available = false;
   }
   if (s_breakaway_available && velocity_valid &&
-      abs_i16((int16_t)velocity_q4) <= 8U && abs_error >= 24U && duty != 0)
+      abs_i16((int16_t)velocity_q4) <= 8U &&
+      abs_error >= (fine_step ? (uint32_t)deadband_count + 4U : 24U) &&
+      duty != 0)
   {
     uint16_t floor = params->max_duty < 220U ? params->max_duty : 220U;
     if (abs_i16(duty) < floor)

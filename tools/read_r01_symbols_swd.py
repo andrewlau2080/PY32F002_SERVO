@@ -44,6 +44,14 @@ try:
         arm_state = target.read32(arm_addr)
         if active_now != 0 or arm_state not in (0, 2):
             raise SystemExit(f"R01 test is already active or armed (active={active_now}, arm={arm_state}); refusing trigger")
+        if cfg["r01_step_us"] is not None:
+            step_addr = cfg["symbols"].get("g_r01_prod_requested_step_us", [None])[0]
+            duty_addr = cfg["symbols"].get("s_duty", [None])[0]
+            if step_addr is None or duty_addr is None:
+                raise SystemExit("Selected ELF lacks the guarded step selector")
+            if "running" not in str(target.get_state()).lower() or target.read16(duty_addr) != 0:
+                raise SystemExit("The core must be running with zero H-bridge duty")
+            target.write16(step_addr, cfg["r01_step_us"] & 0xffff)
         target.write32(arm_addr, 0x52303141)
         print(json.dumps({"event": "R01_ARM_SENT", "active_before": active_now,
                           "arm_before": arm_state, "pulse_us": target.read16(
@@ -211,6 +219,8 @@ def main():
     parser.add_argument("--interval-ms", type=int, default=100, help="delay between snapshots")
     parser.add_argument("--arm-r01-motion", action="store_true",
                         help="explicitly arm the preconfigured, limited R01 production motion test")
+    parser.add_argument("--r01-step-us", type=int,
+                        help="select a signed production-loop step of 8..40 us")
     parser.add_argument("--arm-r01-motion-only", action="store_true",
                         help="arm the production-loop one-shot and disconnect before reading telemetry")
     parser.add_argument("--pwm-capture", action="store_true",
@@ -233,6 +243,9 @@ def main():
     parser.add_argument("--pack", default="/home/andrew/ARTERY/DQ110_FW/1.2.8.pack")
     parser.add_argument("--compat", default="/home/andrew/.local/share/servo_swd/dq110_pyocd_hid_compat.py")
     args = parser.parse_args()
+    if args.r01_step_us is not None and (
+            not args.arm_r01_motion_only or not 8 <= abs(args.r01_step_us) <= 40):
+        parser.error("--r01-step-us requires --arm-r01-motion-only and magnitude 8..40 us")
     if args.pwm_capture and (args.stop or args.arm_r01_motion or
             args.motion_phase or args.arm_motion_phase or args.enable_motion_phase_input or
             args.inject_touch_jog or args.redraw_r01_lcd or args.summary):
@@ -258,6 +271,7 @@ def main():
     names = (
         ("g_r01_active_test_arm_request", 4, False),
         ("g_r01_production_test_active", 1, False),
+        ("g_r01_prod_requested_step_us", 2, True),
         ("g_r01_production_test_pulse_us", 2, False),
         ("g_r01_test_sweep_stage", 1, False),
         ("g_r01_test_sweep_result", 1, False),
@@ -286,6 +300,8 @@ def main():
         ("g_r01_prod_feedback_max", 2, False),
         ("g_r01_prod_last_duty", 2, True),
         ("g_r01_prod_anchor_adc", 2, False),
+        ("g_r01_prod_precoast_adc", 2, False),
+        ("g_r01_prod_precoast_velocity_q4", 2, True),
         ("g_r01_prod_center_offset_adc", 2, True),
         ("g_r01_prod_motion_locked", 1, False),
         ("g_r01_prod_motion_lock_reason", 1, False),
@@ -466,6 +482,7 @@ def main():
             raise SystemExit("Selected ELF lacks R01 stop symbols")
         cfg = {"uid": args.uid, "pack": args.pack, "compat": args.compat,
                "stop": args.stop, "arm_motion": args.arm_r01_motion,
+               "r01_step_us": args.r01_step_us,
                "inject_touch_jog": args.inject_touch_jog,
                "redraw_r01_lcd": args.redraw_r01_lcd,
                "arm_motion_phase": args.arm_motion_phase,

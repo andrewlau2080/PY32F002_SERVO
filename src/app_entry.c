@@ -156,6 +156,10 @@ volatile uint16_t g_r01_test_sweep_peak_delta_adc;
 volatile uint8_t g_r01_test_sweep_confirm_count;
 static uint8_t s_r01_test_sweep_return_confirm;
 static uint32_t s_r01_production_test_start_ms;
+#if !SERVO_R01_TEST_STAIRCASE && !SERVO_R01_CENTER_RETURN_TEST && !SERVO_R01_TOUCH_JOG_TEST && !SERVO_R01_LCD_ONLY_TEST
+__attribute__((used)) volatile int16_t g_r01_prod_requested_step_us;
+static int16_t s_r01_production_step_us;
+#endif
 #if SERVO_R01_TOUCH_JOG_TEST
 static int8_t s_r01_touch_jog_direction;
 static uint32_t s_r01_touch_jog_start_ms;
@@ -5559,6 +5563,20 @@ int entry(void)
         g_r01_center_start_adc = g_r01_center_live_adc;
         g_r01_center_result = 1U;
 #endif
+#if !SERVO_R01_TEST_STAIRCASE && !SERVO_R01_CENTER_RETURN_TEST && !SERVO_R01_TOUCH_JOG_TEST && !SERVO_R01_LCD_ONLY_TEST
+      int16_t step = g_r01_prod_requested_step_us;
+      g_r01_prod_requested_step_us = 0;
+      if ((step >= 8 && step <= 40) || (step <= -8 && step >= -40))
+      {
+        s_r01_production_step_us = step;
+      }
+      else
+      {
+        s_r01_production_step_us = (SERVO_R01_TEST_ANCHOR_PULSE_US == 1550U) ?
+            -(int16_t)SERVO_R01_TEST_STEP_US : (int16_t)SERVO_R01_TEST_STEP_US;
+      }
+      Servo_Control_Init();
+#endif
       g_r01_active_test_arm_request = 1U;
       g_r01_production_test_active = 1U;
       s_r01_production_test_start_ms = now_ms;
@@ -5639,13 +5657,10 @@ int entry(void)
       {
         test_pulse_us = SERVO_R01_TEST_ANCHOR_PULSE_US;
       }
-      else if (SERVO_R01_TEST_ANCHOR_PULSE_US == 1550U)
-      {
-        test_pulse_us = (uint16_t)(1550U - SERVO_R01_TEST_STEP_US);
-      }
       else
       {
-        test_pulse_us = (uint16_t)(1500U + SERVO_R01_TEST_STEP_US);
+        test_pulse_us = (uint16_t)((int32_t)SERVO_R01_TEST_ANCHOR_PULSE_US +
+                                   s_r01_production_step_us);
       }
 #endif
 #if !SERVO_R01_TEST_STAIRCASE
