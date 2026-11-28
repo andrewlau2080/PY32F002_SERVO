@@ -464,6 +464,10 @@ static LcdmMotionPhase s_lcdm_motion_phase = LCDM_MOTION_PHASE_COAST;
 static uint8_t s_lcdm_motion_phase_armed;
 static uint16_t s_lcdm_motion_phase_start_adc;
 static uint8_t s_lcdm_motion_phase_position_guard_latched;
+static bool s_lcdm_motion_phase_guard_waiting;
+static uint16_t s_lcdm_motion_phase_guard_quiet_adc;
+static uint32_t s_lcdm_motion_phase_guard_quiet_ms;
+static uint32_t s_lcdm_motion_phase_guard_coast_ms;
 static uint16_t s_lcdm_motion_phase_peak_velocity_q4;
 static uint32_t s_lcdm_motion_phase_brake_hold_until_ms;
 static int8_t s_lcdm_motion_phase_brake_dir;
@@ -3351,6 +3355,23 @@ static int16_t lcdm_servo_loop_update_fast(void)
     command_step = true;
   }
 #endif
+#if SERVO_ENABLE_LCDM_MOTION_PHASE_TEST
+  if (s_lcdm_motion_phase_armed != 0U &&
+      s_lcdm_servo_customer_active == 0U &&
+      pulse_delta >= LCDM_SERVO_CUSTOMER_STEP_US)
+  {
+    /* Rebase each one-shot on the actual position before applying the
+     * mapped command delta. Residual travel from earlier shots must not
+     * change the requested displacement of the next shot. */
+    uint16_t previous_mapped = lcdm_pwm_to_target_adc(s_lcdm_servo_last_control_pulse_us);
+    int32_t anchored_target = (int32_t)feedback + lcdm_pwm_to_target_adc(control_pulse_us) -
+                              previous_mapped;
+    s_lcdm_motion_phase_target_offset_adc = (int16_t)((int32_t)feedback - previous_mapped);
+    if (anchored_target < 0) anchored_target = 0;
+    else if (anchored_target > 4095) anchored_target = 4095;
+    target_adc = (uint16_t)anchored_target;
+  }
+#endif
   if (target_changed)
   {
     s_lcdm_servo_cmd_target_adc = target_adc;
@@ -3391,6 +3412,7 @@ static int16_t lcdm_servo_loop_update_fast(void)
         s_lcdm_servo_customer_start_ms = now_ms;
         s_lcdm_motion_phase_armed = 0U;
         s_lcdm_motion_phase_start_adc = feedback;
+        s_lcdm_motion_phase_guard_waiting = false;
         s_lcdm_motion_phase_position_guard_latched = 0U;
         s_lcdm_motion_phase_peak_velocity_q4 = 0U;
         s_lcdm_motion_phase_brake_hold_until_ms = 0U;
@@ -3745,7 +3767,8 @@ static int16_t lcdm_servo_loop_update_fast(void)
       }
     }
     phase_input.stop_distance_q4 = predicted_stop_distance_q4;
-    phase_input.previous_phase = s_lcdm_motion_phase;
+    phase_input.previous_phase = s_lcdm_motion_phase_guard_waiting ?
+        LCDM_MOTION_PHASE_COAST : s_lcdm_motion_phase;
     phase_input.previous_signed_duty_permille = HBridge_GetDuty();
     phase_input.feedback_valid = lcdm_servo_adc_is_valid(raw_adc) && fresh;
     phase_input.stop_model_valid = (learned_brake_samples >= 8U) &&
@@ -3773,12 +3796,12 @@ static int16_t lcdm_servo_loop_update_fast(void)
           (uint16_t)(s_lcdm_motion_phase_start_adc - feedback);
       uint16_t brake_limit = SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC;
       int32_t along_q4 = phase_input.velocity_q4 * (int32_t)s_lcdm_servo_customer_dir;
-      /* Reserve the distance traveled while both bridge directions are off.
-       * Bound the advance so small diagnostic moves still have room to start. */
+      /* Reserve travel through the reversal blanking and the first part of
+       * deceleration. The extra 8 ms is a bench estimate, pending calibration. */
       if (along_q4 > 0)
       {
-        const uint16_t max_advance = (brake_limit / 4U < 12U) ? brake_limit / 4U : 12U;
-        uint32_t advance = ((uint32_t)along_q4 * LCDM_SERVO_REVERSE_DEAD_MS + 15U) / 16U;
+        const uint16_t max_advance = (uint16_t)(((uint32_t)brake_limit * 2U) / 5U);
+        uint32_t advance = ((uint32_t)along_q4 * (LCDM_SERVO_REVERSE_DEAD_MS + 8U) + 15U) / 16U;
         brake_limit -= (advance < max_advance) ? (uint16_t)advance : max_advance;
       }
       phase_output = LcdmMotionPhase_UpdatePositionGuarded(
@@ -3836,6 +3859,39 @@ static int16_t lcdm_servo_loop_update_fast(void)
     {
       s_lcdm_motion_phase_brake_hold_until_ms = 0U;
       s_lcdm_motion_phase_brake_dir = 0;
+    }
+    if (s_lcdm_motion_phase_position_guard_latched != 0U &&
+        phase_output.phase != LCDM_MOTION_PHASE_TIMEOUT &&
+        phase_output.phase != LCDM_MOTION_PHASE_FAULT)
+    {
+      int32_t speed_along_q4 = phase_input.velocity_q4 * s_lcdm_servo_customer_dir;
+      bool braking = phase_output.phase == LCDM_MOTION_PHASE_REVERSE_BRAKE &&
+                     speed_along_q4 > 0 &&
+                     (!s_lcdm_motion_phase_guard_waiting ||
+                      now_ms - s_lcdm_motion_phase_guard_coast_ms >= LCDM_SERVO_REVERSE_DEAD_MS);
+      if (braking)
+      {
+        s_lcdm_motion_phase_guard_waiting = false;
+      }
+      else
+      {
+        int32_t drift = (int32_t)feedback - s_lcdm_motion_phase_guard_quiet_adc;
+        /* A single low speed reading can occur while the gear train is still
+         * moving. Keep watching at zero output and brake again if it resumes. */
+        if (!s_lcdm_motion_phase_guard_waiting)
+        {
+          s_lcdm_motion_phase_guard_coast_ms = now_ms;
+        }
+        if (!s_lcdm_motion_phase_guard_waiting || drift < -3 || drift > 3)
+        {
+          s_lcdm_motion_phase_guard_waiting = true;
+          s_lcdm_motion_phase_guard_quiet_adc = feedback;
+          s_lcdm_motion_phase_guard_quiet_ms = now_ms;
+        }
+        phase_output.signed_duty_permille = 0;
+        phase_output.phase = (now_ms - s_lcdm_motion_phase_guard_quiet_ms >= 20U) ?
+            LCDM_MOTION_PHASE_COAST : LCDM_MOTION_PHASE_BRAKE_COAST;
+      }
     }
     s_lcdm_motion_phase = phase_output.phase;
     duty_calc = phase_output.signed_duty_permille;
