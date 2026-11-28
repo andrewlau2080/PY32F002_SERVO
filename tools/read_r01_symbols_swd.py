@@ -65,9 +65,28 @@ try:
                 current["armed"] != 0 or current["active"] != 0 or current["duty"] != 0):
             raise SystemExit("Motion-phase arm refused unless core is running and phase/duty are idle: " +
                              json.dumps(current))
-        target.write8(internal, 1)
+        from_pulse = cfg["motion_phase_arm_from_us"]
+        if from_pulse is not None:
+            pulse = cfg["symbols"].get("s_lcdm_servo_last_control_pulse_us", [None])[0]
+            if pulse is None or target.read8(internal) != 1:
+                raise SystemExit("Directional arm requires the internal source already enabled and visible")
+            # Arm just after the chosen plateau begins, so the next edge has
+            # the intended direction. Finish all SWD reads before arming.
+            previous = target.read16(pulse)
+            until = time.monotonic() + 9.0
+            while time.monotonic() < until:
+                time.sleep(0.1)
+                current_pulse = target.read16(pulse)
+                if current_pulse == from_pulse and previous != from_pulse:
+                    break
+                previous = current_pulse
+            else:
+                raise SystemExit("Requested starting plateau was not observed; no motion armed")
+        else:
+            target.write8(internal, 1)
         target.write32(arm, 0x50484153)
         print(json.dumps({"event": "MOTION_PHASE_ARM_SENT", "before": current,
+                          "from_pulse_us": from_pulse,
                           "internal_pwm_source": "configured alternating command; verify input_pulse_us telemetry"}), flush=True)
     if cfg["inject_touch_jog"]:
         direction = cfg["inject_touch_jog"]
@@ -198,6 +217,8 @@ def main():
                         help="enable the configured internal alternating PWM and one-shot guarded motion after zero-duty checks")
     parser.add_argument("--arm-motion-phase-only", action="store_true",
                         help="arm once and disconnect immediately so SWD polling cannot interrupt the motion loop")
+    parser.add_argument("--motion-phase-arm-from-us", type=int,
+                        help="arm after this internal PWM plateau begins, then disconnect")
     parser.add_argument("--enable-motion-phase-input", action="store_true",
                         help="enable the configured internal alternating command source only; refuses unless motion is disarmed/coasted")
     parser.add_argument("--inject-touch-jog", choices=("fwd", "rev"),
@@ -210,6 +231,9 @@ def main():
     args = parser.parse_args()
     if args.arm_motion_phase_only and not args.arm_motion_phase:
         parser.error("--arm-motion-phase-only requires --arm-motion-phase")
+    if args.motion_phase_arm_from_us is not None and (
+            not args.arm_motion_phase_only or not 500 <= args.motion_phase_arm_from_us <= 2500):
+        parser.error("--motion-phase-arm-from-us requires arm-only mode and a pulse within 500..2500 us")
     if args.samples < (0 if args.arm_motion_phase_only else 1) or args.interval_ms < 10:
         parser.error("samples must be positive (or zero for arm-only) and interval-ms at least 10")
     nm_output = subprocess.check_output(["arm-none-eabi-nm", "-n", args.elf], text=True)
@@ -420,6 +444,7 @@ def main():
                "inject_touch_jog": args.inject_touch_jog,
                "redraw_r01_lcd": args.redraw_r01_lcd,
                "arm_motion_phase": args.arm_motion_phase,
+               "motion_phase_arm_from_us": args.motion_phase_arm_from_us,
                "enable_motion_phase_input": args.enable_motion_phase_input,
                "samples": 0 if args.arm_motion_phase_only else args.samples,
                "interval_ms": args.interval_ms,

@@ -3771,9 +3771,18 @@ static int16_t lcdm_servo_loop_update_fast(void)
       uint16_t displacement = (feedback >= s_lcdm_motion_phase_start_adc) ?
           (uint16_t)(feedback - s_lcdm_motion_phase_start_adc) :
           (uint16_t)(s_lcdm_motion_phase_start_adc - feedback);
+      uint16_t brake_limit = SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC;
+      int32_t along_q4 = phase_input.velocity_q4 * (int32_t)s_lcdm_servo_customer_dir;
+      /* Reserve the distance traveled while both bridge directions are off.
+       * Bound the advance so small diagnostic moves still have room to start. */
+      if (along_q4 > 0)
+      {
+        const uint16_t max_advance = (brake_limit / 4U < 12U) ? brake_limit / 4U : 12U;
+        uint32_t advance = ((uint32_t)along_q4 * LCDM_SERVO_REVERSE_DEAD_MS + 15U) / 16U;
+        brake_limit -= (advance < max_advance) ? (uint16_t)advance : max_advance;
+      }
       phase_output = LcdmMotionPhase_UpdatePositionGuarded(
-          &phase_input, &phase_config, displacement,
-          SERVO_LCDM_MOTION_PHASE_POSITION_LIMIT_ADC,
+          &phase_input, &phase_config, displacement, brake_limit,
           s_lcdm_motion_phase_peak_velocity_q4,
           &s_lcdm_motion_phase_position_guard_latched);
       if ((phase_output.phase == LCDM_MOTION_PHASE_DRIVE) &&
