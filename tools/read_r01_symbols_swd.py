@@ -52,6 +52,11 @@ try:
             if "running" not in str(target.get_state()).lower() or target.read16(duty_addr) != 0:
                 raise SystemExit("The core must be running with zero H-bridge duty")
             target.write16(step_addr, cfg["r01_step_us"] & 0xffff)
+            ramp_addr = cfg["symbols"].get("g_r01_prod_requested_ramp", [None])[0]
+            if cfg["r01_ramp"] and ramp_addr is None:
+                raise SystemExit("Selected ELF lacks the guarded cumulative-step selector")
+            if ramp_addr is not None:
+                target.write8(ramp_addr, int(cfg["r01_ramp"]))
         target.write32(arm_addr, 0x52303141)
         print(json.dumps({"event": "R01_ARM_SENT", "active_before": active_now,
                           "arm_before": arm_state, "pulse_us": target.read16(
@@ -177,6 +182,9 @@ try:
                     fields = ("state", "input_us", "target_adc", "feedback_adc", "error_adc", "motor_duty", "input_valid")
                     offsets = (0, 2, 4, 6, 8, 10, 12)
                     out["symbols"][name] = dict(zip(fields, [int.from_bytes(data[o:o + (1 if o == 12 else 2)], "little", signed=o in (8, 10)) for o in offsets]))
+                elif name == "g_r01_prod_ramp_target_adc":
+                    out["symbols"][name] = [
+                        int.from_bytes(data[i:i + 2], "little") for i in range(0, 6, 2)]
                 elif name == "g_r01_touch_jog_trace":
                     count = min(32, int.from_bytes(target.read_memory_block8(
                         cfg["symbols"]["g_r01_touch_jog_trace_count"][0], 1)[0:1], "little"))
@@ -220,7 +228,9 @@ def main():
     parser.add_argument("--arm-r01-motion", action="store_true",
                         help="explicitly arm the preconfigured, limited R01 production motion test")
     parser.add_argument("--r01-step-us", type=int,
-                        help="select a signed production-loop step of 8..40 us")
+                        help="select a signed production-loop step of 1..40 us")
+    parser.add_argument("--r01-ramp", action="store_true",
+                        help="reach +/-3 us via three 1 us increases at 20 ms intervals")
     parser.add_argument("--arm-r01-motion-only", action="store_true",
                         help="arm the production-loop one-shot and disconnect before reading telemetry")
     parser.add_argument("--pwm-capture", action="store_true",
@@ -244,8 +254,10 @@ def main():
     parser.add_argument("--compat", default="/home/andrew/.local/share/servo_swd/dq110_pyocd_hid_compat.py")
     args = parser.parse_args()
     if args.r01_step_us is not None and (
-            not args.arm_r01_motion_only or not 8 <= abs(args.r01_step_us) <= 40):
-        parser.error("--r01-step-us requires --arm-r01-motion-only and magnitude 8..40 us")
+            not args.arm_r01_motion_only or not 1 <= abs(args.r01_step_us) <= 40):
+        parser.error("--r01-step-us requires --arm-r01-motion-only and magnitude 1..40 us")
+    if args.r01_ramp and args.r01_step_us not in (-3, 3):
+        parser.error("--r01-ramp requires --r01-step-us 3 or -3")
     if args.pwm_capture and (args.stop or args.arm_r01_motion or
             args.motion_phase or args.arm_motion_phase or args.enable_motion_phase_input or
             args.inject_touch_jog or args.redraw_r01_lcd or args.summary):
@@ -272,6 +284,9 @@ def main():
         ("g_r01_active_test_arm_request", 4, False),
         ("g_r01_production_test_active", 1, False),
         ("g_r01_prod_requested_step_us", 2, True),
+        ("g_r01_prod_requested_ramp", 1, False),
+        ("g_r01_prod_ramp_seen", 1, False),
+        ("g_r01_prod_ramp_target_adc", 6, False),
         ("g_r01_production_test_pulse_us", 2, False),
         ("g_r01_test_sweep_stage", 1, False),
         ("g_r01_test_sweep_result", 1, False),
@@ -485,7 +500,7 @@ def main():
             raise SystemExit("Selected ELF lacks R01 stop symbols")
         cfg = {"uid": args.uid, "pack": args.pack, "compat": args.compat,
                "stop": args.stop, "arm_motion": args.arm_r01_motion,
-               "r01_step_us": args.r01_step_us,
+               "r01_step_us": args.r01_step_us, "r01_ramp": args.r01_ramp,
                "inject_touch_jog": args.inject_touch_jog,
                "redraw_r01_lcd": args.redraw_r01_lcd,
                "arm_motion_phase": args.arm_motion_phase,

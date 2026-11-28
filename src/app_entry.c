@@ -159,6 +159,10 @@ static uint32_t s_r01_production_test_start_ms;
 #if !SERVO_R01_TEST_STAIRCASE && !SERVO_R01_CENTER_RETURN_TEST && !SERVO_R01_TOUCH_JOG_TEST && !SERVO_R01_LCD_ONLY_TEST
 __attribute__((used)) volatile int16_t g_r01_prod_requested_step_us;
 static int16_t s_r01_production_step_us;
+__attribute__((used)) volatile uint8_t g_r01_prod_requested_ramp;
+static bool s_r01_production_ramp;
+__attribute__((used)) volatile uint8_t g_r01_prod_ramp_seen;
+__attribute__((used)) volatile uint16_t g_r01_prod_ramp_target_adc[3];
 #endif
 #if SERVO_R01_TOUCH_JOG_TEST
 static int8_t s_r01_touch_jog_direction;
@@ -5566,7 +5570,16 @@ int entry(void)
 #if !SERVO_R01_TEST_STAIRCASE && !SERVO_R01_CENTER_RETURN_TEST && !SERVO_R01_TOUCH_JOG_TEST && !SERVO_R01_LCD_ONLY_TEST
       int16_t step = g_r01_prod_requested_step_us;
       g_r01_prod_requested_step_us = 0;
-      if ((step >= 8 && step <= 40) || (step <= -8 && step >= -40))
+      s_r01_production_ramp = g_r01_prod_requested_ramp == 1U;
+      g_r01_prod_requested_ramp = 0U;
+      g_r01_prod_ramp_seen = 0U;
+      if (s_r01_production_ramp && step != 3 && step != -3)
+      {
+        g_r01_active_test_arm_request = 3U;
+        HBridge_Coast();
+        continue;
+      }
+      if ((step >= 1 && step <= 40) || (step <= -1 && step >= -40))
       {
         s_r01_production_step_us = step;
       }
@@ -5659,8 +5672,14 @@ int entry(void)
       }
       else
       {
-        test_pulse_us = (uint16_t)((int32_t)SERVO_R01_TEST_ANCHOR_PULSE_US +
-                                   s_r01_production_step_us);
+        int16_t step = s_r01_production_step_us;
+        if (s_r01_production_ramp)
+        {
+          unsigned index = (elapsed_ms - 250U) / 20U + 1U;
+          if (index > 3U) index = 3U;
+          step = (step < 0) ? -(int16_t)index : (int16_t)index;
+        }
+        test_pulse_us = (uint16_t)((int32_t)SERVO_R01_TEST_ANCHOR_PULSE_US + step);
       }
 #endif
 #if !SERVO_R01_TEST_STAIRCASE
@@ -5703,6 +5722,19 @@ int entry(void)
       if (g_r01_production_test_active != 0U)
       {
         Servo_Control_Update1ms();
+#if !SERVO_R01_TEST_STAIRCASE && !SERVO_R01_CENTER_RETURN_TEST
+        if (s_r01_production_ramp)
+        {
+          ServoStatus ramp_status = Servo_Control_GetStatus();
+          int16_t index = (int16_t)((int32_t)ramp_status.input_us - SERVO_R01_TEST_ANCHOR_PULSE_US);
+          if (index < 0) index = (int16_t)-index;
+          if (ramp_status.input_valid && index >= 1 && index <= 3)
+          {
+            g_r01_prod_ramp_target_adc[index - 1] = ramp_status.target_adc;
+            g_r01_prod_ramp_seen |= (uint8_t)(1U << (index - 1));
+          }
+        }
+#endif
 #if SERVO_R01_TEST_STAIRCASE && !SERVO_R01_CENTER_RETURN_TEST
         {
           int32_t signed_displacement = (int32_t)ADC_Feedback_GetRaw() -

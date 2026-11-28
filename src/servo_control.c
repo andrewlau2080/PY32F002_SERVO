@@ -104,6 +104,13 @@ __attribute__((used)) volatile uint16_t g_r01_prod_fine_pwm_longest_ms;
 __attribute__((used)) volatile uint8_t g_r01_prod_fine_exit;
 static uint32_t s_r01_prod_fine_pwm_last_ms;
 static uint16_t s_r01_prod_fine_pwm_run_ms;
+#if BOARD_TSSOP20_DEBUG_PINS
+static uint16_t s_r01_micro_reference_us;
+static uint16_t s_r01_micro_start_adc;
+static uint32_t s_r01_micro_start_ms;
+static int8_t s_r01_micro_direction;
+static uint8_t s_r01_micro_motion_samples;
+#endif
 volatile int16_t g_r01_prod_center_offset_adc;
 volatile uint32_t g_r01_prod_nonzero_duty_count;
 volatile uint16_t g_r01_prod_max_abs_duty;
@@ -385,6 +392,11 @@ void Servo_Control_Init(void)
   g_r01_prod_fine_exit = 0U;
   s_r01_prod_fine_pwm_last_ms = 0U;
   s_r01_prod_fine_pwm_run_ms = 0U;
+#if BOARD_TSSOP20_DEBUG_PINS
+  s_r01_micro_reference_us = 0U;
+  s_r01_micro_direction = 0;
+  s_r01_micro_motion_samples = 0U;
+#endif
 #endif
   /* 驱动频率属于可调参数，不同马达可能对噪声和效率有不同表现。 */
   HBridge_SetFrequency(Servo_Params_Get()->drive_frequency_hz);
@@ -649,6 +661,56 @@ void Servo_Control_Update1ms(void)
   s_status.target_adc = effective_target;
   s_status.error_adc = error;
   uint16_t abs_error = abs_i16(error);
+#if SERVO_R01_PRODUCTION_LOOP_TEST && BOARD_TSSOP20_DEBUG_PINS
+  /* Internal bench candidate: the input reference qualifies motion; the
+   * position target continues to come from the complete absolute command. */
+  if (!input_valid || s_r01_micro_reference_us == 0U)
+  {
+    s_r01_micro_reference_us = input_us;
+    s_r01_micro_direction = 0;
+  }
+  else if (abs_i16((int16_t)((int32_t)input_us - s_r01_micro_reference_us)) >= 3U)
+  {
+    uint16_t reference = s_r01_micro_reference_us;
+    uint16_t delta_us = abs_i16((int16_t)((int32_t)input_us - reference));
+    s_r01_micro_reference_us = input_us;
+    if (delta_us >= 8U)
+    {
+      s_r01_micro_direction = 0;
+    }
+    else if (s_r01_micro_direction == 0 && effective_target == target &&
+             abs_error >= 2U && abs_error <= deadband_count)
+    {
+      int32_t command_delta = (int32_t)Servo_Control_MapPulseToAdc(input_us) -
+                              Servo_Control_MapPulseToAdc(reference);
+      if (command_delta * error > 0)
+      {
+        s_r01_micro_start_adc = feedback;
+        s_r01_micro_start_ms = now_ms;
+        s_r01_micro_direction = (error > 0) ? 1 : -1;
+        s_r01_micro_motion_samples = 0U;
+      }
+    }
+  }
+
+  if (s_r01_micro_direction != 0)
+  {
+    int32_t travel = ((int32_t)feedback - s_r01_micro_start_adc) * s_r01_micro_direction;
+    s_r01_micro_motion_samples = (travel >= 2) ?
+        (uint8_t)(s_r01_micro_motion_samples + 1U) : 0U;
+    if ((int32_t)error * s_r01_micro_direction <= 1 ||
+        s_r01_micro_motion_samples >= 2U ||
+        now_ms - s_r01_micro_start_ms >= 45U)
+    {
+      g_r01_prod_fine_exit = (now_ms - s_r01_micro_start_ms >= 45U) ? 2U : 1U;
+      s_r01_micro_direction = 0;
+    }
+  }
+  bool micro_drive = s_r01_micro_direction != 0;
+#else
+  const bool micro_drive = false;
+#endif
+
 #if BOARD_TSSOP20_DEBUG_PINS
   bool fine_boost_requested = false;
   if (s_breakaway_fine && s_breakaway_direction != 0 &&
@@ -719,7 +781,7 @@ void Servo_Control_Update1ms(void)
    * gate it applies PWM even at the anchor (error near zero).  That unwanted
    * anchor drive obscures the requested direction test and can trip the raw
    * ADC displacement guard before the pulse step begins. */
-  if ((g_r01_production_test_active != 0U) && (abs_error <= deadband_count))
+  if ((g_r01_production_test_active != 0U) && (abs_error <= deadband_count) && !micro_drive)
   {
     HBridge_Coast();
     s_status.state = SERVO_STATE_HOLD;
@@ -753,7 +815,7 @@ void Servo_Control_Update1ms(void)
                                                     params->hold_settle_ms,
                                                     SERVO_HOLD_SETTLE_MAX_SAMPLE_GAP_MS);
 
-  if (hold_confirmed)
+  if (hold_confirmed && !micro_drive)
   {
     /* 进入到位区后按参数选择滑行、持续刹车或短刹车后滑行。 */
     if (s_hold_active == 0U)
@@ -882,6 +944,15 @@ void Servo_Control_Update1ms(void)
 #if !SERVO_R01_PRODUCTION_LOOP_TEST
   (void)fine_boost_requested;
 #endif
+#endif
+
+#if SERVO_R01_PRODUCTION_LOOP_TEST && BOARD_TSSOP20_DEBUG_PINS
+  if (micro_drive)
+  {
+    uint16_t cap = params->max_duty < 220U ? params->max_duty : 220U;
+    duty = (int16_t)(cap * s_r01_micro_direction);
+    fine_boost_requested = (duty != 0);
+  }
 #endif
 
   if (Servo_Params_FlagEnabled(SERVO_PARAM_FLAG_MOTOR_REVERSE))

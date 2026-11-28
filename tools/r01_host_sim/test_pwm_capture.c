@@ -124,6 +124,22 @@ int main(void)
   test_tick_ms = accepted_edge_ms + 101U;
   check("input becomes stale after 100 ms", PWM_Input_IsFresh(), 0);
   check("stale generic command returns center", PWM_Input_GetCommandUs(), 1500);
+  start_us += 20000U;
+  pulse(start_us, 1500U);
+  for (uint16_t n = 1U; n <= 100U; ++n)
+  {
+    start_us += 20000U;
+    pulse(start_us, (uint16_t)(1500U + n));
+    snprintf(name, sizeof(name), "cumulative +%u us is visible to the controller", n);
+    check(name, PWM_Input_GetCommandUs(), 1500 + n);
+  }
+  uint16_t accumulated_command = PWM_Input_GetCommandUs();
+  start_us += 20000U;
+  pulse(start_us, 1500U);
+  start_us += 20000U;
+  pulse(start_us, 1600U);
+  check("one hundred 1 us increments and a single 100 us step deliver the same command",
+        PWM_Input_GetCommandUs(), accumulated_command);
   printf("Timer and GPIO are simulated; physical pulse accuracy is not tested.\n");
   return failures ? 1 : 0;
 }
