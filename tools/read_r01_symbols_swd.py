@@ -213,6 +213,8 @@ def main():
                         help="explicitly arm the preconfigured, limited R01 production motion test")
     parser.add_argument("--arm-r01-motion-only", action="store_true",
                         help="arm the production-loop one-shot and disconnect before reading telemetry")
+    parser.add_argument("--pwm-capture", action="store_true",
+                        help="read the external PWM input and controller status without motion commands")
     parser.add_argument("--motion-phase", action="store_true",
                         help="read only the limited LCDM motion-phase telemetry symbols")
     parser.add_argument("--arm-motion-phase", action="store_true",
@@ -231,6 +233,10 @@ def main():
     parser.add_argument("--pack", default="/home/andrew/ARTERY/DQ110_FW/1.2.8.pack")
     parser.add_argument("--compat", default="/home/andrew/.local/share/servo_swd/dq110_pyocd_hid_compat.py")
     args = parser.parse_args()
+    if args.pwm_capture and (args.stop or args.arm_r01_motion or
+            args.motion_phase or args.arm_motion_phase or args.enable_motion_phase_input or
+            args.inject_touch_jog or args.redraw_r01_lcd or args.summary):
+        parser.error("--pwm-capture emits read-only snapshots and cannot be combined with other modes")
     if args.arm_r01_motion_only and (not args.arm_r01_motion or args.arm_motion_phase):
         parser.error("--arm-r01-motion-only requires --arm-r01-motion without motion-phase arming")
     if args.arm_motion_phase_only and not args.arm_motion_phase:
@@ -260,6 +266,11 @@ def main():
         ("g_r01_test_sweep_filtered_delta_adc", 2, True),
         ("g_r01_test_sweep_peak_delta_adc", 2, False),
         ("g_r01_test_sweep_confirm_count", 1, False),
+        ("s_last_pulse_us", 2, False),
+        ("s_raw_pulse_us", 2, False),
+        ("s_last_period_us", 4, False),
+        ("s_last_edge_ms", 4, False),
+        ("s_edge_count", 4, False),
         ("s_pulse_count", 4, False),
         ("s_valid", 1, False),
         ("s_test_pulse_count", 4, False),
@@ -442,6 +453,13 @@ def main():
             "s_last_raw", "s_vdd_mv"
         }
         names = tuple(item for item in names if item[0] in phase_names)
+    if args.pwm_capture:
+        capture_names = {
+            "s_status", "s_duty", "s_last_raw", "s_vdd_mv", "s_last_pulse_us",
+            "s_raw_pulse_us", "s_last_period_us", "s_last_edge_ms",
+            "s_edge_count", "s_pulse_count", "s_valid",
+        }
+        names = tuple(item for item in names if item[0] in capture_names)
     if not sys.platform.startswith("linux"):
         if args.stop and ("g_r01_production_test_active" not in addresses or
                           "g_r01_active_test_arm_request" not in addresses):
